@@ -29,10 +29,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. Running `node index.js` (or `framershot` after local install) does not crash with a module error
   2. All production dependencies (playwright-chromium, sharp, commander, js-yaml, zod, chalk, ora) are installed and importable
   3. `package.json` declares the `framershot` bin and the project runs with `node --experimental-vm-modules` or ESM config as needed
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 01-01: Initialize package.json, install dependencies, configure ESM/CJS, wire bin entry
+- [ ] 01-01-PLAN.md — Scaffold package.json (ESM + framershot bin), install seven deps, create executable index.js entry
 
 ---
 
