@@ -57,9 +57,14 @@ Plans:
 
 Plans:
 
-- [ ] 02-01: Wire commander, define `capture` subcommand, resolve config file path
+**Wave 1**
+
 - [ ] 02-02: Define zod schema for full config shape, parse YAML, validate, surface errors
 - [ ] 02-03: Implement output path template resolver (`{date}`, `{viewport}`, `{page}`)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-01: Wire commander, define `capture` subcommand, resolve config file path
 
 ---
 
