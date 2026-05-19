@@ -100,6 +100,7 @@ Updated during roadmap creation.
 | OUT-03 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 18 total
 - Mapped to phases: 18
 - Unmapped: 0 ✓
