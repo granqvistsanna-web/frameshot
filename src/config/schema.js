@@ -37,7 +37,14 @@ export const configSchema = z.object({
   name: z.string().min(1),
   // z.string().url() is the standard zod 3 form for WHATWG URL validation.
   // Do NOT use top-level z.url() — that is a zod v4-only API.
-  baseUrl: z.string().url(),
+  // .refine restricts to http/https so configs cannot point at javascript:,
+  // file:, or data: schemes that Phase 3 navigation would happily follow.
+  baseUrl: z
+    .string()
+    .url()
+    .refine((u) => u.startsWith('http://') || u.startsWith('https://'), {
+      message: 'baseUrl must use http or https',
+    }),
   // output: just string min(1) — placeholder enforcement belongs to the template resolver
   output: z.string().min(1),
   deviceScaleFactor: z.number().min(1).max(3).default(2),
