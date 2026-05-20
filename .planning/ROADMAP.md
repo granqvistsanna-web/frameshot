@@ -14,7 +14,7 @@ framershot v0.1 delivers a local CLI that captures clean, retina-quality full-pa
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Project scaffold, dependencies, bin entry wired (completed 2026-05-19)
-- [ ] **Phase 2: CLI + Config** - Commander wiring, YAML parsing, zod validation, output template resolver
+- [x] **Phase 2: CLI + Config** - Commander wiring, YAML parsing, zod validation, output template resolver (completed 2026-05-20)
 - [ ] **Phase 3: Browser + Navigation** - Playwright launch, viewport, retina scale, networkidle + fonts.ready waits
 - [ ] **Phase 4: Prepare Pipeline** - Animation disable, Framer Motion surgical fix, element hiding, scroll prime, extraDelay
 - [ ] **Phase 5: Scroll-Stitch Output** - Viewport-step scroll-capture loop, sharp stitch, write to templated path
@@ -64,7 +64,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-01: Wire commander, define `capture` subcommand, resolve config file path
+- [x] 02-01: Wire commander, define `capture` subcommand, resolve config file path
 
 ---
 
@@ -164,7 +164,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete    | 2026-05-19 |
-| 2. CLI + Config | 2/3 | In Progress|  |
+| 2. CLI + Config | 3/3 | Complete   | 2026-05-20 |
 | 3. Browser + Navigation | 0/2 | Not started | - |
 | 4. Prepare Pipeline | 0/4 | Not started | - |
 | 5. Scroll-Stitch Output | 0/3 | Not started | - |
