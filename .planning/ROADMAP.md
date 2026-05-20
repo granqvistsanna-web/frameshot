@@ -59,8 +59,8 @@ Plans:
 
 **Wave 1**
 
-- [ ] 02-02: Define zod schema for full config shape, parse YAML, validate, surface errors
-- [ ] 02-03: Implement output path template resolver (`{date}`, `{viewport}`, `{page}`)
+- [x] 02-02: Define zod schema for full config shape, parse YAML, validate, surface errors
+- [x] 02-03: Implement output path template resolver (`{date}`, `{viewport}`, `{page}`)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -164,7 +164,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete    | 2026-05-19 |
-| 2. CLI + Config | 0/3 | Not started | - |
+| 2. CLI + Config | 2/3 | In Progress|  |
 | 3. Browser + Navigation | 0/2 | Not started | - |
 | 4. Prepare Pipeline | 0/4 | Not started | - |
 | 5. Scroll-Stitch Output | 0/3 | Not started | - |
