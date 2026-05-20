@@ -68,7 +68,11 @@ export function formatZodError(zodError) {
   return zodError.issues.map((issue) => {
     const field = issue.path.length ? issue.path.join('.') : '<root>';
     if (issue.code === 'invalid_type') {
-      return `${field}: expected ${issue.expected}, got ${issue.received ?? typeof issue.input}`;
+      // issue.received is the documented stable field in zod 3; fall back to
+      // a sentinel rather than `typeof issue.input` (issue.input is a zod 4
+      // field, undefined on most zod 3 issues, so the old fallback degraded
+      // to the literal string 'undefined' for every case that hit it).
+      return `${field}: expected ${issue.expected}, got ${issue.received ?? 'unknown'}`;
     }
     if (issue.code === 'too_small') {
       return `${field}: ${issue.message} (minimum: ${issue.minimum})`;
