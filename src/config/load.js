@@ -45,7 +45,10 @@ export async function loadConfig(configPath) {
   } catch (err) {
     if (err.code === 'ENOENT') throw new ConfigError(`Config file not found: ${absPath}`);
     if (err.code === 'EACCES') throw new ConfigError(`Permission denied reading: ${absPath}`);
-    throw err; // genuinely unexpected — let it bubble
+    if (err.code === 'EISDIR') throw new ConfigError(`Config path is a directory, not a file: ${absPath}`);
+    // Anything else (EMFILE, ENOTDIR, ELOOP, …): still wrap so the user sees
+    // the path and the CFG-02 "never leak raw errors" contract holds.
+    throw new ConfigError(`Failed to read config ${absPath}: ${err.message}`);
   }
   // Strip UTF-8 BOM if present (hand-edited files on Windows sometimes have one)
   // RESEARCH.md §Pitfall 3: Notepad and some editors save UTF-8 with BOM by default
