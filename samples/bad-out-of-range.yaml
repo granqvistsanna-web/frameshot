@@ -1,0 +1,18 @@
+# bad-out-of-range.yaml — CFG-02 fixture: deviceScaleFactor exceeds schema max
+# Exercises formatZodError's too_big branch.
+# Expected error: "deviceScaleFactor: Number must be less than or equal to 3 (maximum: 3)"
+name: pubq-marketing
+baseUrl: https://pubq.se
+output: ./screenshots/{date}/{viewport}/{page}.png
+deviceScaleFactor: 5
+viewport:
+  width: 1440
+  height: 900
+  name: desktop
+page:
+  path: /
+  name: home
+prepare:
+  animations: true
+  scrollPrime: true
+  extraDelay: 500

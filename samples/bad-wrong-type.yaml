@@ -1,0 +1,18 @@
+# bad-wrong-type.yaml — CFG-02 fixture: viewport.width is a string, not a number
+# Exercises formatZodError's invalid_type branch for a wrong-type field.
+# Expected error: "viewport.width: expected number, got string"
+name: pubq-marketing
+baseUrl: https://pubq.se
+output: ./screenshots/{date}/{viewport}/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: "1440"
+  height: 900
+  name: desktop
+page:
+  path: /
+  name: home
+prepare:
+  animations: true
+  scrollPrime: true
+  extraDelay: 500
