@@ -12,19 +12,18 @@ Reliably capture clean, retina-quality screenshots of Framer sites without ghost
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] CLI scaffold with config loading (`framershot capture <config.yaml>`) — validated in Phase 2 (CLI-01)
+- [x] Per-site YAML config: name, baseUrl, output template, viewport, page, prepare options — validated in Phase 2 (CFG-01)
+- [x] Field-named validation errors (no raw zod dump) — validated in Phase 2 (CFG-02)
+- [x] Templated output paths (`{date}`, `{viewport}`, `{page}` substitution) — validated in Phase 2 (CFG-03)
 
 ### Active
-
-- [ ] CLI scaffold with config loading (`framershot capture <config.yaml>`)
-- [ ] Per-site YAML/JSON config: name, baseUrl, output template, viewports, pages, prepare options
 - [ ] Playwright launch with configurable viewport + `deviceScaleFactor` (2 or 3 for retina)
 - [ ] Page navigation waits for `networkidle` + `document.fonts.ready`
 - [ ] Animation neutralization: CSS injection + Framer Motion–specific disabling (IntersectionObserver replacement so in-view triggers fire instantly)
 - [ ] Selector-based element hiding (sticky navs, banners, chat widgets)
 - [ ] Scroll prime: scroll to bottom in steps, wait, scroll back to top — forces lazy images and reveals to settle
 - [ ] Full-page stitched capture: scroll in viewport-height steps, capture each, stitch with `sharp` (avoids Playwright's native `fullPage` ghosting of sticky elements)
-- [ ] Templated output paths (`./screenshots/{date}/{viewport}/{page}.png`)
 - [ ] Region capture by CSS selector (scroll into view, `element.screenshot()` with padding)
 - [ ] Region capture by from/to anchors (compute bounding box between two anchors)
 - [ ] Multi-viewport per run (desktop / tablet / mobile from one config)
@@ -68,4 +67,4 @@ Reliably capture clean, retina-quality screenshots of Framer sites without ghost
 | Name: framershot | User locked it in — bin name, package name, config namespace all use this. | — Pending |
 
 ---
-*Last updated: 2026-05-19 after initialization*
+*Last updated: 2026-05-20 — Phase 2 (CLI + Config) complete*
