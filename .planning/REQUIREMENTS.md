@@ -9,15 +9,15 @@ Scope: v0.1 minimum viable — CLI + config + single page/viewport full-page sti
 
 ### CLI
 
-- [ ] **CLI-01**: User can run `framershot capture <config.yaml>` from any directory and produce screenshots
+- [x] **CLI-01**: User can run `framershot capture <config.yaml>` from any directory and produce screenshots
 - [ ] **CLI-02**: User sees terminal progress output (current page, current step) while capture runs
 - [ ] **CLI-03**: User sees actionable error messages when capture fails (config error, network error, missing selector)
 
 ### Config
 
-- [ ] **CFG-01**: User can author a YAML config with name, baseUrl, output template, deviceScaleFactor, single viewport, single page, and prepare options
-- [ ] **CFG-02**: Invalid config files are rejected with specific error messages pointing to the bad field (zod-based validation)
-- [ ] **CFG-03**: Output path template supports `{date}`, `{viewport}`, `{page}` placeholders
+- [x] **CFG-01**: User can author a YAML config with name, baseUrl, output template, deviceScaleFactor, single viewport, single page, and prepare options
+- [x] **CFG-02**: Invalid config files are rejected with specific error messages pointing to the bad field (zod-based validation)
+- [x] **CFG-03**: Output path template supports `{date}`, `{viewport}`, `{page}` placeholders
 
 ### Capture
 
@@ -80,12 +80,12 @@ Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | Phase 2 | Pending |
+| CLI-01 | Phase 2 | Complete |
 | CLI-02 | Phase 6 | Pending |
 | CLI-03 | Phase 6 | Pending |
-| CFG-01 | Phase 2 | Pending |
-| CFG-02 | Phase 2 | Pending |
-| CFG-03 | Phase 2 | Pending |
+| CFG-01 | Phase 2 | Complete |
+| CFG-02 | Phase 2 | Complete |
+| CFG-03 | Phase 2 | Complete |
 | CAP-01 | Phase 3 | Pending |
 | CAP-02 | Phase 3 | Pending |
 | CAP-03 | Phase 3 | Pending |
