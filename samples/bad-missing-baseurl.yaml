@@ -1,0 +1,19 @@
+# bad-missing-baseurl.yaml — CFG-02 fixture: required field absent
+# Exercises formatZodError's invalid_type branch for a missing required field.
+# Expected error: "baseUrl: expected string, got undefined"
+name: pubq-marketing
+output: ./screenshots/{date}/{viewport}/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: 1440
+  height: 900
+  name: desktop
+page:
+  path: /
+  name: home
+prepare:
+  animations: true
+  hide:
+    - 'nav.sticky'
+  scrollPrime: true
+  extraDelay: 500

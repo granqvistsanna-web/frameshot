@@ -1,0 +1,18 @@
+# bad-url.yaml — CFG-02 fixture: baseUrl fails z.string().url() validation
+# Exercises formatZodError's catch-all branch (zod 3 issue code: invalid_string with validation:'url').
+# Expected error: "baseUrl: Invalid url"
+name: pubq-marketing
+baseUrl: not-a-url
+output: ./screenshots/{date}/{viewport}/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: 1440
+  height: 900
+  name: desktop
+page:
+  path: /
+  name: home
+prepare:
+  animations: true
+  scrollPrime: true
+  extraDelay: 500
