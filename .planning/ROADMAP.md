@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Project scaffold, dependencies, bin entry wired (completed 2026-05-19)
 - [x] **Phase 2: CLI + Config** - Commander wiring, YAML parsing, zod validation, output template resolver (completed 2026-05-20)
-- [ ] **Phase 3: Browser + Navigation** - Playwright launch, viewport, retina scale, networkidle + fonts.ready waits
+- [x] **Phase 3: Browser + Navigation** - Playwright launch, viewport, retina scale, networkidle + fonts.ready waits (completed 2026-05-20)
 - [ ] **Phase 4: Prepare Pipeline** - Animation disable, Framer Motion surgical fix, element hiding, scroll prime, extraDelay
 - [ ] **Phase 5: Scroll-Stitch Output** - Viewport-step scroll-capture loop, sharp stitch, write to templated path
 - [ ] **Phase 6: Terminal UX** - ora progress output, actionable error messages for all failure modes
@@ -84,8 +84,8 @@ Plans:
 
 Plans:
 
-- [ ] 03-01: Implement browser launcher (Playwright Chromium, viewport, deviceScaleFactor, headless)
-- [ ] 03-02: Implement page navigator (navigate to URL, wait networkidle, wait fonts.ready)
+- [x] 03-01: Implement browser launcher (Playwright Chromium, viewport, deviceScaleFactor, headless)
+- [x] 03-02: Implement page navigator (navigate to URL, wait networkidle, wait fonts.ready)
 
 ---
 
@@ -165,7 +165,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete    | 2026-05-19 |
 | 2. CLI + Config | 3/3 | Complete    | 2026-05-20 |
-| 3. Browser + Navigation | 0/2 | Not started | - |
+| 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
 | 4. Prepare Pipeline | 0/4 | Not started | - |
 | 5. Scroll-Stitch Output | 0/3 | Not started | - |
 | 6. Terminal UX | 0/2 | Not started | - |

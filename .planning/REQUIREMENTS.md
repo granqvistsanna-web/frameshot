@@ -21,10 +21,10 @@ Scope: v0.1 minimum viable — CLI + config + single page/viewport full-page sti
 
 ### Capture
 
-- [ ] **CAP-01**: Browser launches Chromium headless with configured viewport width and height
-- [ ] **CAP-02**: Capture honors `deviceScaleFactor` for retina-quality output (2x or 3x)
-- [ ] **CAP-03**: Browser navigates to `baseUrl` + page path and waits for `networkidle` before proceeding
-- [ ] **CAP-04**: Capture waits for `document.fonts.ready` so screenshots don't use fallback fonts
+- [x] **CAP-01**: Browser launches Chromium headless with configured viewport width and height
+- [x] **CAP-02**: Capture honors `deviceScaleFactor` for retina-quality output (2x or 3x)
+- [x] **CAP-03**: Browser navigates to `baseUrl` + page path and waits for `networkidle` before proceeding
+- [x] **CAP-04**: Capture waits for `document.fonts.ready` so screenshots don't use fallback fonts
 
 ### Prepare
 
@@ -86,10 +86,10 @@ Updated during roadmap creation.
 | CFG-01 | Phase 2 | Complete |
 | CFG-02 | Phase 2 | Complete |
 | CFG-03 | Phase 2 | Complete |
-| CAP-01 | Phase 3 | Pending |
-| CAP-02 | Phase 3 | Pending |
-| CAP-03 | Phase 3 | Pending |
-| CAP-04 | Phase 3 | Pending |
+| CAP-01 | Phase 3 | Complete |
+| CAP-02 | Phase 3 | Complete |
+| CAP-03 | Phase 3 | Complete |
+| CAP-04 | Phase 3 | Complete |
 | PREP-01 | Phase 4 | Pending |
 | PREP-02 | Phase 4 | Pending |
 | PREP-03 | Phase 4 | Pending |

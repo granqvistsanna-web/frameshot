@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Roadmap created — ready to plan Phase 1 (Foundation)
-last_updated: "2026-05-20T06:58:59.236Z"
+stopped_at: Completed 03-02-PLAN.md — Phase 3 Browser + Navigation done (4 of 6 phases complete)
+last_updated: "2026-05-20T09:01:15Z"
 last_activity: 2026-05-20
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 4
-  percent: 33
+  completed_plans: 6
+  percent: 50
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-19)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Phase 02 — cli-config
+**Current focus:** Phase 04 — prepare-pipeline (next)
 
 ## Current Position
 
 Phase: 03
-Plan: Not started
-Status: Executing Phase 02
+Plan: Complete (03-01 + 03-02 both done)
+Status: Phase 03 complete — ready for Phase 04
 Last activity: 2026-05-20
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4
+- Total plans completed: 6
 - Average duration: —
 - Total execution time: —
 
@@ -46,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 |-------|-------|-------|----------|
 | 01 | 1 | - | - |
 | 02 | 3 | - | - |
+| 03 | 2 | ~18 min | ~9 min |
 
 **Recent Trend:**
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - Manual scroll-and-stitch is the headline technical choice (not Playwright native fullPage)
 - Surgical Framer Motion disabling via IntersectionObserver replacement is the differentiator
 - Personal tool — no distribution polish, no npm publish
+- (03-02) Hermetic test fixtures use a localhost http server (`samples/serve-smoke.js`) rather than data: URLs — Phase 2's schema .refine restricts baseUrl to http/https, and Playwright's WHATWG URL joining rejects `goto('/')` against a data: baseURL
+- (03-02) Browser-layer lifecycle is owned at the CLI layer: launchBrowser outside try, navigateToPage + branch inside try, `context.close()` strictly before `browser.close()` in finally (Playwright #6319)
+- (03-02) `--smoke` is the developer verification seam on the `capture` subcommand; production runs go through the non-smoke branch which Phase 4/5 replace
 
 ### Pending Todos
 
@@ -76,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-19
-Stopped at: Roadmap created — ready to plan Phase 1 (Foundation)
+Last session: 2026-05-20T09:01:15Z
+Stopped at: Completed 03-02-PLAN.md — Phase 3 Browser + Navigation done
 Resume file: None
