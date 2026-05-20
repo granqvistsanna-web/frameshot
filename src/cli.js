@@ -1,5 +1,6 @@
 import { Command } from 'commander';
-import { resolve } from 'node:path';
+import { loadConfig } from './config/load.js';
+import { resolveTemplate } from './output/template.js';
 
 export function buildProgram() {
   const program = new Command();
@@ -13,8 +14,12 @@ export function buildProgram() {
     .command('capture <config>')
     .description('Parse a config file, validate, and (later) capture')
     .action(async (configArg) => {
-      const absPath = resolve(process.cwd(), configArg);
-      console.log(absPath);
+      const config = await loadConfig(configArg);
+      const date = new Date().toISOString().slice(0, 10);
+      const viewport = config.viewport.name ?? 'default';
+      const page = config.page.name;
+      const resolvedOutput = resolveTemplate(config.output, { date, viewport, page });
+      console.log(JSON.stringify({ ...config, _resolvedOutput: resolvedOutput }, null, 2));
     });
 
   return program;
