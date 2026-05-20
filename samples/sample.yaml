@@ -1,0 +1,19 @@
+# sample.yaml — minimal v0.1 config
+name: pubq-marketing
+baseUrl: https://pubq.se
+output: ./screenshots/{date}/{viewport}/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: 1440
+  height: 900
+  name: desktop
+page:
+  path: /
+  name: home
+prepare:
+  animations: true
+  hide:
+    - 'nav.sticky'
+    - '#consent-banner'
+  scrollPrime: true
+  extraDelay: 500
