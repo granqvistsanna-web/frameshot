@@ -1,0 +1,39 @@
+# smoke.yaml — Phase 3 hermetic smoke fixture.
+#
+# Plan 03-02 originally specified a data: URL baseUrl for full network-free
+# hermeticity, but two facts discovered during execution made that approach
+# unworkable (DEVIATION — Rule 1 auto-fix, see 03-02-SUMMARY.md):
+#
+#   1. The Phase 2 schema's .refine guard (commit 1af0f2a, a security fix
+#      landed AFTER Phase 3 was planned) restricts baseUrl to http/https
+#      schemes — data: URLs fail validation.
+#   2. Playwright 1.60's page.goto('/') against a data: baseURL throws
+#      "Cannot navigate to invalid URL" because data: URLs are opaque
+#      under WHATWG URL semantics (new URL("/", "data:...") raises
+#      "Invalid URL").
+#
+# The hermetic-intent solution: point baseUrl at a fixed localhost port and
+# host the fixture HTML via the tiny Node http server in samples/serve-smoke.js.
+# Output resolves to /tmp/framershot-smoke/<page>.png (outside the repo, so no
+# .gitignore work needed).
+#
+# To run this smoke locally:
+#   node samples/serve-smoke.js &       # background the fixture server
+#   node index.js capture samples/smoke.yaml --smoke
+#   kill %1                              # stop the fixture server
+#
+name: phase-03-smoke
+baseUrl: http://127.0.0.1:7357
+output: /tmp/framershot-smoke/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: 800
+  height: 600
+  name: smoke
+page:
+  path: "/"
+  name: home
+prepare:
+  animations: true
+  scrollPrime: false
+  extraDelay: 0
