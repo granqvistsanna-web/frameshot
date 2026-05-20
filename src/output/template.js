@@ -6,12 +6,22 @@
 // Unknown placeholders (e.g. {foo}) are left literal — typos surface visibly
 // in the output path rather than silently being dropped.
 
-const SLUG_RE = /[^a-zA-Z0-9._-]+/g;
+// \p{L} = any letter (any script), \p{N} = any digit (any script).
+// 'u' flag is required for Unicode property escapes.
+// Note: '{' and '}' are intentionally NOT in the safe set — slugify must
+// strip them so substituted values cannot re-introduce template placeholders
+// (resolveTemplate below relies on this invariant).
+const SLUG_RE = /[^\p{L}\p{N}._-]+/gu;
 
 function slugify(value) {
   // Lowercase, replace runs of non-safe chars with '-', trim leading/trailing '-'.
   // Preserves '.', '-', '_' so 'home-v2' and 'mobile.tall' survive unchanged.
-  return String(value).toLowerCase().replace(SLUG_RE, '-').replace(/^-+|-+$/g, '');
+  // Unicode-aware: 'café' and '北京' survive intact; only structural chars
+  // (spaces, '/', '(', '{', etc.) collapse to '-'.
+  const slug = String(value).toLowerCase().replace(SLUG_RE, '-').replace(/^-+|-+$/g, '');
+  // Fallback for whitespace-only or special-char-only inputs that would
+  // otherwise yield '' and produce dotfile/collapsed-path output ('./.png').
+  return slug || 'untitled';
 }
 
 export function resolveTemplate(template, { date, viewport, page }) {
