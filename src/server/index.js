@@ -150,10 +150,17 @@ async function handleCapture(req, res) {
   };
 
   try {
-    const { outputPath } = await runCapture(parsed.data, {
+    const results = await runCapture(parsed.data, {
       onProgress: (event) => send(event),
     });
-    send({ type: 'done', outputPath, urlPath: outputPathToUrl(outputPath) });
+    send({
+      type: 'done',
+      outputs: results.map(({ outputPath, viewportName }) => ({
+        outputPath,
+        urlPath: outputPathToUrl(outputPath),
+        viewportName,
+      })),
+    });
   } catch (err) {
     send({ type: 'error', message: errorToMessage(err) });
   } finally {
