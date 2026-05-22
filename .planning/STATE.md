@@ -4,8 +4,8 @@ milestone: v0.1
 milestone_name: milestone
 status: executing
 stopped_at: Completed 03-02-PLAN.md — Phase 3 Browser + Navigation done
-last_updated: "2026-05-22T12:35:58.682Z"
-last_activity: 2026-05-22 -- Phase 6 planning complete
+last_updated: "2026-05-22T12:56:47.143Z"
+last_activity: 2026-05-22 -- Phase 05 execution started
 progress:
   total_phases: 6
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-19)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Phase 04 — prepare-pipeline
+**Current focus:** Phase 05 — scroll-stitch-output
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-22 -- Phase 6 planning complete
+Phase: 05 (scroll-stitch-output) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 05
+Last activity: 2026-05-22 -- Phase 05 execution started
 
 Progress: [█████░░░░░] 50%
 

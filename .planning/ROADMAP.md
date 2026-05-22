@@ -131,14 +131,14 @@ Plans:
   3. Sticky navigation elements appear exactly once at the top of the stitched image, not repeated at every viewport-height interval
   4. Parent directories of the output path are created automatically if they do not exist
 
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 
 **Wave 1** — two independent modules under `src/capture/` (zero `files_modified` overlap; parallel-authorable):
 
-- [ ] 05-01-PLAN.md — Implement `src/capture/frames.js`: captureFrames(page) scroll-capture loop with rAF wait + last-frame overlap clamp (OUT-01)
-- [ ] 05-02-PLAN.md — Implement `src/capture/stitch.js`: stitchFrames(frames, geometry) sharp composite into one full-page PNG (OUT-02)
+- [x] 05-01-PLAN.md — Implement `src/capture/frames.js`: captureFrames(page) scroll-capture loop with rAF wait + last-frame overlap clamp (OUT-01)
+- [x] 05-02-PLAN.md — Implement `src/capture/stitch.js`: stitchFrames(frames, geometry) sharp composite into one full-page PNG (OUT-02)
 
 **Wave 2** *(blocked on all wave-1 plans completing)*:
 
@@ -183,5 +183,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. CLI + Config | 3/3 | Complete    | 2026-05-20 |
 | 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
 | 4. Prepare Pipeline | 5/5 | Complete    | 2026-05-22 |
-| 5. Scroll-Stitch Output | 0/3 | Not started | - |
+| 5. Scroll-Stitch Output | 2/3 | In Progress|  |
 | 6. Terminal UX | 0/2 | Not started | - |
