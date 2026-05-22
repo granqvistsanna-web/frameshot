@@ -43,12 +43,13 @@ export function buildProgram() {
         // runCapture (that does full-page; smoke needs ONE viewport-sized shot
         // to prove viewport × DSR math reached rendering).
         const date = new Date().toISOString().slice(0, 10);
-        const viewport = config.viewport.name ?? 'default';
+        // smoke takes the first viewport only — see Phase 7 PLAN-03 / ROADMAP success criterion #4 (v0.1 back-compat)
+        const viewport = config.viewports[0].name;
         const page = config.page.name;
         const resolvedOutput = resolveTemplate(config.output, { date, viewport, page });
 
         spinner.text = 'Launching Chromium';
-        const { browser, context } = await launchBrowser(config);
+        const { browser, context } = await launchBrowser(config, config.viewports[0]);
         try {
           spinner.text = 'Installing animation guards';
           await installAnimationGuards(context, config.prepare);
@@ -87,12 +88,12 @@ export function buildProgram() {
       // selector warnings between spinner.stop()/start() (06-RESEARCH §Pitfall 2),
       // and emit the final success line on both stderr (via spinner.succeed) and
       // stdout (pipe-capturable, §Pitfall 6).
-      const { outputPath } = await runCapture(config, {
+      const results = await runCapture(config, {
         onProgress: (event) => {
           if (event.type === 'step') {
-            spinner.text = event.label;
+            spinner.text = `[${event.viewport}] ${event.label}`;
           } else if (event.type === 'frame') {
-            spinner.text = `Capturing frame ${event.current}/${event.total}`;
+            spinner.text = `[${event.viewport}] Capturing frame ${event.current}/${event.total}`;
           } else if (event.type === 'warning' && event.kind === 'hide-missed') {
             spinner.stop();
             printSelectorWarnings({ matched: 0, missed: event.selectors });
@@ -101,10 +102,12 @@ export function buildProgram() {
         },
       });
 
-      spinner.succeed(`screenshot written: ${outputPath}`);
+      spinner.succeed(`${results.length} screenshot(s) written`);
       currentSpinner = null;
-      // Duplicate to stdout so the path is pipe-capturable (06-RESEARCH §Pitfall 6).
-      console.log(`screenshot written: ${outputPath}`);
+      // One stdout line per viewport — pipe-capturable per 06-RESEARCH §Pitfall 6.
+      for (const { outputPath } of results) {
+        console.log(`screenshot written: ${outputPath}`);
+      }
     });
 
   program
