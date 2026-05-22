@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: CLI + Config** - Commander wiring, YAML parsing, zod validation, output template resolver (completed 2026-05-20)
 - [x] **Phase 3: Browser + Navigation** - Playwright launch, viewport, retina scale, networkidle + fonts.ready waits (completed 2026-05-20)
 - [x] **Phase 4: Prepare Pipeline** - Animation disable, Framer Motion surgical fix, element hiding, scroll prime, extraDelay (completed 2026-05-22)
-- [ ] **Phase 5: Scroll-Stitch Output** - Viewport-step scroll-capture loop, sharp stitch, write to templated path
+- [x] **Phase 5: Scroll-Stitch Output** - Viewport-step scroll-capture loop, sharp stitch, write to templated path (completed 2026-05-22)
 - [ ] **Phase 6: Terminal UX** - ora progress output, actionable error messages for all failure modes
 
 ## Phase Details
@@ -131,7 +131,7 @@ Plans:
   3. Sticky navigation elements appear exactly once at the top of the stitched image, not repeated at every viewport-height interval
   4. Parent directories of the output path are created automatically if they do not exist
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -142,7 +142,7 @@ Plans:
 
 **Wave 2** *(blocked on all wave-1 plans completing)*:
 
-- [ ] 05-03-PLAN.md — Implement `src/capture/index.js` orchestrator (captureFrames → stitchFrames → mkdir + writeFile) AND wire captureFullPage into `src/cli.js` (else-branch replacement, no new flag); end-to-end PNG output verify (OUT-03)
+- [x] 05-03-PLAN.md — Implement `src/capture/index.js` orchestrator (captureFrames → stitchFrames → mkdir + writeFile) AND wire captureFullPage into `src/cli.js` (else-branch replacement, no new flag); end-to-end PNG output verify (OUT-03)
 
 ---
 
@@ -183,5 +183,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. CLI + Config | 3/3 | Complete    | 2026-05-20 |
 | 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
 | 4. Prepare Pipeline | 5/5 | Complete    | 2026-05-22 |
-| 5. Scroll-Stitch Output | 2/3 | In Progress|  |
+| 5. Scroll-Stitch Output | 3/3 | Complete   | 2026-05-22 |
 | 6. Terminal UX | 0/2 | Not started | - |
