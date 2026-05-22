@@ -102,16 +102,16 @@ Plans:
   4. The `extraDelay` value in config (e.g. 1000ms) causes an observable pause before capture begins — verifiable by adding a console.time around the prepare step
   5. CSS `animation` and `transition` properties are set to `none` globally via injected style, observable by inspecting computed styles in a headed debug run
 
-**Plans:** 5 plans
+**Plans:** 4/5 plans executed
 
 Plans:
 
 **Wave 1** — four independent modules under `src/prepare/`, parallel-authorable (zero `files_modified` overlap):
 
-- [ ] 04-01-PLAN.md — Implement `src/prepare/animations.js`: installAnimationGuards (pre-nav IO shim + CSS injection, single config gate — PREP-01 + PREP-02 ship together; the canonical Framer-Motion intervention is IntersectionObserver replacement, NOT `window.__framer_motion_disabled` which is not a real Framer global)
-- [ ] 04-02-PLAN.md — Implement `src/prepare/hide.js`: hideSelectors with `visibility: hidden !important` (NOT display:none, which would break Phase 5's scroll-stitch math) and { matched, missed } summary for Phase 6 (PREP-03)
-- [ ] 04-03-PLAN.md — Implement `src/prepare/scroll.js`: scrollPrime (viewport-height steps with 200ms inter-step waits, instant-only scroll, top-reset) and extraDelay wrapper (PREP-04 + PREP-05)
-- [ ] 04-04-PLAN.md — Implement `src/prepare/index.js`: orchestrator + barrel. Re-exports installAnimationGuards; defines runPreparePipeline composing hide → scrollPrime → extraDelay (PREP-01..05 traceability)
+- [x] 04-01-PLAN.md — Implement `src/prepare/animations.js`: installAnimationGuards (pre-nav IO shim + CSS injection, single config gate — PREP-01 + PREP-02 ship together; the canonical Framer-Motion intervention is IntersectionObserver replacement, NOT `window.__framer_motion_disabled` which is not a real Framer global)
+- [x] 04-02-PLAN.md — Implement `src/prepare/hide.js`: hideSelectors with `visibility: hidden !important` (NOT display:none, which would break Phase 5's scroll-stitch math) and { matched, missed } summary for Phase 6 (PREP-03)
+- [x] 04-03-PLAN.md — Implement `src/prepare/scroll.js`: scrollPrime (viewport-height steps with 200ms inter-step waits, instant-only scroll, top-reset) and extraDelay wrapper (PREP-04 + PREP-05)
+- [x] 04-04-PLAN.md — Implement `src/prepare/index.js`: orchestrator + barrel. Re-exports installAnimationGuards; defines runPreparePipeline composing hide → scrollPrime → extraDelay (PREP-01..05 traceability)
 
 **Wave 2** *(blocked on all wave-1 plans completing)*:
 
@@ -172,6 +172,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 1/1 | Complete    | 2026-05-19 |
 | 2. CLI + Config | 3/3 | Complete    | 2026-05-20 |
 | 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
-| 4. Prepare Pipeline | 0/5 | Not started | - |
+| 4. Prepare Pipeline | 4/5 | In Progress|  |
 | 5. Scroll-Stitch Output | 0/3 | Not started | - |
 | 6. Terminal UX | 0/2 | Not started | - |
