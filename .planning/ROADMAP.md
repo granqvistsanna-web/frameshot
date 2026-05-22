@@ -131,13 +131,18 @@ Plans:
   3. Sticky navigation elements appear exactly once at the top of the stitched image, not repeated at every viewport-height interval
   4. Parent directories of the output path are created automatically if they do not exist
 
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] 05-01: Implement scroll-capture loop (scroll in viewport-height steps, screenshot each frame)
-- [ ] 05-02: Implement sharp stitch (compose frames into single PNG, compute canvas height)
-- [ ] 05-03: Resolve output path from template, create parent directories, write PNG
+**Wave 1** — two independent modules under `src/capture/` (zero `files_modified` overlap; parallel-authorable):
+
+- [ ] 05-01-PLAN.md — Implement `src/capture/frames.js`: captureFrames(page) scroll-capture loop with rAF wait + last-frame overlap clamp (OUT-01)
+- [ ] 05-02-PLAN.md — Implement `src/capture/stitch.js`: stitchFrames(frames, geometry) sharp composite into one full-page PNG (OUT-02)
+
+**Wave 2** *(blocked on all wave-1 plans completing)*:
+
+- [ ] 05-03-PLAN.md — Implement `src/capture/index.js` orchestrator (captureFrames → stitchFrames → mkdir + writeFile) AND wire captureFullPage into `src/cli.js` (else-branch replacement, no new flag); end-to-end PNG output verify (OUT-03)
 
 ---
 
