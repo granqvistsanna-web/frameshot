@@ -1,0 +1,20 @@
+# CLI-03 fixture (Phase 6): viewport.width is a string — exercises ConfigError dispatch via zod invalid_type.
+# Expected: formatError prints 'Error: Invalid config in <path>:\n  viewport.width: expected number, got string'
+name: phase-06-bad-viewport-width
+baseUrl: http://127.0.0.1:7357
+output: /tmp/framershot-smoke/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: "800"
+  height: 600
+  name: smoke
+page:
+  path: "/"
+  name: home
+prepare:
+  animations: true
+  hide:
+    - '.hidden-by-test'
+    - '.does-not-exist'
+  scrollPrime: true
+  extraDelay: 1000

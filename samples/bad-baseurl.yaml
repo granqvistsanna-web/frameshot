@@ -1,0 +1,21 @@
+# CLI-03 fixture (Phase 6): baseUrl points at an unreachable host — exercises BrowserError dispatch via DNS failure.
+# Expected: formatError prints 'Error: Failed to navigate to / (resolved against context baseURL). Original error: page.goto: net::ERR_NAME_NOT_RESOLVED at https://nonexistent.example.tld/'
+# which contains the host literal 'nonexistent.example.tld'
+name: phase-06-bad-baseurl
+baseUrl: https://nonexistent.example.tld
+output: /tmp/framershot-smoke/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: 800
+  height: 600
+  name: smoke
+page:
+  path: "/"
+  name: home
+prepare:
+  animations: true
+  hide:
+    - '.hidden-by-test'
+    - '.does-not-exist'
+  scrollPrime: true
+  extraDelay: 1000
