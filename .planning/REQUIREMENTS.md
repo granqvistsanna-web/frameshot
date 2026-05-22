@@ -28,11 +28,11 @@ Scope: v0.1 minimum viable — CLI + config + single page/viewport full-page sti
 
 ### Prepare
 
-- [ ] **PREP-01**: Animations are disabled before capture via CSS injection (`animation: none !important; transition: none !important`)
-- [ ] **PREP-02**: Framer Motion appear effects fire instantly via IntersectionObserver replacement so in-view triggers complete before capture
-- [ ] **PREP-03**: Selectors in the config's `hide` list are hidden from the page before capture (sticky navs, banners, chat widgets)
-- [ ] **PREP-04**: Scroll prime runs (scroll to bottom in viewport-height steps with wait, then scroll back to top) when enabled in config
-- [ ] **PREP-05**: Configured `extraDelay` (ms) is honored before capture begins
+- [x] **PREP-01**: Animations are disabled before capture via CSS injection (`animation: none !important; transition: none !important`)
+- [x] **PREP-02**: Framer Motion appear effects fire instantly via IntersectionObserver replacement so in-view triggers complete before capture
+- [x] **PREP-03**: Selectors in the config's `hide` list are hidden from the page before capture (sticky navs, banners, chat widgets)
+- [x] **PREP-04**: Scroll prime runs (scroll to bottom in viewport-height steps with wait, then scroll back to top) when enabled in config
+- [x] **PREP-05**: Configured `extraDelay` (ms) is honored before capture begins
 
 ### Output
 
@@ -90,11 +90,11 @@ Updated during roadmap creation.
 | CAP-02 | Phase 3 | Complete |
 | CAP-03 | Phase 3 | Complete |
 | CAP-04 | Phase 3 | Complete |
-| PREP-01 | Phase 4 | Pending |
-| PREP-02 | Phase 4 | Pending |
-| PREP-03 | Phase 4 | Pending |
-| PREP-04 | Phase 4 | Pending |
-| PREP-05 | Phase 4 | Pending |
+| PREP-01 | Phase 4 | Complete |
+| PREP-02 | Phase 4 | Complete |
+| PREP-03 | Phase 4 | Complete |
+| PREP-04 | Phase 4 | Complete |
+| PREP-05 | Phase 4 | Complete |
 | OUT-01 | Phase 5 | Pending |
 | OUT-02 | Phase 5 | Pending |
 | OUT-03 | Phase 5 | Pending |

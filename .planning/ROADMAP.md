@@ -172,6 +172,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 1/1 | Complete    | 2026-05-19 |
 | 2. CLI + Config | 3/3 | Complete    | 2026-05-20 |
 | 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
-| 4. Prepare Pipeline | 5/5 | Complete   | 2026-05-22 |
+| 4. Prepare Pipeline | 5/5 | Complete    | 2026-05-22 |
 | 5. Scroll-Stitch Output | 0/3 | Not started | - |
 | 6. Terminal UX | 0/2 | Not started | - |
