@@ -897,32 +897,32 @@ console.error(chalk.dim('  (hint: try --foo)'));
 | A10 | `console.warn` in Node 20+ writes to stderr | §Pattern 3, §Pattern 4 | If console.warn writes to stdout (it doesn't in Node — verified at Node docs), our hermetic test contract for smoke-mode stdout would break. Mitigation: Node's `console` API ties `.warn` and `.error` to `process.stderr` by default. [VERIFIED via Node documentation knowledge; HIGH confidence.] |
 | A11 | `chalk.red('Error:')` + plain text body is the correct visual emphasis pattern (color only the category prefix, not the message body) | §Pitfall 3 | Aesthetic judgment — if the user prefers full-message red coloring, our recommendation is wrong. Mitigation: convention in CLI tools (npm errors, git errors, eslint errors) all use this prefix-only pattern. [ASSUMED based on convention; MEDIUM-HIGH confidence — would be easy to change if user disagrees.] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does --smoke get any spinner output, or stay completely silent?**
    - What we know: Smoke mode's purpose is hermetic test verification. Existing `console.time('prepare')` + `console.timeEnd('prepare')` + `console.log('smoke screenshot written: ...')` lines were chosen to be assert-friendly.
    - What's unclear: Whether a user running `--smoke` interactively (rather than from a test runner) would want to see "Loading config / Launching Chromium" while it runs.
-   - Recommendation: Phase 6 v0.1 — smoke stays SILENT (no spinner). If a user later complains, the change is trivial (move the `spinner.stop()` to AFTER the smoke branch, or remove the smoke-special-case entirely). Documented in §Pattern 4.
+   - RESOLVED: Phase 6 v0.1 — smoke stays SILENT (no spinner). If a user later complains, the change is trivial (move the `spinner.stop()` to AFTER the smoke branch, or remove the smoke-special-case entirely). Documented in §Pattern 4.
 
 2. **Should we add --verbose / --debug for stack traces on expected errors?**
    - What we know: Expected errors (ConfigError, BrowserError) produce clean one-line messages. Unexpected errors get a `chalk.dim` stack trace by default in formatError.
    - What's unclear: Whether the user wants to opt into stack traces for ConfigError/BrowserError too (e.g. when debugging the framershot tool itself).
-   - Recommendation: Defer. No flag in v0.1. The user can set `DEBUG=1` env var as a private escape hatch if we ever feel like adding it (one line in formatError: `if (process.env.DEBUG && err.stack) lines.push(chalk.dim(err.stack))`).
+   - RESOLVED: Defer. No flag in v0.1. The user can set `DEBUG=1` env var as a private escape hatch if we ever feel like adding it (one line in formatError: `if (process.env.DEBUG && err.stack) lines.push(chalk.dim(err.stack))`).
 
 3. **Should the network-error formatter pattern-match specific Chromium ERR_* codes?**
    - What we know: `BrowserError.message` already includes the Playwright error string which contains `ERR_NAME_NOT_RESOLVED`, `ERR_SSL_PROTOCOL_ERROR`, `ERR_CONNECTION_REFUSED`, etc. The current v0.1 output prints the whole message verbatim.
    - What's unclear: Whether bespoke "plain English" descriptions per code add value over the existing message.
-   - Recommendation: Defer. For v0.1, "Failed to navigate to /home. Original error: page.goto: net::ERR_NAME_NOT_RESOLVED" is already plain enough for a senior frontend engineer. Pattern-matching specific codes can be added later as a quality-of-life improvement.
+   - RESOLVED: Defer. For v0.1, "Failed to navigate to /home. Original error: page.goto: net::ERR_NAME_NOT_RESOLVED" is already plain enough for a senior frontend engineer. Pattern-matching specific codes can be added later as a quality-of-life improvement.
 
 4. **Should `getCurrentSpinner` be replaced by a more idiomatic pattern (e.g. AsyncLocalStorage)?**
    - What we know: Node's `node:async_hooks.AsyncLocalStorage` provides per-async-context state without module-level mutation.
    - What's unclear: Whether the cleanliness justifies the API complexity for one consumer.
-   - Recommendation: Use the module-level pattern (§Pattern 1). Single-CLI-invocation use makes the simple shape correct. Revisit if framershot ever becomes multi-tenant (it won't — personal tool).
+   - RESOLVED: Use the module-level pattern (§Pattern 1). Single-CLI-invocation use makes the simple shape correct. Revisit if framershot ever becomes multi-tenant (it won't — personal tool).
 
 5. **Should `printSelectorWarnings` print one line per missed selector or one summary line?**
    - What we know: For a user with 1-3 missed selectors, one line each is informative. For a user with 50 missed selectors (someone configured a bad regex into hide), 50 lines is noisy.
    - What's unclear: The expected distribution. Personal tool, the user wrote the YAML themselves — 1-3 missed is the realistic case.
-   - Recommendation: One line per missed selector for v0.1. If the count grows, switch to "N selectors didn't match: [list]" condensed format. Trivial change.
+   - RESOLVED: One line per missed selector for v0.1. If the count grows, switch to "N selectors didn't match: [list]" condensed format. Trivial change.
 
 ## Environment Availability
 

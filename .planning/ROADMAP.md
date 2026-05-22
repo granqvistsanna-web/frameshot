@@ -158,12 +158,17 @@ Plans:
   3. When a network error occurs (URL unreachable), the error message includes the URL that failed and a plain-English description of what went wrong
   4. When a selector in the `hide` list matches nothing, a warning is printed but capture continues rather than crashing
 
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] 06-01: Add ora spinner + step-level progress messages throughout the capture flow
-- [ ] 06-02: Implement error message formatting layer (config errors, network errors, selector warnings)
+**Wave 1** — progress wiring (CLI-02):
+
+- [ ] 06-01-PLAN.md — Create `src/cli/format.js` (makeProgress + printSelectorWarnings); wire ora spinner across the 7 step boundaries in `src/cli.js` with module-level currentSpinner + getCurrentSpinner export; add `{ onProgress }` callback contract to Phase 5's `captureFullPage` (Phase 6-owned per 06-RESEARCH §A7); update `samples/smoke.yaml` to include a missing selector so the warning path runs on every smoke. Smoke branch stays spinner-free per §Pitfall 4.
+
+**Wave 2** *(blocked on 06-01 — both touch `src/cli.js` and `src/cli/format.js`)*:
+
+- [ ] 06-02-PLAN.md — Append `formatError(err)` to `src/cli/format.js` (dispatches ConfigError → red prefix + already-formatted message; BrowserError → red prefix + URL-bearing message; bare TimeoutError → "Operation timed out"; default → "Unexpected error" + dim stack); rewire `index.js`'s single top-level catch to call `formatError` after `.fail()`-ing any live spinner via `getCurrentSpinner`; author `samples/bad-viewport-width.yaml` and `samples/bad-baseurl.yaml` Wave 0 fixtures for the CLI-03 smoke assertions.
 
 ---
 
