@@ -52,20 +52,18 @@ The full v0.1 validated list lives in `milestones/v0.1-REQUIREMENTS.md`. Carry-f
 
 ## Traceability
 
-Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MULTI-01 | TBD | Pending |
-| REGION-01 | TBD | Pending |
-| REGION-02 | TBD | Pending |
-| REGION-03 | TBD | Pending |
+| MULTI-01 | Phase 7 | Pending |
+| REGION-01 | Phase 8 | Pending |
+| REGION-02 | Phase 8 | Pending |
+| REGION-03 | Phase 8 | Pending |
 
 **Coverage:**
 
 - v0.2 requirements: 4 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 4
+- Mapped to phases: 4 ✓
+- Unmapped: 0
 
 ---
-*Requirements defined: 2026-05-22*
+*Requirements defined: 2026-05-22 — Roadmap mapped: 2026-05-22*

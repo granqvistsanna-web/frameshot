@@ -4,10 +4,10 @@ milestone: v0.2
 milestone_name: Multi-viewport & Region Capture
 status: planning
 stopped_at: null
-last_updated: "2026-05-22T22:45:00.000Z"
-last_activity: 2026-05-22 -- Milestone v0.2 started
+last_updated: "2026-05-22T23:15:00.000Z"
+last_activity: 2026-05-22 -- Milestone v0.2 roadmap created (Phases 7-8)
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-22)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Milestone v0.2 — multi-viewport per run + region capture (selector + from/to anchors + `--only` flag).
+**Current focus:** Milestone v0.2 — multi-viewport per run (Phase 7) + region capture (Phase 8: selector + from/to anchors + `--only` flag).
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 7 (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-22 — Milestone v0.2 started
+Status: Roadmap complete; awaiting `/gsd:plan-phase 7`
+Last activity: 2026-05-22 — v0.2 roadmap created, MULTI-01 → Phase 7, REGION-01/02/03 → Phase 8
 
 ## Performance Metrics
 
@@ -38,6 +38,11 @@ Last activity: 2026-05-22 — Milestone v0.2 started
 - ~2,061 LOC JS in `src/`
 - Wave-based parallel execution: Phase 4 wave 1 ran 4 plans in parallel; Phase 5 wave 1 ran 2
 
+**v0.2 plan:**
+
+- 2 phases (7-8), plan counts TBD after `/gsd:plan-phase`
+- Continue wave-based parallel execution where `files_modified` overlap is zero
+
 ## Accumulated Context
 
 ### Decisions
@@ -45,11 +50,12 @@ Last activity: 2026-05-22 — Milestone v0.2 started
 Full Key Decisions log lives in PROJECT.md. Carry-forward decisions still load-bearing for v0.2:
 
 - Stack locked: Node.js + `playwright-chromium` + sharp + commander v12 + js-yaml + zod + chalk + ora — no churn expected
-- Manual scroll-and-stitch (not `fullPage: true`) is the canonical full-page approach; v0.2 multi-viewport will iterate over viewports re-running this loop per viewport
-- Region capture will use `element.screenshot()` instead of the stitch loop — but reuses the same prepare pipeline (animation disable + IO shim + hide + scroll prime) before capture
-- Single error sink in `index.js`; libraries throw typed errors (`ConfigError`, `BrowserError`) — extend with new typed errors per v0.2 surface
-- Hermetic smoke fixture pattern (`samples/serve-smoke.js` + `samples/smoke.yaml`) is the verification standard — extend with v0.2 fixtures rather than introducing a test framework
-- Phase-numbering continues from v0.1: next phase is **Phase 7**
+- Manual scroll-and-stitch (not `fullPage: true`) is the canonical full-page approach; Phase 7 multi-viewport iterates this loop per viewport
+- Region capture (Phase 8) uses `element.screenshot()` / `page.screenshot({ clip })` instead of the stitch loop — but reuses the same prepare pipeline (animation disable + IO shim + hide + scroll prime) before capture
+- Single error sink in `index.js`; libraries throw typed errors (`ConfigError`, `BrowserError`) — extend with new typed errors per v0.2 surface (e.g. `RegionError`) via `src/cli/format.js` dispatcher
+- Hermetic smoke fixture pattern (`samples/serve-smoke.js` + `samples/smoke.yaml`) is the verification standard — Phase 7 and Phase 8 each extend it with new `samples/*.yaml` fixtures
+- Phase-numbering continues from v0.1: Phase 7 (multi-viewport) → Phase 8 (region capture)
+- Schema additions (`viewports[]`, `regions[]`) must preserve v0.1 backward compatibility — single-viewport / no-regions configs must still validate and run unchanged
 
 ### Pending Todos
 
@@ -61,6 +67,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-22T22:45:00Z
-Stopped at: Milestone v0.2 started; awaiting roadmap
+Last session: 2026-05-22T23:15:00Z
+Stopped at: v0.2 roadmap created; ready for `/gsd:plan-phase 7`
 Resume file: None
