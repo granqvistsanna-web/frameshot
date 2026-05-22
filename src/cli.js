@@ -120,5 +120,19 @@ export function buildProgram() {
       await startServer({ port, open: !!opts.open });
     });
 
+  // `start` — the easy-mode entry point. Aliased as the default so bare
+  // `framershot` just opens the UI. Same as `serve --open` with a default port.
+  program
+    .command('start', { isDefault: true })
+    .description('Open the framershot UI in your browser — paste a link and capture')
+    .option('-p, --port <port>', 'port to listen on', '5173')
+    .action(async (opts) => {
+      const port = Number.parseInt(opts.port, 10);
+      if (!Number.isFinite(port) || port < 1 || port > 65535) {
+        throw new Error(`Invalid port: ${opts.port}`);
+      }
+      await startServer({ port, open: true });
+    });
+
   return program;
 }
