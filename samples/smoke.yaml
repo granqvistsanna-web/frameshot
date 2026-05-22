@@ -22,7 +22,14 @@
 #   node index.js capture samples/smoke.yaml --smoke
 #   kill %1                              # stop the fixture server
 #
-name: phase-03-smoke
+# Phase 4 additions:
+#   - hide: ['.hidden-by-test'] — exercises PREP-03 against the .hidden-by-test
+#     element added to samples/serve-smoke.js
+#   - scrollPrime: true — exercises PREP-04 against the tall spacer + lazy <img>
+#   - extraDelay: 1000 — exercises PREP-05; the console.time('prepare') wall clock
+#     printed by --smoke runs is the SC #4 evidence
+#
+name: phase-04-smoke
 baseUrl: http://127.0.0.1:7357
 output: /tmp/framershot-smoke/{page}.png
 deviceScaleFactor: 2
@@ -35,5 +42,7 @@ page:
   name: home
 prepare:
   animations: true
-  scrollPrime: false
-  extraDelay: 0
+  hide:
+    - '.hidden-by-test'
+  scrollPrime: true
+  extraDelay: 1000
