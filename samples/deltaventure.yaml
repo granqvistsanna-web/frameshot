@@ -1,0 +1,15 @@
+name: deltaventure
+baseUrl: https://deltaventure.framer.website
+output: ./screenshots/{date}/{viewport}/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: 1440
+  height: 900
+  name: desktop
+page:
+  path: /
+  name: home
+prepare:
+  animations: true
+  scrollPrime: true
+  extraDelay: 800

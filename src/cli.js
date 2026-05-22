@@ -4,8 +4,9 @@ import { resolveTemplate } from './output/template.js';
 import { launchBrowser } from './browser/launcher.js';
 import { navigateToPage } from './browser/navigator.js';
 import { installAnimationGuards, runPreparePipeline } from './prepare/index.js';
-import { captureFullPage } from './capture/index.js';
+import { runCapture } from './capture/runCapture.js';
 import { makeProgress, printSelectorWarnings } from './cli/format.js';
+import { startServer } from './server/index.js';
 
 // Module-level spinner reference so index.js's top-level catch can reach it.
 // Set to the active spinner at action start; cleared to null on success or
@@ -36,89 +37,87 @@ export function buildProgram() {
       spinner.start('Loading config');
       const config = await loadConfig(configArg);
 
-      const date = new Date().toISOString().slice(0, 10);
-      const viewport = config.viewport.name ?? 'default';
-      const page = config.page.name;
-      const resolvedOutput = resolveTemplate(config.output, { date, viewport, page });
+      if (opts.smoke) {
+        // SMOKE BRANCH — Phase 3 hermetic-verifiable seam. Kept inline so the
+        // verification path stays exactly as commit-locked. Does NOT call
+        // runCapture (that does full-page; smoke needs ONE viewport-sized shot
+        // to prove viewport × DSR math reached rendering).
+        const date = new Date().toISOString().slice(0, 10);
+        const viewport = config.viewport.name ?? 'default';
+        const page = config.page.name;
+        const resolvedOutput = resolveTemplate(config.output, { date, viewport, page });
 
-      // Step 2 — Launch browser.
-      spinner.text = 'Launching Chromium';
-      const { browser, context } = await launchBrowser(config);
-      try {
-        // Step 3 — Install animation guards (pre-nav).
-        spinner.text = 'Installing animation guards';
-        await installAnimationGuards(context, config.prepare);
+        spinner.text = 'Launching Chromium';
+        const { browser, context } = await launchBrowser(config);
+        try {
+          spinner.text = 'Installing animation guards';
+          await installAnimationGuards(context, config.prepare);
 
-        // Step 4 — Navigate to page.
-        spinner.text = `Navigating to ${config.baseUrl}${config.page.path}`;
-        const navigatedPage = await navigateToPage(context, config.page);
+          spinner.text = `Navigating to ${config.baseUrl}${config.page.path}`;
+          const navigatedPage = await navigateToPage(context, config.page);
 
-        // Step 5 — Prepare pipeline.
-        // Set spinner text BEFORE runPreparePipeline so both smoke and non-smoke
-        // show this label while prepare runs (06-RESEARCH §Pattern 1 Step B).
-        spinner.text = 'Running prepare pipeline';
-        if (opts.smoke) console.time('prepare');
-        const { hideSummary } = await runPreparePipeline(navigatedPage, config.prepare);
-        if (opts.smoke) console.timeEnd('prepare');
+          spinner.text = 'Running prepare pipeline';
+          console.time('prepare');
+          const { hideSummary } = await runPreparePipeline(navigatedPage, config.prepare);
+          console.timeEnd('prepare');
 
-        // Step 5.5 — Selector warnings (non-fatal; runs in both smoke and non-smoke).
-        // Stop the spinner, print warnings, restart — prevents repaint collision
-        // between spinner frames and console.warn output (06-RESEARCH §Pitfall 2).
-        // Selector warnings DO print in smoke mode — they are user-config feedback
-        // (06-RESEARCH §Pattern 4).
-        if (hideSummary.missed.length > 0) {
-          spinner.stop();
-          printSelectorWarnings(hideSummary);
-          spinner.start(); // restart with no text — text set in next region
-        }
+          if (hideSummary.missed.length > 0) {
+            spinner.stop();
+            printSelectorWarnings(hideSummary);
+            spinner.start();
+          }
 
-        if (opts.smoke) {
-          // SMOKE BRANCH: stop the spinner cleanly before smoke's existing output.
-          // Smoke runs stay hermetic and grep-able (06-RESEARCH §Pattern 4 §Pitfall 4).
           spinner.stop();
           currentSpinner = null;
 
-          // Phase 3 hermetic-verifiable seam: ONE viewport-sized screenshot
-          // proves viewport × DSR math reached the rendering pipeline
-          // (CAP-01 + CAP-02 + CAP-03). CAP-04 is exercised by the same
-          // navigator code path but proven by the live-site manual gate.
-          // fullPage is INTENTIONALLY false — full-page is Phase 5.
           const { mkdir } = await import('node:fs/promises');
           const { dirname } = await import('node:path');
           await mkdir(dirname(resolvedOutput), { recursive: true });
           await navigatedPage.screenshot({ path: resolvedOutput, fullPage: false, animations: 'disabled' });
           console.log(`smoke screenshot written: ${resolvedOutput}`);
-        } else {
-          // NON-SMOKE BRANCH: full-page scroll-and-stitch capture.
-          // captureFullPage owns the mkdir + writeFile internally — the CLI does
-          // NOT need a parallel mkdir call (unlike the smoke branch which calls
-          // page.screenshot({ path: ... }) directly without an orchestrator).
-
-          // Step 6 — Capture (per-frame counter via onProgress callback).
-          // "0/?" is an honest placeholder until the first onProgress fires — the
-          // frame count (N) is computed inside captureFrames from page geometry and
-          // isn't available before captureFullPage is called.
-          spinner.text = 'Capturing frame 0/?';
-          await captureFullPage(navigatedPage, resolvedOutput, {
-            onProgress: (current, total) => {
-              spinner.text = `Capturing frame ${current}/${total}`;
-            },
-          });
-
-          // Step 7 — Done: persist the success line with a green ✔ symbol.
-          spinner.succeed(`screenshot written: ${resolvedOutput}`);
-          currentSpinner = null;
-
-          // Duplicate to stdout so the path is pipe-capturable (stderr = chatter,
-          // stdout = data; 06-RESEARCH §Pitfall 6).
-          console.log(`screenshot written: ${resolvedOutput}`);
+        } finally {
+          await context.close();
+          await browser.close();
         }
-      } finally {
-        // ORDER MATTERS: context first, then browser. Reversing leaks
-        // memory (~22% per Playwright issue #6319; RESEARCH.md Pitfall 5).
-        await context.close();
-        await browser.close();
+        return;
       }
+
+      // NON-SMOKE BRANCH — full pipeline via runCapture. The CLI's job here is
+      // purely the ora adapter: map progress events to spinner.text, sandwich
+      // selector warnings between spinner.stop()/start() (06-RESEARCH §Pitfall 2),
+      // and emit the final success line on both stderr (via spinner.succeed) and
+      // stdout (pipe-capturable, §Pitfall 6).
+      const { outputPath } = await runCapture(config, {
+        onProgress: (event) => {
+          if (event.type === 'step') {
+            spinner.text = event.label;
+          } else if (event.type === 'frame') {
+            spinner.text = `Capturing frame ${event.current}/${event.total}`;
+          } else if (event.type === 'warning' && event.kind === 'hide-missed') {
+            spinner.stop();
+            printSelectorWarnings({ matched: 0, missed: event.selectors });
+            spinner.start();
+          }
+        },
+      });
+
+      spinner.succeed(`screenshot written: ${outputPath}`);
+      currentSpinner = null;
+      // Duplicate to stdout so the path is pipe-capturable (06-RESEARCH §Pitfall 6).
+      console.log(`screenshot written: ${outputPath}`);
+    });
+
+  program
+    .command('serve')
+    .description('Launch the browser-based UI on http://localhost:<port>')
+    .option('-p, --port <port>', 'port to listen on', '5173')
+    .option('--open', 'open the UI in your default browser after start')
+    .action(async (opts) => {
+      const port = Number.parseInt(opts.port, 10);
+      if (!Number.isFinite(port) || port < 1 || port > 65535) {
+        throw new Error(`Invalid port: ${opts.port}`);
+      }
+      await startServer({ port, open: !!opts.open });
     });
 
   return program;
