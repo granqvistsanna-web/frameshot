@@ -102,14 +102,20 @@ Plans:
   4. The `extraDelay` value in config (e.g. 1000ms) causes an observable pause before capture begins — verifiable by adding a console.time around the prepare step
   5. CSS `animation` and `transition` properties are set to `none` globally via injected style, observable by inspecting computed styles in a headed debug run
 
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
 
-- [ ] 04-01: Implement CSS animation/transition injection (PREP-01)
-- [ ] 04-02: Implement Framer Motion surgical disable — IntersectionObserver replacement + `window.__framer_motion_disabled` (PREP-02)
-- [ ] 04-03: Implement element hiding from `hide` selector list (PREP-03)
-- [ ] 04-04: Implement scroll prime (viewport-step scroll to bottom + wait + scroll to top) and extraDelay (PREP-04, PREP-05)
+**Wave 1** — four independent modules under `src/prepare/`, parallel-authorable (zero `files_modified` overlap):
+
+- [ ] 04-01-PLAN.md — Implement `src/prepare/animations.js`: installAnimationGuards (pre-nav IO shim + CSS injection, single config gate — PREP-01 + PREP-02 ship together; the canonical Framer-Motion intervention is IntersectionObserver replacement, NOT `window.__framer_motion_disabled` which is not a real Framer global)
+- [ ] 04-02-PLAN.md — Implement `src/prepare/hide.js`: hideSelectors with `visibility: hidden !important` (NOT display:none, which would break Phase 5's scroll-stitch math) and { matched, missed } summary for Phase 6 (PREP-03)
+- [ ] 04-03-PLAN.md — Implement `src/prepare/scroll.js`: scrollPrime (viewport-height steps with 200ms inter-step waits, instant-only scroll, top-reset) and extraDelay wrapper (PREP-04 + PREP-05)
+- [ ] 04-04-PLAN.md — Implement `src/prepare/index.js`: orchestrator + barrel. Re-exports installAnimationGuards; defines runPreparePipeline composing hide → scrollPrime → extraDelay (PREP-01..05 traceability)
+
+**Wave 2** *(blocked on all wave-1 plans completing)*:
+
+- [ ] 04-05-PLAN.md — Wire Phase 4 into `src/cli.js` (one import, two call sites, animations:'disabled' screenshot option, smoke-branch console.time); extend `samples/serve-smoke.js` with four PREP-evidence fixtures (animation, IO, hidden, lazy-img + spacer); update `samples/smoke.yaml` (hide + scrollPrime:true + extraDelay:1000). End-to-end smoke proves all 5 PREP-* requirements observably.
 
 ---
 
@@ -166,6 +172,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 1/1 | Complete    | 2026-05-19 |
 | 2. CLI + Config | 3/3 | Complete    | 2026-05-20 |
 | 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
-| 4. Prepare Pipeline | 0/4 | Not started | - |
+| 4. Prepare Pipeline | 0/5 | Not started | - |
 | 5. Scroll-Stitch Output | 0/3 | Not started | - |
 | 6. Terminal UX | 0/2 | Not started | - |
