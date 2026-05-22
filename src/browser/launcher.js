@@ -1,6 +1,6 @@
 // src/browser/launcher.js
 // Wave 1 of Phase 3: headless Chromium launcher + browser context creation.
-// Exports: launchBrowser(config) and BrowserError.
+// Exports: launchBrowser(config, viewportEntry) and BrowserError.
 //
 // IMPORTANT: This module has NO console output, NO process.exit, and NO chalk/ora.
 // It is pure library code. Errors throw BrowserError; the caller (src/cli.js, wired
@@ -27,8 +27,9 @@ export class BrowserError extends Error {
 }
 
 /**
- * Launch headless Chromium and create a context configured for the v0.1
- * single-viewport/single-page model.
+ * Launch headless Chromium and create a context configured for the given
+ * viewport entry. Intended to be called once per viewport inside the
+ * runCapture loop — each call produces its own browser instance and context.
  *
  * The returned context already has viewport.{width,height}, deviceScaleFactor,
  * and baseURL applied — downstream `page.goto(path)` resolves against baseURL
@@ -37,7 +38,7 @@ export class BrowserError extends Error {
  * LIFECYCLE CONTRACT — the caller MUST close `context` BEFORE `browser` in a
  * try/finally:
  *
- *     const { browser, context } = await launchBrowser(config);
+ *     const { browser, context } = await launchBrowser(config, viewportEntry);
  *     try {
  *       // ... use context ...
  *     } finally {
@@ -49,13 +50,14 @@ export class BrowserError extends Error {
  * reduction when context.close() runs before browser.close().
  *
  * @param {object} config - the validated config from Phase 2's loadConfig
+ * @param {{ width: number, height: number, name: string }} viewportEntry - per-viewport entry from config.viewports[]
  * @returns {Promise<{
  *   browser: import('playwright-chromium').Browser,
  *   context: import('playwright-chromium').BrowserContext
  * }>}
  * @throws {BrowserError} if Chromium fails to launch (e.g. binary missing)
  */
-export async function launchBrowser(config) {
+export async function launchBrowser(config, viewportEntry) {
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
@@ -69,8 +71,8 @@ export async function launchBrowser(config) {
 
   const context = await browser.newContext({
     viewport: {
-      width: config.viewport.width,
-      height: config.viewport.height,
+      width: viewportEntry.width,
+      height: viewportEntry.height,
     },
     deviceScaleFactor: config.deviceScaleFactor,
     baseURL: config.baseUrl,
