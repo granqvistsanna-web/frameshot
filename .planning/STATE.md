@@ -1,11 +1,12 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.1
-milestone_name: milestone
-status: completed
-stopped_at: Completed 06-02-PLAN.md — Phase 6 Terminal UX done; milestone v0.1 complete
-last_updated: "2026-05-22T22:00:00.000Z"
-last_activity: 2026-05-22 -- Phase 06 marked complete; milestone v0.1 done
+milestone_name: MVP
+status: shipped
+shipped_date: "2026-05-22"
+shipped_tag: v0.1
+last_updated: "2026-05-22T22:30:00.000Z"
+last_activity: 2026-05-22 -- Milestone v0.1 archived; ready for /gsd:new-milestone
 progress:
   total_phases: 6
   completed_phases: 6
@@ -18,71 +19,46 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-19)
+See: .planning/PROJECT.md (updated 2026-05-22 after v0.1)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Milestone v0.1 complete — all 6 phases shipped
+**Current focus:** v0.1 shipped — awaiting scope for v0.2 via `/gsd:new-milestone`. Deferred backlog (multi-viewport, multi-page, region capture, CLI filters, diff mode, hooks, auth) catalogued in [milestones/v0.1-REQUIREMENTS.md](milestones/v0.1-REQUIREMENTS.md) §v2.
 
 ## Current Position
 
-Phase: 06 — COMPLETE (milestone v0.1 complete)
-Plan: 2 of 2
-Status: Phase 06 complete; all phases done
-Last activity: 2026-05-22 -- Phase 06 marked complete
+Milestone: v0.1 — SHIPPED (tag: v0.1)
+Next: scope v0.2 via `/gsd:new-milestone`
 
-Progress: [██████████] 100%
+Progress: [██████████] 100% of v0.1
 
-## Performance Metrics
+## Performance Metrics (v0.1)
 
-**Velocity:**
-
-- Total plans completed: 16
-- Average duration: —
-- Total execution time: —
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 01 | 1 | - | - |
-| 02 | 3 | - | - |
-| 03 | 2 | ~18 min | ~9 min |
-| 04 | 5 | - | - |
-| 05 | 3 | - | - |
-| 06 | 2 | ~22 min | ~11 min |
-
-**Recent Trend:**
-
-- Last 5 plans: —
-- Trend: —
-
-*Updated after each plan completion*
+- 6 phases, 16 plans, 98 commits, 4 days (2026-05-19 → 2026-05-22)
+- ~2,061 LOC JS in `src/`
+- Wave-based parallel execution: Phase 4 wave 1 ran 4 plans in parallel; Phase 5 wave 1 ran 2
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Full Key Decisions log lives in PROJECT.md. Carry-forward decisions still load-bearing for v0.2:
 
-- Stack confirmed: Node.js + Playwright (Chromium only) + sharp + commander + js-yaml + zod + chalk + ora
-- Manual scroll-and-stitch is the headline technical choice (not Playwright native fullPage)
-- Surgical Framer Motion disabling via IntersectionObserver replacement is the differentiator
-- Personal tool — no distribution polish, no npm publish
-- (03-02) Hermetic test fixtures use a localhost http server (`samples/serve-smoke.js`) rather than data: URLs — Phase 2's schema .refine restricts baseUrl to http/https, and Playwright's WHATWG URL joining rejects `goto('/')` against a data: baseURL
-- (03-02) Browser-layer lifecycle is owned at the CLI layer: launchBrowser outside try, navigateToPage + branch inside try, `context.close()` strictly before `browser.close()` in finally (Playwright #6319)
-- (03-02) `--smoke` is the developer verification seam on the `capture` subcommand; production runs go through the non-smoke branch which Phase 4/5 replace
+- Stack locked: Node.js + `playwright-chromium` + sharp + commander v12 + js-yaml + zod + chalk + ora — no churn expected
+- Manual scroll-and-stitch (not `fullPage: true`) is the headline technical choice; v0.2 multi-viewport will iterate over viewports, re-running this loop per viewport
+- IntersectionObserver shim is the canonical Framer Motion hook — reuse pre-nav at context level
+- Single error sink in `index.js`; libraries throw typed errors (`ConfigError`, `BrowserError`) — extend with new typed errors per v0.2 surface
+- Hermetic smoke fixture pattern (`samples/serve-smoke.js` + `samples/smoke.yaml`) is the verification standard — extend with v0.2 fixtures rather than introducing a test framework
 
 ### Pending Todos
 
-None yet.
+None for v0.1. v0.2 scope pending.
 
 ### Blockers/Concerns
 
-None yet.
+None.
 
 ## Session Continuity
 
-Last session: 2026-05-22T22:00:00Z
-Stopped at: Completed 06-02-PLAN.md — Phase 6 Terminal UX done; milestone v0.1 complete
+Last session: 2026-05-22T22:30:00Z
+Stopped at: Milestone v0.1 archived to .planning/milestones/; tagged v0.1; REQUIREMENTS.md removed; ready for /gsd:new-milestone
 Resume file: None
