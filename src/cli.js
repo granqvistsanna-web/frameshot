@@ -4,6 +4,7 @@ import { resolveTemplate } from './output/template.js';
 import { launchBrowser } from './browser/launcher.js';
 import { navigateToPage } from './browser/navigator.js';
 import { installAnimationGuards, runPreparePipeline } from './prepare/index.js';
+import { captureFullPage } from './capture/index.js';
 
 export function buildProgram() {
   const program = new Command();
@@ -46,19 +47,12 @@ export function buildProgram() {
           await navigatedPage.screenshot({ path: resolvedOutput, fullPage: false, animations: 'disabled' });
           console.log(`smoke screenshot written: ${resolvedOutput}`);
         } else {
-          // Phase 3 boundary: Phase 4 (prepare) and Phase 5 (capture loop)
-          // will replace this branch. For now, confirm the page is up.
-          console.log(
-            JSON.stringify(
-              {
-                ...config,
-                _resolvedOutput: resolvedOutput,
-                _navigated: navigatedPage.url(),
-              },
-              null,
-              2,
-            ),
-          );
+          // Phase 5: full-page scroll-and-stitch capture writes the PNG.
+          // captureFullPage owns the mkdir + writeFile internally — the CLI does
+          // NOT need a parallel mkdir call (unlike the smoke branch which calls
+          // page.screenshot({ path: ... }) directly without an orchestrator).
+          await captureFullPage(navigatedPage, resolvedOutput);
+          console.log(`screenshot written: ${resolvedOutput}`);
         }
       } finally {
         // ORDER MATTERS: context first, then browser. Reversing leaks
