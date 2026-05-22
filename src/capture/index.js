@@ -4,8 +4,11 @@
 // import from frames.js or stitch.js).
 //
 // Exports:
-//   - captureFullPage(page, outputPath) → void — composes captureFrames →
+//   - captureFullPage(page, outputPath, options?) → void — composes captureFrames →
 //     stitchFrames → mkdir + writeFile.
+//     options.onProgress: (current: number, total: number) => void  ← Phase 6 contract
+//     (06-RESEARCH.md §Pattern 2). Optional; backward-compatible. The library calls
+//     the callback; the CLI displays. Silent library posture intact.
 //
 // IMPORTANT: This module has NO console output, NO process.exit, and NO chalk/ora.
 // It is pure library code. Errors from composed calls bubble; the caller
@@ -41,11 +44,22 @@ import { stitchFrames } from './stitch.js';
  * @param {string} outputPath — absolute or relative resolved path (Phase 2's
  *   `resolveTemplate` already substituted {date}, {viewport}, {page}). Parent
  *   directories will be created with `{ recursive: true }` if missing.
+ * @param {{ onProgress?: (current: number, total: number) => void }} [options={}]
+ *   Optional options bag. Phase 6 owns this contract — see
+ *   .planning/phases/06-terminal-ux/06-RESEARCH.md §Pattern 2.
+ *   - onProgress: optional callback invoked by captureFrames once per captured
+ *     frame, AFTER the screenshot resolves, with (current, total) where current
+ *     is 1-indexed and total is the precomputed frame count. The library does NOT
+ *     import ora or chalk; the callback is the bridge. Backward compatible:
+ *     omitting options is identical to passing { onProgress: undefined } which
+ *     silently no-ops via optional chaining (onProgress?.()).
  * @returns {Promise<void>}
  */
-export async function captureFullPage(page, outputPath) {
+export async function captureFullPage(page, outputPath, options = {}) {
+  const { onProgress } = options;
+
   // Step 1 — OUT-01: scroll + per-viewport screenshots → ordered PNG Buffers + geometry.
-  const { frames, geometry } = await captureFrames(page);
+  const { frames, geometry } = await captureFrames(page, { onProgress });
 
   // Step 2 — OUT-02: sharp composite → one full-page PNG Buffer.
   const pngBuffer = await stitchFrames(frames, geometry);

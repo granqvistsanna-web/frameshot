@@ -1,6 +1,9 @@
 // src/capture/frames.js
-// Phase 5 wave 1: scroll-capture loop for OUT-01. Exports: captureFrames(page) →
+// Phase 5 wave 1: scroll-capture loop for OUT-01. Exports: captureFrames(page, options?) →
 // { frames: Buffer[], geometry }.
+// options.onProgress: (current: number, total: number) => void — Phase 6-owned
+// contract (06-RESEARCH.md §Pattern 2). Optional; the library does NOT import
+// ora or chalk — the callback is the bridge between silent library and CLI display.
 //
 // IMPORTANT: This module has NO console output, NO process.exit, and NO chalk/ora.
 // It is pure library code. Errors from Playwright primitives bubble; the caller
@@ -32,6 +35,14 @@
  * @param {import('playwright-chromium').Page} page — a Page already prepared by
  *   Phase 4 (animations frozen, IO triggers fired, hidden selectors removed,
  *   scroll-primed; scrollY=0 at entry).
+ * @param {{ onProgress?: (current: number, total: number) => void }} [options={}]
+ *   Optional options bag. Phase 6 owns this contract — see
+ *   .planning/phases/06-terminal-ux/06-RESEARCH.md §Pattern 2.
+ *   - onProgress: called once per frame AFTER the screenshot resolves with
+ *     (current, total) where current is 1-indexed and total is frameYOffsets.length.
+ *     Backward compatible: omitting options or onProgress silently no-ops via
+ *     optional chaining. The library MUST NOT import ora/chalk — the callback IS
+ *     the bridge; the library calls it, the CLI displays.
  * @returns {Promise<{
  *   frames: Buffer[],
  *   geometry: {
@@ -58,7 +69,8 @@
  *   to (totalHeight - innerHeight); sharp composite-order in 05-02 overwrites the
  *   overlap region cleanly. Pattern 1 lines 327-332.
  */
-export async function captureFrames(page) {
+export async function captureFrames(page, options = {}) {
+  const { onProgress } = options;
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
   const { viewportWidth, viewportHeight, totalHeight, deviceScaleFactor } =
@@ -84,7 +96,10 @@ export async function captureFrames(page) {
 
   // Step 3 — Capture one PNG buffer per frame offset.
   const frames = [];
-  for (const y of frameYOffsets) {
+  const total = frameYOffsets.length;
+  for (let i = 0; i < total; i++) {
+    const y = frameYOffsets[i];
+
     // (a) Scroll instantly to target position (Risk 7 — NEVER 'smooth').
     await page.evaluate((targetY) => {
       window.scrollTo({ top: targetY, behavior: 'instant' });
@@ -113,6 +128,12 @@ export async function captureFrames(page) {
       type: 'png',
     });
     frames.push(buf);
+
+    // Invoke onProgress AFTER the frame resolves — "frame i+1 of total complete".
+    // 1-indexed: first frame fires (1, total), last fires (total, total).
+    // Phase 6 owns this contract; see 06-RESEARCH.md §Pattern 2.
+    // Uses optional chaining — when onProgress is undefined this is a silent no-op.
+    onProgress?.(i + 1, total);
   }
 
   // Step 4 — Return ordered buffers + geometry for the stitcher (05-02).
