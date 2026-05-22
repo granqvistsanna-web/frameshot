@@ -972,47 +972,49 @@ await writeFile(outputPath, pngBuffer);
 | A9 | Playwright's `clip` rect must intersect the current visible viewport — meaning we MUST scroll to (or near) `y` BEFORE the screenshot, even though clip uses document coordinates | §Pattern 1 | If clip works independently of scroll (capturing any document rect), we could skip the scrollTo and just screenshot with clip at the target y. Mitigation: Playwright's internal pipeline uses the compositor's currently-rendered surface; document regions not currently in the compositor have stale or absent content. Scrolling first is the safe pattern; the clip then double-checks our scroll worked. [ASSUMED based on how CDP Page.captureScreenshot works; MEDIUM-HIGH confidence — could be verified by intentionally skipping scrollTo and checking output.] |
 | A10 | The locked decision in PROJECT.md to "stitch manually instead of fullPage: true" is sufficient justification to avoid `fullPage: true` even though Playwright >= 1.50 may have improved its sticky-element handling | §Anti-Patterns, §Alternatives Considered | If Playwright has silently fixed the sticky-ghost issue, we'd be paying the complexity cost of manual stitch for no benefit. Mitigation: PROJECT.md is the locked decision; revisiting it is a separate conversation, not a Phase 5 research call. [ACCEPTED — locked decision honored.] |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All questions below have a `RESOLVED:` recommendation that locks the decision for v0.1. Items remain documented for future-phase context.
 
 1. **What if the page extends in height DURING the capture loop (lazy-loading by scroll position OR a JS framework reacting to viewport intersection)?**
    - What we know: Phase 4's `scrollPrime` walked the page to the bottom in 200ms steps, so browser-native lazy-loading IOs have fired. Phase 4's IO shim makes Framer Motion's `whileInView` callbacks fire immediately. Most height-changing behavior has happened by the time Phase 5 starts.
    - What's unclear: Whether some Framer sites have JS that listens for scroll-position events (`window.addEventListener('scroll', …)`) and changes layout in response — distinct from IO triggers.
-   - Recommendation: Read geometry once at start. If real Framer sites surface this problem (hermetic verification + live-site smoke against pubq.se will tell us), add a v0.2 `dynamicHeight: true` config option that re-reads scrollHeight per iteration with a max-iteration cap to prevent infinite loops. Phase 5 v0.1 doesn't handle it.
+   - RESOLVED: Read geometry once at start. If real Framer sites surface this problem (hermetic verification + live-site smoke against pubq.se will tell us), add a v0.2 `dynamicHeight: true` config option that re-reads scrollHeight per iteration with a max-iteration cap to prevent infinite loops. Phase 5 v0.1 doesn't handle it.
 
 2. **What's the right memory ceiling for v0.1, and when does streaming-stitch become necessary?**
    - What we know: A typical Framer site is 5-15 frames at 2880×1800 px per frame (DSR=2 desktop). Peak RAM during compose is ~150 MB. Tolerable.
    - What's unclear: Real pubq.se's page heights (could be 30+ frames for marketing scroll-stories). Author's machine RAM headroom.
-   - Recommendation: v0.1 keeps everything in RAM. If `framershot capture` ever OOMs on a real page, add a frames-to-disk mode (write each frame to `os.tmpdir()`, sharp composite from file paths). v0.2 work.
+   - RESOLVED: v0.1 keeps everything in RAM. If `framershot capture` ever OOMs on a real page, add a frames-to-disk mode (write each frame to `os.tmpdir()`, sharp composite from file paths). v0.2 work.
 
 3. **Should `captureFullPage` accept any options at all, even as a placeholder?**
    - What we know: The brief specifies the signature is `captureFullPage(page, outputPath)`. No options.
    - What's unclear: Whether future work (v0.2 region capture, v0.2 multi-page) will share enough of this code to benefit from an options object.
-   - Recommendation: v0.1 — no options. Add when a real second consumer materializes. YAGNI.
+   - RESOLVED: v0.1 — no options. Add when a real second consumer materializes. YAGNI.
 
 4. **Should `captureFullPage` return any value (the buffer, dimensions, a summary)?**
    - What we know: The CLI just needs to know "succeeded; print confirmation" — return value is unused.
    - What's unclear: Whether Phase 6 (CLI-02 spinners) wants to know per-frame progress.
-   - Recommendation: v0.1 returns `void`. Phase 6 can refactor to return a progress-emitter or accept a callback if needed.
+   - RESOLVED: v0.1 returns `void`. Phase 6 can refactor to return a progress-emitter or accept a callback if needed.
 
 5. **Should sharp's `composite` be called with `premultiplied: false` (or true) explicitly?**
    - What we know: PNG output from Playwright is non-premultiplied straight RGBA. sharp's default composite handles this correctly.
    - What's unclear: Whether explicit `premultiplied: false` on each overlay improves clarity.
-   - Recommendation: Don't set it. Default is correct. Adding the explicit flag would be cargo-cult.
+   - RESOLVED: Don't set it. Default is correct. Adding the explicit flag would be cargo-cult.
 
 6. **Should the per-frame screenshot include `omitBackground: true`?**
    - What we know: Most Framer sites have an opaque background. Per-frame screenshots with omitBackground would expose transparent regions where the page background hasn't painted (rare, but possible at scroll-bounce or just-loaded states).
    - What's unclear: Edge cases on pages with intentional transparency.
-   - Recommendation: NO. Defaults (`omitBackground: false`). v0.1 emits opaque PNGs.
+   - RESOLVED: NO. Defaults (`omitBackground: false`). v0.1 emits opaque PNGs.
 
 7. **What's the right behavior when the page is shorter than the viewport (`scrollHeight <= innerHeight`)?**
    - What we know: A single-frame capture suffices. The clip's height should be `min(viewportHeight, totalHeight)`.
    - What's unclear: Whether the output PNG's height should be `viewportHeight * DSR` (padded with white/transparent) or `totalHeight * DSR` (exactly the page).
-   - Recommendation: Output PNG height = `totalHeight * DSR`. Match the page exactly. The clip height clamp handles this.
+   - RESOLVED: Output PNG height = `totalHeight * DSR`. Match the page exactly. The clip height clamp handles this.
 
 8. **Should there be a max-height safety cap (e.g. refuse pages taller than 50,000 CSS pixels)?**
    - What we know: Personal tool, user knows their page.
    - What's unclear: Whether libvips throws on enormous canvas dimensions (it has its own limits in `unlimited: false` mode).
-   - Recommendation: v0.1 — no cap. If real pages produce sharp errors, surface them via the existing error-bubble + Phase 6 formatting.
+   - RESOLVED: v0.1 — no cap. If real pages produce sharp errors, surface them via the existing error-bubble + Phase 6 formatting.
 
 ## Environment Availability
 
