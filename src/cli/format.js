@@ -5,6 +5,8 @@
 
 import ora from 'ora';
 import chalk from 'chalk';
+import { ConfigError } from '../config/load.js';
+import { BrowserError } from '../browser/launcher.js';
 
 /**
  * Create a spinner configured for framershot's capture flow.
@@ -55,4 +57,74 @@ export function printSelectorWarnings(hideSummary) {
   for (const sel of hideSummary.missed) {
     console.warn(chalk.yellow(`⚠ hide selector "${sel}" matched 0 elements (or invalid CSS) — skipped`));
   }
+}
+
+/**
+ * Format any thrown value into a user-facing error string for `console.error`.
+ *
+ * Dispatch order (06-RESEARCH.md §Pattern 3):
+ *
+ *   1. Non-Error throws (defensive guard, §Pitfall 5) — string/null/object →
+ *      "Unexpected error: <String(thrown)>" with red prefix.
+ *
+ *   2. ConfigError (Phase 2) — already-formatted multi-line message from
+ *      formatZodError is embedded in err.message. Only color the prefix (§Pitfall 3).
+ *      Returns: chalk.red('Error:') + ' ' + err.message
+ *
+ *   3. BrowserError (Phase 3) — URL is already embedded in err.message (§A6).
+ *      If err.cause?.name === 'TimeoutError', appends a dim "(timed out)" hint.
+ *      Returns: chalk.red('Error:') + ' ' + err.message [+ dim hint]
+ *
+ *   4. Bare TimeoutError (Playwright timeout that escaped its origin layer) —
+ *      Returns: chalk.red('Error:') + ' Operation timed out — ' + err.message
+ *
+ *   5. Default (unexpected/programming errors) — headline + dim stack body.
+ *      Stack first line duplicates "ErrorType: message", so strip it (slice(1)).
+ *      Returns multi-line string: headline \n chalk.dim(stackBody)
+ *
+ * CONTRACT:
+ *   - PURE function — no I/O, no console.*, no process.exit.
+ *   - Returns a string; caller (index.js) does `console.error(formatError(err))`.
+ *   - Single sink: only index.js's top-level catch calls this (§Pattern 3).
+ *   - Do NOT chalk the body of ConfigError/BrowserError messages (§Pitfall 3).
+ *   - Do NOT print stack traces for ConfigError or BrowserError — those are
+ *     expected/actionable errors; stack adds noise.
+ *
+ * @param {unknown} err — the caught value from the top-level catch
+ * @returns {string}
+ */
+export function formatError(err) {
+  // Guard 1: non-Error throws (string, null, plain object, etc.)
+  if (!(err instanceof Error)) {
+    return chalk.red('Unexpected error: ') + String(err);
+  }
+
+  // Guard 2: ConfigError — message already formatted by formatZodError inside loadConfig.
+  // Only red the 'Error:' prefix; body stays default color (§Pitfall 3).
+  if (err instanceof ConfigError) {
+    return `${chalk.red('Error:')} ${err.message}`;
+  }
+
+  // Guard 3: BrowserError — URL is already embedded in err.message (§A6).
+  // Append a dim "(timed out)" hint if the cause is a TimeoutError.
+  if (err instanceof BrowserError) {
+    const base = `${chalk.red('Error:')} ${err.message}`;
+    if (err.cause?.name === 'TimeoutError') {
+      return `${base}\n  ${chalk.dim('(timed out)')}`;
+    }
+    return base;
+  }
+
+  // Guard 4: bare TimeoutError (escaped from a non-navigator layer, e.g. Phase 5 screenshot timeout).
+  if (err.name === 'TimeoutError') {
+    return `${chalk.red('Error:')} Operation timed out — ${err.message}`;
+  }
+
+  // Default: unexpected/programming error. Print headline + dim stack body.
+  const headline = `${chalk.red('Unexpected error:')} ${err.message}`;
+  if (err.stack) {
+    const stackBody = err.stack.split('\n').slice(1).join('\n');
+    return `${headline}\n${chalk.dim(stackBody)}`;
+  }
+  return headline;
 }
