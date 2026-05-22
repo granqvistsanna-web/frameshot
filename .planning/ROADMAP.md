@@ -43,7 +43,7 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 
 **Plans**: 4 plans
 
-- [ ] 07-01-PLAN.md — Schema + loader: viewportEntrySchema/viewportsSchema + mutually-exclusive root refinement + singular→plural normalize transform (Wave 1)
+- [x] 07-01-PLAN.md — Schema + loader: viewportEntrySchema/viewportsSchema + mutually-exclusive root refinement + singular→plural normalize transform (Wave 1)
 - [ ] 07-02-PLAN.md — runCapture per-viewport loop + launchBrowser(config, viewportEntry) refactor + per-viewport-scoped onProgress events + array return shape (Wave 2)
 - [ ] 07-03-PLAN.md — CLI ora adapter + server SSE adapter consume array return; per-viewport spinner prefix; UI form stays single-viewport per D-05 (Wave 3)
 - [ ] 07-04-PLAN.md — samples/smoke-multi.yaml hermetic 2-viewport fixture + human visual checkpoint (Wave 3, after 07-03)
@@ -63,7 +63,12 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
   4. A missing selector / missing anchor / unknown `--only` name surfaces an actionable error via the existing `formatError` dispatcher (typed error, not a raw throw)
   5. The hermetic smoke fixture demonstrates: (a) a selector-region capture, (b) an anchor-region capture, (c) the `--only` flag isolating one region
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+- [ ] 08-01-PLAN.md — Schema: regionSchema (selector-XOR-anchor superRefine) + root regions field + duplicate-name + {region}-in-output cross-field refinements (Wave 1)
+- [ ] 08-02-PLAN.md — New src/capture/region.js (captureRegion + RegionError + padRect/unionRect/clampToDocument helpers) + {region} placeholder in resolveTemplate (Wave 2)
+- [ ] 08-03-PLAN.md — runCapture region loop + resolveRegions helper + --only fail-fast validation + Open-Q#1-A regions+full-page branch (Wave 3)
+- [ ] 08-04-PLAN.md — --only commander option + --smoke/--only mutex + formatError RegionError Guard 4 + serve-smoke.js HTML extension + samples/smoke-regions.yaml fixture + human visual checkpoint (Wave 4)
 
 ## Progress
 
@@ -75,5 +80,5 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 | 4. Prepare Pipeline       | v0.1      | 5/5            | Complete    | 2026-05-22 |
 | 5. Scroll-Stitch Output   | v0.1      | 3/3            | Complete    | 2026-05-22 |
 | 6. Terminal UX            | v0.1      | 2/2            | Complete    | 2026-05-22 |
-| 7. Multi-viewport Capture | v0.2      | 0/4 | Planned    |  |
-| 8. Region Capture         | v0.2      | 0/?            | Not started | -          |
+| 7. Multi-viewport Capture | v0.2      | 1/4 | In Progress|  |
+| 8. Region Capture         | v0.2      | 0/4            | Planned     | -          |
