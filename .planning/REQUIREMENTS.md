@@ -12,7 +12,7 @@ Scope: 4 requirements across 2 categories. Single-page-per-config remains in for
 
 ### Multi-viewport
 
-- [ ] **MULTI-01**: User can declare multiple viewports in one config (array of `{ name, width, height, deviceScaleFactor }`) and one `framershot capture` run produces one full-page PNG per viewport. Output template `{viewport}` placeholder resolves to the per-viewport `name`. Each viewport gets its own browser context (no shared state).
+- [x] **MULTI-01**: User can declare multiple viewports in one config (array of `{ name, width, height, deviceScaleFactor }`) and one `framershot capture` run produces one full-page PNG per viewport. Output template `{viewport}` placeholder resolves to the per-viewport `name`. Each viewport gets its own browser context (no shared state).
 
 ### Region capture
 
@@ -54,7 +54,7 @@ The full v0.1 validated list lives in `milestones/v0.1-REQUIREMENTS.md`. Carry-f
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MULTI-01 | Phase 7 | Pending |
+| MULTI-01 | Phase 7 | Complete (Plans 01-03) |
 | REGION-01 | Phase 8 | Pending |
 | REGION-02 | Phase 8 | Pending |
 | REGION-03 | Phase 8 | Pending |

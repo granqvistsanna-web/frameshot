@@ -10,8 +10,8 @@ progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-22)
 ## Current Position
 
 Phase: 07 (multi-viewport-capture) — EXECUTING
-Plan: 3 of 4 (next)
-Status: Executing Phase 07 — Wave 2 complete, Wave 3 pending
-Last activity: 2026-05-22 -- Phase 07 Plan 02 complete
+Plan: 4 of 4 (next)
+Status: Executing Phase 07 — Wave 3 complete, Wave 4 pending
+Last activity: 2026-05-22 -- Phase 07 Plan 03 complete
 
 ## Performance Metrics
 
@@ -60,6 +60,8 @@ Full Key Decisions log lives in PROJECT.md. Carry-forward decisions still load-b
 - Plan 07-02: Loop in runCapture (D-03) — callers stay dumb adapters; CLI/server consume array return in Wave 3
 - Plan 07-02: launchBrowser(config, viewportEntry) — per-viewport geometry separate from top-level DSR+baseURL (D-04)
 - Plan 07-02: runCapture returns Array<{outputPath, hideSummary, viewportName}> — one entry per viewport in order
+- Plan 07-03: Spinner prefix format [<viewport>] in ora text for step/frame events — bracket-wrapped for visual distinction
+- Plan 07-03: outputs: [...] SSE done-frame shape — extensible for future multi-viewport UI without another breaking change
 
 ### Pending Todos
 
@@ -71,6 +73,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-22T19:50:00Z
-Stopped at: Phase 07 Plan 02 complete — Wave 2 done (launcher + runCapture loop)
-Resume file: .planning/phases/07-multi-viewport-capture/07-03-PLAN.md
+Last session: 2026-05-22T20:15:00Z
+Stopped at: Phase 07 Plan 03 complete — Wave 3 done (CLI + server adapter migration)
+Resume file: .planning/phases/07-multi-viewport-capture/07-04-PLAN.md
