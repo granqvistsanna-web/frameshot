@@ -1,0 +1,43 @@
+# smoke-multi.yaml — Phase 7 hermetic 2-viewport smoke fixture.
+#
+# This is the canonical evidence for Phase 7 ROADMAP success criteria:
+#   #5: A hermetic smoke fixture demonstrates a 2-viewport run producing 2 distinct
+#       PNGs end-to-end (desktop + mobile).
+#   #2: The {viewport} placeholder in the output template resolves to each viewport's
+#       `name`, so the two PNGs land at distinct paths — no overwrites occur.
+#
+# Targets the same samples/serve-smoke.js fixture server as samples/smoke.yaml
+# (http://127.0.0.1:7357) — no new server, no network dependency.
+#
+# samples/smoke.yaml (v0.1 single-viewport fixture) stays UNCHANGED — it is the
+# back-compat acceptance evidence for ROADMAP success criterion #4.
+#
+# To run locally:
+#   node samples/serve-smoke.js &          # background the fixture server
+#   node index.js capture samples/smoke-multi.yaml
+#   kill %1                                 # stop the fixture server
+#
+name: phase-07-smoke-multi
+baseUrl: http://127.0.0.1:7357
+output: /tmp/framershot-smoke-multi/{viewport}/{page}.png
+deviceScaleFactor: 2
+viewports:
+  - name: desktop
+    width: 800
+    height: 600
+  - name: mobile
+    width: 375
+    height: 667
+page:
+  path: "/"
+  name: home
+prepare:
+  animations: true
+  hide:
+    - '.hidden-by-test'
+    # `.does-not-exist` is intentional — exercises the CLI-02/CLI-03 selector-warning path
+    # per viewport (Phase 6 pattern). With 2 viewports, this warning fires TWICE — once per
+    # viewport — confirming the per-viewport isolation of the prepare pipeline.
+    - '.does-not-exist'
+  scrollPrime: true
+  extraDelay: 1000
