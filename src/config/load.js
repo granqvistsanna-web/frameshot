@@ -30,8 +30,15 @@ export class ConfigError extends Error {
  *   3. Parse YAML with line/column-aware error wrapping
  *   4. Validate against configSchema.safeParse, throw ConfigError on failure
  *
+ * Normalization (v0.1 → v0.2 shape):
+ *   The returned ResolvedConfig always exposes `config.viewports: Array<{ name, width, height }>`.
+ *   If the YAML used the v0.1 singular `viewport: { ... }` form, the schema's .transform()
+ *   in src/config/schema.js converts it to a one-element viewports[] array at Step 4.
+ *   Downstream consumers (runCapture, launcher, cli, server) MUST read config.viewports[] only —
+ *   config.viewport (singular) is never present on the returned object.
+ *
  * @param {string} configPath — relative or absolute path to the YAML config file
- * @returns {Promise<import('./schema.js').ResolvedConfig>}
+ * @returns {Promise<import('./schema.js').ResolvedConfig>} — always has `viewports: [...]`, never `viewport`
  * @throws {ConfigError} on any failure path
  */
 export async function loadConfig(configPath) {

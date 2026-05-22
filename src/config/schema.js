@@ -1,15 +1,44 @@
 // src/config/schema.js
-// Zod 3 schema for the full v0.1 framershot config shape + formatZodError helper.
+// Zod 3 schema for the full v0.1/v0.2 framershot config shape + formatZodError helper.
 // NOTE: package.json declares "zod": "^3", resolving to zod 3.x at install time.
 //   - Use `z.string().url()` (the zod 3 form). The top-level `z.url()` exists in
 //     zod v4 but is undefined in zod 3.x. Both `import { z }` and `import * as z`
 //     work in zod 3; we use the named export form.
 import { z } from 'zod';
 
+// v0.1 singular shape — kept for the singular-alias input path (name is optional).
+// Do NOT delete: the root mutual-exclusivity refinement still uses this for the
+// `viewport:` field, and the normalize transform reads from it.
 const viewportSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   name: z.string().min(1).optional(),
+});
+
+// v0.2 plural shape — `name` is REQUIRED per D-02 so the {viewport} placeholder
+// in output templates can never silently produce identical paths for two viewports.
+export const viewportEntrySchema = z.object({
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  name: z.string().min(1),
+});
+
+// Array of 1+ viewport entries with unique names.
+// .superRefine gives fine-grained control over path + message so formatZodError's
+// catch-all renders it as `viewports: duplicate name '<dup>'` (per D-02).
+export const viewportsSchema = z.array(viewportEntrySchema).min(1).superRefine((arr, ctx) => {
+  const seen = new Set();
+  for (const entry of arr) {
+    if (seen.has(entry.name)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['viewports'],
+        message: `duplicate name '${entry.name}'`,
+      });
+      return; // report only the first duplicate (cleaner UX)
+    }
+    seen.add(entry.name);
+  }
 });
 
 const pageSchema = z.object({
@@ -33,7 +62,10 @@ const prepareSchema = z
   // Entire `prepare` block is optional in YAML — .default({}) lets minimal configs omit it
   .default({});
 
-export const configSchema = z.object({
+// Root base schema: both viewport keys are .optional() at the field level so zod
+// parses the raw object without rejecting unknown combinations.  The mutual-exclusivity
+// invariant is enforced by the .superRefine below.
+const baseConfigSchema = z.object({
   name: z.string().min(1),
   // z.string().url() is the standard zod 3 form for WHATWG URL validation.
   // Do NOT use top-level z.url() — that is a zod v4-only API.
@@ -48,12 +80,59 @@ export const configSchema = z.object({
   // output: just string min(1) — placeholder enforcement belongs to the template resolver
   output: z.string().min(1),
   deviceScaleFactor: z.number().min(1).max(3).default(2),
-  viewport: viewportSchema,
+  // v0.1 singular alias — optional at the field level; mutual exclusivity enforced below.
+  viewport: viewportSchema.optional(),
+  // v0.2 plural form — optional at the field level; mutual exclusivity enforced below.
+  viewports: viewportsSchema.optional(),
   page: pageSchema,
   prepare: prepareSchema,
 });
 
-/** @typedef {z.infer<typeof configSchema>} ResolvedConfig */
+// Full configSchema: mutual-exclusivity refinement → normalize transform.
+// Order matters in zod: .superRefine runs BEFORE .transform, so an invalid
+// input (both or neither) never reaches the normalize step.
+export const configSchema = baseConfigSchema
+  .superRefine((data, ctx) => {
+    const hasViewport = data.viewport !== undefined;
+    const hasViewports = data.viewports !== undefined;
+    if (hasViewport && hasViewports) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['viewport / viewports'],
+        message: "provide exactly one (got 'both')",
+      });
+    } else if (!hasViewport && !hasViewports) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['viewport / viewports'],
+        message: "provide exactly one (got 'neither')",
+      });
+    }
+  })
+  .transform((data) => {
+    // Normalize singular → plural.  If `viewport:` was supplied, convert it to
+    // a one-element `viewports:[]` with name defaulting to 'default' (matching
+    // the v0.1 fallback in runCapture.js:36 and cli.js:46).
+    // The returned object omits `viewport` so downstream consumers see ONLY
+    // `config.viewports` — zero branching outside this boundary.
+    const { viewport, viewports, ...rest } = data;
+    if (viewport !== undefined) {
+      return {
+        ...rest,
+        viewports: [{ width: viewport.width, height: viewport.height, name: viewport.name ?? 'default' }],
+      };
+    }
+    // viewports[] was supplied — pass through as-is.
+    return { ...rest, viewports };
+  });
+
+/**
+ * @typedef {z.infer<typeof configSchema>} ResolvedConfig
+ *
+ * Always exposes `viewports: Array<{ name: string, width: number, height: number }>`.
+ * The v0.1 singular `viewport:` input form is absorbed by the schema transform at this
+ * boundary — no downstream consumer ever reads `config.viewport` (singular).
+ */
 
 /**
  * Turns a ZodError into one user-facing line per issue.
