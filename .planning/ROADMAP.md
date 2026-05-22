@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Browser + Navigation** - Playwright launch, viewport, retina scale, networkidle + fonts.ready waits (completed 2026-05-20)
 - [x] **Phase 4: Prepare Pipeline** - Animation disable, Framer Motion surgical fix, element hiding, scroll prime, extraDelay (completed 2026-05-22)
 - [x] **Phase 5: Scroll-Stitch Output** - Viewport-step scroll-capture loop, sharp stitch, write to templated path (completed 2026-05-22)
-- [ ] **Phase 6: Terminal UX** - ora progress output, actionable error messages for all failure modes
+- [x] **Phase 6: Terminal UX** - ora progress output, actionable error messages for all failure modes (completed 2026-05-22)
 
 ## Phase Details
 
@@ -158,17 +158,17 @@ Plans:
   3. When a network error occurs (URL unreachable), the error message includes the URL that failed and a plain-English description of what went wrong
   4. When a selector in the `hide` list matches nothing, a warning is printed but capture continues rather than crashing
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 
 **Wave 1** — progress wiring (CLI-02):
 
-- [ ] 06-01-PLAN.md — Create `src/cli/format.js` (makeProgress + printSelectorWarnings); wire ora spinner across the 7 step boundaries in `src/cli.js` with module-level currentSpinner + getCurrentSpinner export; add `{ onProgress }` callback contract to Phase 5's `captureFullPage` (Phase 6-owned per 06-RESEARCH §A7); update `samples/smoke.yaml` to include a missing selector so the warning path runs on every smoke. Smoke branch stays spinner-free per §Pitfall 4.
+- [x] 06-01-PLAN.md — Create `src/cli/format.js` (makeProgress + printSelectorWarnings); wire ora spinner across the 7 step boundaries in `src/cli.js` with module-level currentSpinner + getCurrentSpinner export; add `{ onProgress }` callback contract to Phase 5's `captureFullPage` (Phase 6-owned per 06-RESEARCH §A7); update `samples/smoke.yaml` to include a missing selector so the warning path runs on every smoke. Smoke branch stays spinner-free per §Pitfall 4.
 
 **Wave 2** *(blocked on 06-01 — both touch `src/cli.js` and `src/cli/format.js`)*:
 
-- [ ] 06-02-PLAN.md — Append `formatError(err)` to `src/cli/format.js` (dispatches ConfigError → red prefix + already-formatted message; BrowserError → red prefix + URL-bearing message; bare TimeoutError → "Operation timed out"; default → "Unexpected error" + dim stack); rewire `index.js`'s single top-level catch to call `formatError` after `.fail()`-ing any live spinner via `getCurrentSpinner`; author `samples/bad-viewport-width.yaml` and `samples/bad-baseurl.yaml` Wave 0 fixtures for the CLI-03 smoke assertions.
+- [x] 06-02-PLAN.md — Append `formatError(err)` to `src/cli/format.js` (dispatches ConfigError → red prefix + already-formatted message; BrowserError → red prefix + URL-bearing message; bare TimeoutError → "Operation timed out"; default → "Unexpected error" + dim stack); rewire `index.js`'s single top-level catch to call `formatError` after `.fail()`-ing any live spinner via `getCurrentSpinner`; author `samples/bad-viewport-width.yaml` and `samples/bad-baseurl.yaml` Wave 0 fixtures for the CLI-03 smoke assertions.
 
 ---
 
@@ -184,4 +184,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
 | 4. Prepare Pipeline | 5/5 | Complete    | 2026-05-22 |
 | 5. Scroll-Stitch Output | 3/3 | Complete   | 2026-05-22 |
-| 6. Terminal UX | 0/2 | Not started | - |
+| 6. Terminal UX | 2/2 | Complete   | 2026-05-22 |

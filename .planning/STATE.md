@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-02-PLAN.md — Phase 3 Browser + Navigation done
-last_updated: "2026-05-22T13:20:59.098Z"
-last_activity: 2026-05-22 -- Phase 05 marked complete
+stopped_at: Completed 06-02-PLAN.md — Phase 6 Terminal UX done; milestone v0.1 complete
+last_updated: "2026-05-22T22:00:00.000Z"
+last_activity: 2026-05-22 -- Phase 06 marked complete; milestone v0.1 done
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 16
-  completed_plans: 14
-  percent: 83
+  completed_plans: 16
+  percent: 100
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-19)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Phase null
+**Current focus:** Milestone v0.1 complete — all 6 phases shipped
 
 ## Current Position
 
-Phase: 05 — COMPLETE
-Plan: 1 of ?
-Status: Phase 05 complete
-Last activity: 2026-05-22 -- Phase 05 marked complete
+Phase: 06 — COMPLETE (milestone v0.1 complete)
+Plan: 2 of 2
+Status: Phase 06 complete; all phases done
+Last activity: 2026-05-22 -- Phase 06 marked complete
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 11
+- Total plans completed: 16
 - Average duration: —
 - Total execution time: —
 
@@ -48,6 +48,8 @@ Progress: [█████░░░░░] 50%
 | 02 | 3 | - | - |
 | 03 | 2 | ~18 min | ~9 min |
 | 04 | 5 | - | - |
+| 05 | 3 | - | - |
+| 06 | 2 | ~22 min | ~11 min |
 
 **Recent Trend:**
 
@@ -81,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-20T09:01:15Z
-Stopped at: Completed 03-02-PLAN.md — Phase 3 Browser + Navigation done
+Last session: 2026-05-22T22:00:00Z
+Stopped at: Completed 06-02-PLAN.md — Phase 6 Terminal UX done; milestone v0.1 complete
 Resume file: None
