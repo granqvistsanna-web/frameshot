@@ -4,14 +4,14 @@ milestone: v0.2
 milestone_name: Multi-viewport & Region Capture
 status: executing
 stopped_at: "Phase 7 context gathered; ready for `/gsd:plan-phase 7`"
-last_updated: "2026-05-22T18:51:17.848Z"
-last_activity: 2026-05-22 -- Phase 7 execution started
+last_updated: "2026-05-22T19:50:00Z"
+last_activity: 2026-05-22 -- Phase 07 Plan 02 complete
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-22)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Phase 7 — Multi-viewport Capture
+**Current focus:** Phase 07 — multi-viewport-capture
 
 ## Current Position
 
-Phase: 7 (Multi-viewport Capture) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 7
-Last activity: 2026-05-22 -- Phase 7 execution started
+Phase: 07 (multi-viewport-capture) — EXECUTING
+Plan: 3 of 4 (next)
+Status: Executing Phase 07 — Wave 2 complete, Wave 3 pending
+Last activity: 2026-05-22 -- Phase 07 Plan 02 complete
 
 ## Performance Metrics
 
@@ -57,6 +57,10 @@ Full Key Decisions log lives in PROJECT.md. Carry-forward decisions still load-b
 - Phase-numbering continues from v0.1: Phase 7 (multi-viewport) → Phase 8 (region capture)
 - Schema additions (`viewports[]`, `regions[]`) must preserve v0.1 backward compatibility — single-viewport / no-regions configs must still validate and run unchanged
 
+- Plan 07-02: Loop in runCapture (D-03) — callers stay dumb adapters; CLI/server consume array return in Wave 3
+- Plan 07-02: launchBrowser(config, viewportEntry) — per-viewport geometry separate from top-level DSR+baseURL (D-04)
+- Plan 07-02: runCapture returns Array<{outputPath, hideSummary, viewportName}> — one entry per viewport in order
+
 ### Pending Todos
 
 None yet.
@@ -67,6 +71,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-22T23:45:00Z
-Stopped at: Phase 7 context gathered; ready for `/gsd:plan-phase 7`
-Resume file: .planning/phases/07-multi-viewport-capture/07-CONTEXT.md
+Last session: 2026-05-22T19:50:00Z
+Stopped at: Phase 07 Plan 02 complete — Wave 2 done (launcher + runCapture loop)
+Resume file: .planning/phases/07-multi-viewport-capture/07-03-PLAN.md
