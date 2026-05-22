@@ -30,15 +30,27 @@ Validated post-v0.1: the four daily pain points (sticky-nav ghosting, mid-flight
 - ✓ Full-page scroll-and-stitch capture (sharp composite, no `fullPage:true` ghosting) — v0.1 (OUT-01, OUT-02)
 - ✓ Output writes to templated path with parent dirs auto-created — v0.1 (OUT-03)
 
-### Active (next milestone — not yet scoped)
+## Current Milestone: v0.2 Multi-viewport & Region Capture
 
-Deferred from v0.1; pick a subset for v0.2 via `/gsd:new-milestone`:
+**Goal:** Capture multiple viewports in one run and capture individual regions (by selector or from/to anchors) from a config — while keeping v0.1's single-config, single-page ergonomics intact.
+
+**Target features:**
+- Multi-viewport per run (declare desktop / tablet / mobile in one config, capture all)
+- Region capture by CSS selector (scroll into view + `element.screenshot()` with padding)
+- Region capture by from/to anchors (bounding box between two anchors)
+- `--only=<region>` CLI flag to capture a single region instead of the full page
+
+### Active (v0.2 scope)
 
 - [ ] Multi-viewport per run (desktop / tablet / mobile from one config) — MULTI-01
-- [ ] Multi-page per config — MULTI-02
-- [ ] CLI filter flags: `--viewport=<name>`, `--pages=<list>`, `--only=<region>` — MULTI-03, MULTI-04, REGION-03
 - [ ] Region capture by CSS selector (scroll into view, `element.screenshot()` with padding) — REGION-01
 - [ ] Region capture by from/to anchors (compute bounding box between two anchors) — REGION-02
+- [ ] CLI `--only=<region>` flag to capture a specific region instead of the full page — REGION-03
+
+### Deferred past v0.2
+
+- [ ] Multi-page per config — MULTI-02
+- [ ] CLI `--viewport=<name>` and `--pages=<list>` filter flags — MULTI-03, MULTI-04
 - [ ] Diff mode: compare two captures, output a diff image — DIFF-01
 - [ ] Pre-capture hooks: run a script to set cookies or accept consent banners — HOOK-01
 - [ ] Auth support for password-protected Framer staging URLs — AUTH-01
@@ -82,5 +94,22 @@ Deferred from v0.1; pick a subset for v0.2 via `/gsd:new-milestone`:
 | Wave-based parallel plan execution with zero `files_modified` overlap | Phase 4 ran 4 plans in parallel, Phase 5 ran 2 — merges stayed trivial because each plan owned a distinct file. | ✓ Good — pattern to reuse in v0.2. |
 | Name: framershot | User-chosen; bin name, package name, config namespace all use this. | ✓ Good. |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-05-22 after v0.1 milestone shipped*
+*Last updated: 2026-05-22 — milestone v0.2 (Multi-viewport & Region Capture) started.*
