@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Project scaffold, dependencies, bin entry wired (completed 2026-05-19)
 - [x] **Phase 2: CLI + Config** - Commander wiring, YAML parsing, zod validation, output template resolver (completed 2026-05-20)
 - [x] **Phase 3: Browser + Navigation** - Playwright launch, viewport, retina scale, networkidle + fonts.ready waits (completed 2026-05-20)
-- [ ] **Phase 4: Prepare Pipeline** - Animation disable, Framer Motion surgical fix, element hiding, scroll prime, extraDelay
+- [x] **Phase 4: Prepare Pipeline** - Animation disable, Framer Motion surgical fix, element hiding, scroll prime, extraDelay (completed 2026-05-22)
 - [ ] **Phase 5: Scroll-Stitch Output** - Viewport-step scroll-capture loop, sharp stitch, write to templated path
 - [ ] **Phase 6: Terminal UX** - ora progress output, actionable error messages for all failure modes
 
@@ -102,7 +102,7 @@ Plans:
   4. The `extraDelay` value in config (e.g. 1000ms) causes an observable pause before capture begins — verifiable by adding a console.time around the prepare step
   5. CSS `animation` and `transition` properties are set to `none` globally via injected style, observable by inspecting computed styles in a headed debug run
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 
@@ -115,7 +115,7 @@ Plans:
 
 **Wave 2** *(blocked on all wave-1 plans completing)*:
 
-- [ ] 04-05-PLAN.md — Wire Phase 4 into `src/cli.js` (one import, two call sites, animations:'disabled' screenshot option, smoke-branch console.time); extend `samples/serve-smoke.js` with four PREP-evidence fixtures (animation, IO, hidden, lazy-img + spacer); update `samples/smoke.yaml` (hide + scrollPrime:true + extraDelay:1000). End-to-end smoke proves all 5 PREP-* requirements observably.
+- [x] 04-05-PLAN.md — Wire Phase 4 into `src/cli.js` (one import, two call sites, animations:'disabled' screenshot option, smoke-branch console.time); extend `samples/serve-smoke.js` with four PREP-evidence fixtures (animation, IO, hidden, lazy-img + spacer); update `samples/smoke.yaml` (hide + scrollPrime:true + extraDelay:1000). End-to-end smoke proves all 5 PREP-* requirements observably.
 
 ---
 
@@ -172,6 +172,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 1/1 | Complete    | 2026-05-19 |
 | 2. CLI + Config | 3/3 | Complete    | 2026-05-20 |
 | 3. Browser + Navigation | 2/2 | Complete    | 2026-05-20 |
-| 4. Prepare Pipeline | 4/5 | In Progress|  |
+| 4. Prepare Pipeline | 5/5 | Complete   | 2026-05-22 |
 | 5. Scroll-Stitch Output | 0/3 | Not started | - |
 | 6. Terminal UX | 0/2 | Not started | - |
