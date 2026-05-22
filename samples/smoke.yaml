@@ -44,5 +44,7 @@ prepare:
   animations: true
   hide:
     - '.hidden-by-test'
+    # `.does-not-exist` is intentional — exercises the CLI-02/CLI-03 selector-warning path on every smoke run (Phase 6).
+    - '.does-not-exist'
   scrollPrime: true
   extraDelay: 1000
