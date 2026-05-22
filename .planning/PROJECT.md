@@ -16,13 +16,13 @@ Reliably capture clean, retina-quality screenshots of Framer sites without ghost
 - [x] Per-site YAML config: name, baseUrl, output template, viewport, page, prepare options — validated in Phase 2 (CFG-01)
 - [x] Field-named validation errors (no raw zod dump) — validated in Phase 2 (CFG-02)
 - [x] Templated output paths (`{date}`, `{viewport}`, `{page}` substitution) — validated in Phase 2 (CFG-03)
+- [x] Playwright launch with configurable viewport + `deviceScaleFactor` (2 or 3 for retina) — validated in Phase 3 (BROWSER-01, NAV-01)
+- [x] Page navigation waits for `networkidle` + `document.fonts.ready` — validated in Phase 3 (NAV-01, NAV-02)
+- [x] Animation neutralization: CSS injection + Framer Motion–specific disabling (IntersectionObserver replacement so in-view triggers fire instantly) — validated in Phase 4 (PREP-01, PREP-02)
+- [x] Selector-based element hiding (sticky navs, banners, chat widgets) — validated in Phase 4 (PREP-03)
+- [x] Scroll prime: scroll to bottom in steps, wait, scroll back to top — forces lazy images and reveals to settle — validated in Phase 4 (PREP-04, PREP-05)
 
 ### Active
-- [ ] Playwright launch with configurable viewport + `deviceScaleFactor` (2 or 3 for retina)
-- [ ] Page navigation waits for `networkidle` + `document.fonts.ready`
-- [ ] Animation neutralization: CSS injection + Framer Motion–specific disabling (IntersectionObserver replacement so in-view triggers fire instantly)
-- [ ] Selector-based element hiding (sticky navs, banners, chat widgets)
-- [ ] Scroll prime: scroll to bottom in steps, wait, scroll back to top — forces lazy images and reveals to settle
 - [ ] Full-page stitched capture: scroll in viewport-height steps, capture each, stitch with `sharp` (avoids Playwright's native `fullPage` ghosting of sticky elements)
 - [ ] Region capture by CSS selector (scroll into view, `element.screenshot()` with padding)
 - [ ] Region capture by from/to anchors (compute bounding box between two anchors)
@@ -61,10 +61,10 @@ Reliably capture clean, retina-quality screenshots of Framer sites without ghost
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Stitch screenshots manually instead of Playwright `fullPage: true` | Native fullPage re-renders sticky elements on each capture pass, producing ghosted navs. Manual scroll-and-stitch with sharp lets us hide once and assemble cleanly. | — Pending |
-| Surgical Framer Motion disabling as default (not just CSS brute-force) | `window.__framer_motion_disabled = true` + replacing IntersectionObserver fires all in-view triggers instantly. More reliable for Framer than CSS-only `animation: none`. | — Pending |
+| Surgical Framer Motion disabling as default (not just CSS brute-force) | `window.__framer_motion_disabled = true` + replacing IntersectionObserver fires all in-view triggers instantly. More reliable for Framer than CSS-only `animation: none`. | — Implemented in Phase 4 via IntersectionObserver shim that auto-reports `isIntersecting: true` for all observed targets, plus universal `animation: none !important; transition: none !important` CSS injection. Composite guard, not just one mechanism. |
 | Per-site config file (YAML/JSON) as the primary interface | Capture parameters are sticky per project (selectors, viewports, hide list). Repeating them as CLI flags every run is unusable. Config file is the daily-touch surface. | — Pending |
 | Chromium only, not all Playwright browsers | Personal tool, single rendering target needed, smaller install. | — Pending |
 | Name: framershot | User locked it in — bin name, package name, config namespace all use this. | — Pending |
 
 ---
-*Last updated: 2026-05-20 — Phase 2 (CLI + Config) complete*
+*Last updated: 2026-05-22 — Phase 4 (Prepare Pipeline) complete. Next: Phase 5 (Scroll-Stitch Output).*
