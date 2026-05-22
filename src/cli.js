@@ -3,6 +3,7 @@ import { loadConfig } from './config/load.js';
 import { resolveTemplate } from './output/template.js';
 import { launchBrowser } from './browser/launcher.js';
 import { navigateToPage } from './browser/navigator.js';
+import { installAnimationGuards, runPreparePipeline } from './prepare/index.js';
 
 export function buildProgram() {
   const program = new Command();
@@ -26,7 +27,13 @@ export function buildProgram() {
 
       const { browser, context } = await launchBrowser(config);
       try {
+        await installAnimationGuards(context, config.prepare);
         const navigatedPage = await navigateToPage(context, config.page);
+        if (opts.smoke) console.time('prepare');
+        const { hideSummary } = await runPreparePipeline(navigatedPage, config.prepare);
+        // hideSummary is intentionally unused in Phase 4 — Phase 6 (CLI-03)
+        // will surface hideSummary.missed as warnings if any hide: selector matched 0 elements.
+        if (opts.smoke) console.timeEnd('prepare');
         if (opts.smoke) {
           // Phase 3 hermetic-verifiable seam: ONE viewport-sized screenshot
           // proves viewport × DSR math reached the rendering pipeline
@@ -36,7 +43,7 @@ export function buildProgram() {
           const { mkdir } = await import('node:fs/promises');
           const { dirname } = await import('node:path');
           await mkdir(dirname(resolvedOutput), { recursive: true });
-          await navigatedPage.screenshot({ path: resolvedOutput, fullPage: false });
+          await navigatedPage.screenshot({ path: resolvedOutput, fullPage: false, animations: 'disabled' });
           console.log(`smoke screenshot written: ${resolvedOutput}`);
         } else {
           // Phase 3 boundary: Phase 4 (prepare) and Phase 5 (capture loop)
