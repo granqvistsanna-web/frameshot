@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Multi-viewport & Region Capture
 status: executing
-stopped_at: Phase 08 Wave 3 complete — 08-03 runCapture region loop merged; Wave 4 (CLI + fixture) needs human visual checkpoint
-last_updated: "2026-05-24T13:05:00.000Z"
-last_activity: 2026-05-24 -- Phase 08 Wave 3 complete (08-03 runCapture loop); Wave 4 starting (autonomous:false)
+stopped_at: Phase 08 all 4 plans complete + visual checkpoint approved; verification pending
+last_updated: "2026-05-24T13:30:00.000Z"
+last_activity: 2026-05-24 -- Phase 08 Wave 4 complete + visual checkpoint approved; phase verification starting
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 8
-  completed_plans: 7
-  percent: 87
+  completed_plans: 8
+  percent: 100
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-22)
 
 ## Current Position
 
-Phase: 08 (region-capture) — EXECUTING (Wave 4/4 — final, autonomous:false)
-Next: Phase 08 verification after Wave 4 + human visual checkpoint
-Last activity: 2026-05-24 -- Phase 08 Wave 3 (08-03 runCapture loop) complete; Wave 4 dispatched
+Phase: 08 (region-capture) — Wave 4 complete + visual checkpoint approved; phase verification in flight
+Next: After verification PASS — v0.2 milestone-complete check
+Last activity: 2026-05-24 -- Phase 08 Wave 4 (08-04 CLI + fixture) complete; visual checkpoint approved
 
 ## Performance Metrics
 
