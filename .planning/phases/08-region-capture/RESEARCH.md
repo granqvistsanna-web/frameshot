@@ -861,7 +861,16 @@ export const configSchema = z.object({
 | A9 | Smoke fixture needs HTML extension (new sections in `samples/serve-smoke.js`) to provide selectors that the region fixture can target. | §Recommended Project Structure, §Code Examples | If existing fixture sections are reusable as anchors/selectors, the HTML edit is smaller — but at least one new section is likely needed. [ASSUMED] |
 | A10 | Phase 6's `--smoke` and Phase 8's `--only` should be mutually exclusive (commander error). | §Pitfall 8 | Could instead silently fall through to full-page smoke — but unclear behavior is worse than friendly error. [ASSUMED — DISCUSS-PHASE GATE] |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All six questions below were resolved at planning time (2026-05-22) per their own recommendations. Plan-phase 8 was invoked without a prior /gsd:discuss-phase pass; locks were ratified in-line in the planner prompt and verified by gsd-plan-checker. Resolutions:
+>
+> 1. **RESOLVED → (A) Capture both.** `regions:` block present + no `--only` flag captures regions AND full-page. `--only` becomes a *filter*.
+> 2. **RESOLVED → Scalar only for v0.2.** Asymmetric `{ top, right, bottom, left }` deferred (non-breaking later).
+> 3. **RESOLVED → Extend existing `samples/serve-smoke.js`** with new data-test sections; add one new `samples/smoke-regions.yaml`. Single server.
+> 4. **RESOLVED → `--only` filters regions only; captures per declared viewport.** Phase 7's `--viewport=<name>` filter (MULTI-03) remains deferred past v0.2.
+> 5. **RESOLVED → Allow `from === to`** (degenerates to selector-region for `from`). No extra check.
+> 6. **RESOLVED → `RegionError` (new class).** Narrower than CaptureError; mirrors `BrowserError` shape from `src/browser/launcher.js`.
 
 1. **`regions:` config block present + no `--only` flag: capture both or regions-only?**
    - What we know: Success criterion #3 says "without the flag, full-page stitch behavior from v0.1 is unchanged." If a v0.1 config (no `regions:`) is loaded, full-page runs. The ambiguity is what happens for a **v0.2 config with `regions:` but no `--only`**.
