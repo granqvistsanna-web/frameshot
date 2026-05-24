@@ -83,6 +83,33 @@ const HTML = `<!doctype html>
     style="display: block; width: 100px; height: 40px; margin-top: 100px;"
   />
 
+  <!-- REGION-01 fixture: a single named element for selector-region capture.
+       samples/smoke-regions.yaml's 'hero' region targets [data-test="region-hero"].
+       Positioned below the PREP-04 spacer so scrollIntoViewIfNeeded must scroll
+       to reveal it. Color #036 (dark blue) is deliberately distinct from the
+       existing fixture colors (#c00, #ff0, #0ff, #888) so a visual check of any
+       region PNG immediately reveals which section it captured. -->
+  <section data-test="region-hero" style="margin: 2rem; padding: 2rem; background: #036; color: #fff;">
+    <h2>Region hero (selector capture target)</h2>
+    <p>This is the entire selector region. Padding should produce visible margin around it.</p>
+  </section>
+
+  <!-- REGION-02 fixture: 'from' anchor for anchor-region capture.
+       samples/smoke-regions.yaml's 'cards' region uses from=[data-test="region-from"]
+       to=[data-test="region-to"]. -->
+  <div data-test="region-from" style="margin: 2rem; padding: 1rem; background: #063; color: #fff;">
+    Anchor: from (top of region)
+  </div>
+
+  <!-- Spacer (400px) between from and to anchors — gives the union rect visible
+       height so the captured PNG demonstrably spans more than either anchor alone. -->
+  <div style="height: 400px; background: linear-gradient(#063, #630);"></div>
+
+  <!-- REGION-02 fixture: 'to' anchor — the bottom of the anchor-region union. -->
+  <div data-test="region-to" style="margin: 2rem; padding: 1rem; background: #630; color: #fff;">
+    Anchor: to (bottom of region)
+  </div>
+
   <footer style="padding: 1rem; color: #aaa;">end of phase-04 fixture</footer>
 </body>
 </html>`;
