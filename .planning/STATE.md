@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Multi-viewport & Region Capture
 status: executing
-stopped_at: Phase 07 COMPLETE — all 4 plans shipped, smoke-multi hermetic fixture verified end-to-end
-last_updated: "2026-05-24T12:10:00.000Z"
-last_activity: 2026-05-24 -- Phase 07 Plan 04 complete; Phase 07 COMPLETE
+stopped_at: Phase 08 Wave 1 complete — 08-01 schema regions merged
+last_updated: "2026-05-24T12:30:00.000Z"
+last_activity: 2026-05-24 -- Phase 08 Wave 1 complete (08-01 schema); Wave 2 starting
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 8
-  completed_plans: 4
-  percent: 50
+  completed_plans: 5
+  percent: 62
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-22)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Phase 08 — region-capture (next)
+**Current focus:** Phase 08 — region-capture (executing)
 
 ## Current Position
 
-Phase: 07 (multi-viewport-capture) — COMPLETE (2026-05-24)
-Next: Phase 08 (region-capture) — plans 08-01..04 already drafted, ready to execute
-Last activity: 2026-05-24 -- Phase 07 Plan 04 complete; Phase 07 COMPLETE
+Phase: 08 (region-capture) — EXECUTING (Wave 2/4)
+Next: Wave 3 (08-03 runCapture region loop) after 08-02 completes
+Last activity: 2026-05-24 -- Phase 08 Wave 1 (08-01 schema) complete; Wave 2 dispatched
 
 ## Performance Metrics
 
