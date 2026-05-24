@@ -32,23 +32,46 @@
 //     because scrollIntoViewIfNeeded on a display:none element waits for
 //     actionability and times out after 30s. boundingBox() is the cheap
 //     visibility probe that intercepts the invisible-element path.
+//   - boundingBox() returns VIEWPORT-RELATIVE coordinates — measured against
+//     the current scrollY at read time. Plan 04 fixes the anchor-mode union
+//     math by converting every post-scroll bbox to DOCUMENT-SPACE at
+//     measurement time via `measureDocBox()` (reads box + scrollX/scrollY in a
+//     single sequence so the conversion is atomic with the read). After this
+//     conversion, padRect/unionRect/clampToDocument all operate in document
+//     coordinates and the clip is document-relative.
 //   - Padding pushing clip outside doc bounds → clampToDocument truncates to
 //     [0, docW] × [0, docH] in ONE page.evaluate (geometry-once invariant from
 //     frames.js:74-82; RESEARCH §Pitfall 4).
-//   - Anchor mode order: scroll → measure → scroll → measure. The second
-//     scrollIntoViewIfNeeded may reflow the page if lazy-load triggers fire,
-//     making the first anchor's boundingBox() stale if read after the second
-//     scroll. ALWAYS measure each anchor immediately after scrolling it
+//   - Anchor mode order: scroll → measureDocBox → scroll → measureDocBox. The
+//     second scrollIntoViewIfNeeded may reflow the page if lazy-load triggers
+//     fire, making the first anchor's boundingBox() stale if read after the
+//     second scroll. ALWAYS measure each anchor immediately after scrolling it
 //     (RESEARCH §Pitfall 3 / 08-PATTERNS §Anchor Mode Order).
-//   - Re-scroll for clip intersection: scrollIntoViewIfNeeded puts the FOCUS
-//     element in view, but the padded/unioned clip's TOP may sit above or below
-//     the focus element. Re-scroll to Math.max(0, clip.y) before screenshot so
-//     the clip rect intersects the viewport (RESEARCH §Pitfall 1).
+//   - Screenshot uses { fullPage: true, clip } so the document-space clip
+//     resolves correctly regardless of current scrollY. Without fullPage,
+//     `page.screenshot({ clip })` treats clip as VIEWPORT-relative AND silently
+//     truncates clip.height to the viewport height (Wave 2's two architectural
+//     concerns combine — verified empirically in Plan 04 execution). With
+//     fullPage: true + clip, Playwright renders the full page composite first
+//     then crops to the document-relative clip rect (no viewport truncation).
+//     This was the locked v0.1 invariant for FULL-PAGE captures; Plan 04 lifts
+//     it for region captures only — see "Locked invariants" note below for the
+//     full rationale.
 //
-// Locked invariants inherited from Phase 5:
-//   - Screenshot options bag must match frames.js:124-129 verbatim (see the
-//     page.screenshot call below for the active values). The full-page option
-//     and the omit-background option MUST NOT appear in the screenshot call.
+// Locked invariants inherited from Phase 5 (FULL-PAGE capture path; Plan 04
+// adjusts ONLY for the region-capture screenshot call):
+//   - Screenshot options bag matches frames.js:124-129 modulo two REGION-MODE
+//     deltas: (a) `fullPage: true` is added so Playwright resolves `clip` in
+//     document coordinates (eliminates Wave 2's viewport-truncation pitfall);
+//     (b) `clip` is the rect we want. The frames.js full-page stitch path is
+//     UNCHANGED — Phase 5's invariant that full-page captures NEVER use
+//     fullPage: true (because the manual stitch handles sticky elements
+//     correctly) still holds. The region-mode fullPage: true is safe because
+//     each region clip is small enough that sticky-element ghosting within the
+//     clip rect is not a concern (typical Framer regions are marketing
+//     sections, not full pages).
+//   - The omit-background flag MUST NOT appear in the screenshot call (the
+//     page's own background is wanted; this matches frames.js).
 //   - Scroll behavior must be the instant variant on every scrollTo (NEVER the
 //     smooth variant — that animates ~300ms and races rAF; sticky elements
 //     end up at wrong positions).
@@ -123,6 +146,35 @@ async function clampToDocument(page, rect) {
   return { x, y, width, height };
 }
 
+// Read a locator's bounding box AND convert it to document-space in one
+// atomic measurement. boundingBox() returns viewport-relative coords (see
+// Plan 04 SUMMARY §"Architectural Concerns Resolved" for the empirical
+// confirmation: scroll a page from scrollY=0 → 1750, the same element's
+// box.y goes from 2000 → 250). Adding the current scrollX/scrollY converts
+// to document coords.
+//
+// Atomicity: bbox and scrollY are read sequentially without an intervening
+// scroll. If the page mutates between the two reads (e.g. a lazy-load fires
+// and reflows the layout), both reads see the same DOM at the same scroll
+// position because no `await scroll`/`await rAF` happens between them.
+//
+// Returns null when the element has no bounding box (display:none / detached) —
+// callers translate to RegionError at the same sites as before this helper.
+async function measureDocBox(page, loc) {
+  const box = await loc.boundingBox();
+  if (box === null) return null;
+  const { scrollX, scrollY } = await page.evaluate(() => ({
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+  }));
+  return {
+    x: box.x + scrollX,
+    y: box.y + scrollY,
+    width: box.width,
+    height: box.height,
+  };
+}
+
 /**
  * Capture a single named region to a PNG file at outputPath. Branches on
  * regionConfig shape: SELECTOR mode when `selector` is defined, ANCHOR mode
@@ -133,9 +185,16 @@ async function clampToDocument(page, rect) {
  *   emit onProgress step → resolve locator(s) → count-check (RegionError on 0)
  *   → pre-check boundingBox (RegionError on null — display:none short-circuit
  *   that avoids the 30s scrollIntoViewIfNeeded timeout) → scroll into view →
- *   re-read boundingBox → padRect → clampToDocument → re-scroll(clip.y) →
- *   rAF → mkdir(dirname) → page.screenshot({ path, clip, scale, animations,
- *   type }).
+ *   measureDocBox (post-scroll bbox + scrollX/Y → document-space) → padRect →
+ *   (anchor mode: scroll second anchor → measureDocBox → unionRect) →
+ *   clampToDocument → rAF → mkdir(dirname) → page.screenshot({ path, clip,
+ *   fullPage: true, scale, animations, type }).
+ *
+ *   Plan 04 lifts the v0.1 "no fullPage" lock for region mode only — see the
+ *   module-header "Locked invariants" block above. fullPage: true makes
+ *   Playwright resolve `clip` in DOCUMENT coordinates and renders the full
+ *   page composite before cropping, eliminating the viewport-truncation
+ *   pitfall Wave 2 deferred to this plan.
  *
  * @param {import('playwright-chromium').Page} page — a Page already prepared
  *   by Phase 4 (animations frozen, IO triggers fired, hidden selectors removed,
@@ -191,10 +250,15 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
       );
     }
 
-    // Element is visible: scroll it into view, then re-measure (post-scroll
-    // bbox may differ in y if the element wasn't already in view).
+    // Element is visible: scroll it into view, then measure in DOCUMENT-SPACE
+    // (post-scroll bbox + current scrollY → doc-relative coords via
+    // measureDocBox — Plan 04 fix for the viewport-relative-bbox concern Wave 2
+    // deferred. Without the conversion, the subsequent screenshot({clip}) call
+    // would receive a viewport-relative clip and silently capture the wrong
+    // rectangle once Playwright resolves it against the current scroll
+    // position).
     await loc.scrollIntoViewIfNeeded();
-    const box = await loc.boundingBox();
+    const box = await measureDocBox(page, loc);
     if (box === null) {
       // Should be unreachable given the pre-check, but defensive — the page
       // could have mutated between pre-check and post-scroll.
@@ -221,12 +285,17 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
       );
     }
 
-    // ANCHOR MODE ORDER (Pitfall 3): scroll → measure → scroll → measure
-    // ATOMICALLY per anchor. The second scroll may reflow the page if lazy
-    // triggers fire; measuring the first AFTER the second scroll would be stale.
-    // Same display:none pre-check pattern as selector mode (above) — boundingBox
-    // is the visibility probe that scrollIntoViewIfNeeded would otherwise time
-    // out on.
+    // ANCHOR MODE ORDER (Pitfall 3): scroll → measureDocBox → scroll →
+    // measureDocBox ATOMICALLY per anchor. The second scroll may reflow the
+    // page if lazy triggers fire; measuring the first AFTER the second scroll
+    // would be stale. measureDocBox converts each post-scroll bbox to
+    // DOCUMENT-SPACE at measurement time (Plan 04 fix for the viewport-
+    // relative-bbox concern Wave 2 deferred) — without this, the union of two
+    // bboxes taken at DIFFERENT scroll positions is mathematically wrong (the
+    // bboxes live in different coordinate spaces).
+    // Same display:none pre-check pattern as selector mode (above) —
+    // boundingBox is the visibility probe that scrollIntoViewIfNeeded would
+    // otherwise time out on.
     const fromLoc = page.locator(regionConfig.from).first();
     const preBoxFrom = await fromLoc.boundingBox();
     if (preBoxFrom === null) {
@@ -235,7 +304,7 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
       );
     }
     await fromLoc.scrollIntoViewIfNeeded();
-    const boxFrom = await fromLoc.boundingBox();
+    const boxFrom = await measureDocBox(page, fromLoc);
 
     const toLoc = page.locator(regionConfig.to).first();
     const preBoxTo = await toLoc.boundingBox();
@@ -245,7 +314,7 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
       );
     }
     await toLoc.scrollIntoViewIfNeeded();
-    const boxTo = await toLoc.boundingBox();
+    const boxTo = await measureDocBox(page, toLoc);
     if (boxFrom === null || boxTo === null) {
       // Defensive — pre-check covered the common case; defends against the
       // page mutating between pre-check and post-scroll.
@@ -256,34 +325,33 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
     clip = await clampToDocument(page, padRect(unionRect(boxFrom, boxTo), regionConfig.padding ?? 0));
   }
 
-  // Re-scroll so the clip rect's top edge sits in (or above) the current
-  // viewport — Playwright requires page.screenshot({ clip }) to intersect
-  // the visible viewport (Pitfall 1). `behavior: 'instant'` is the LOCKED
-  // invariant inherited from frames.js:104-106; NEVER 'smooth'.
-  await page.evaluate(
-    (targetY) => {
-      window.scrollTo({ top: targetY, behavior: 'instant' });
-    },
-    Math.max(0, clip.y),
-  );
-
-  // Wait ONE rAF roundtrip for paint to settle — frames.js:112 mirror.
+  // Wait ONE rAF roundtrip for paint to settle after the last
+  // scrollIntoViewIfNeeded — frames.js:112 mirror. With fullPage: true +
+  // document-space clip (below), no additional scroll is needed: Playwright
+  // renders the full-page composite and crops to the document-relative clip
+  // rect, so the current scroll position is irrelevant to the captured pixels.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
 
   // Ensure parent directory exists BEFORE the screenshot writes — mkdir on
   // dirname(outputPath), NOT outputPath (capture/index.js:25-30 carry-over).
   await mkdir(dirname(outputPath), { recursive: true });
 
-  // Screenshot — options bag matches frames.js:124-129 VERBATIM modulo path/clip.
+  // Screenshot — region-mode options bag. Differs from frames.js:124-129 in
+  // ONE place: fullPage: true is added so Playwright resolves `clip` in
+  // DOCUMENT coordinates (without this, clip is viewport-relative AND clip
+  // height is silently truncated to viewport height — see module header
+  // "Locked invariants"). Plan 04 lifted the v0.1 "no fullPage" lock for
+  // region mode only; the full-page stitch path in frames.js still uses the
+  // manual scroll loop without fullPage to handle sticky elements correctly.
   // - scale device → CAP-02 retina (output = CSS × DSR physical pixels).
   // - animations disabled → belt-and-braces with Phase 4's CSS guards.
   // - type png → explicit self-documenting.
-  // Forbidden options (NOT present below): the full-page flag (defeats Phase
-  // 5's whole reason for existence — would ghost sticky elements) and the
-  // omit-background flag (the page's own background is wanted).
+  // The omit-background option MUST NOT appear (the page's own background is
+  // wanted).
   await page.screenshot({
     path: outputPath,
     clip,
+    fullPage: true,
     scale: 'device',
     animations: 'disabled',
     type: 'png',
