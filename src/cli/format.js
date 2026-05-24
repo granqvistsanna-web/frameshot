@@ -7,6 +7,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { ConfigError } from '../config/load.js';
 import { BrowserError } from '../browser/launcher.js';
+import { RegionError } from '../capture/region.js';
 
 /**
  * Create a spinner configured for framershot's capture flow.
@@ -75,10 +76,14 @@ export function printSelectorWarnings(hideSummary) {
  *      If err.cause?.name === 'TimeoutError', appends a dim "(timed out)" hint.
  *      Returns: chalk.red('Error:') + ' ' + err.message [+ dim hint]
  *
- *   4. Bare TimeoutError (Playwright timeout that escaped its origin layer) —
+ *   4. RegionError (Phase 8) — message already actionable (region name embedded,
+ *      and unknown --only lists declared region names). Same shape as Guard 2.
+ *      Returns: chalk.red('Error:') + ' ' + err.message
+ *
+ *   5. Bare TimeoutError (Playwright timeout that escaped its origin layer) —
  *      Returns: chalk.red('Error:') + ' Operation timed out — ' + err.message
  *
- *   5. Default (unexpected/programming errors) — headline + dim stack body.
+ *   6. Default (unexpected/programming errors) — headline + dim stack body.
  *      Stack first line duplicates "ErrorType: message", so strip it (slice(1)).
  *      Returns multi-line string: headline \n chalk.dim(stackBody)
  *
@@ -115,7 +120,16 @@ export function formatError(err) {
     return base;
   }
 
-  // Guard 4: bare TimeoutError (escaped from a non-navigator layer, e.g. Phase 5 screenshot timeout).
+  // Guard 4: RegionError — element missing, anchor missing, unknown --only
+  // name, or --smoke/--only mutex violation. Message is already actionable
+  // (region name embedded; unknown-only lists declared region names). Same
+  // shape as Guard 2 (ConfigError): chalk only the prefix, no stack trace,
+  // no dim hint. (08-PATTERNS §"Error Dispatcher Branch")
+  if (err instanceof RegionError) {
+    return `${chalk.red('Error:')} ${err.message}`;
+  }
+
+  // Guard 5: bare TimeoutError (escaped from a non-navigator layer, e.g. Phase 5 screenshot timeout).
   if (err.name === 'TimeoutError') {
     return `${chalk.red('Error:')} Operation timed out — ${err.message}`;
   }

@@ -5,6 +5,7 @@ import { launchBrowser } from './browser/launcher.js';
 import { navigateToPage } from './browser/navigator.js';
 import { installAnimationGuards, runPreparePipeline } from './prepare/index.js';
 import { runCapture } from './capture/runCapture.js';
+import { RegionError } from './capture/region.js';
 import { makeProgress, printSelectorWarnings } from './cli/format.js';
 import { startServer } from './server/index.js';
 
@@ -29,7 +30,20 @@ export function buildProgram() {
     .command('capture <config>')
     .description('Parse a config file, validate, and (later) capture')
     .option('--smoke', 'Phase 3 verification: launch, navigate, take ONE screenshot, exit')
+    .option('--only <region-name>', 'Capture only the named region (skips full-page and other regions)')
     .action(async (configArg, opts) => {
+      // Phase 8 mutex guard — --smoke and --only are mutually exclusive
+      // (RESEARCH §Pitfall 8). Throw BEFORE either branch runs and BEFORE
+      // loadConfig so the user gets the clean RegionError → formatError
+      // Guard 4 surface (red `Error:` prefix, no stack). Using RegionError
+      // here (instead of bare Error) is intentional — the new formatError
+      // Guard 4 produces actionable output without falling through to the
+      // "Unexpected error:" default branch (RESEARCH.md:720 "the more
+      // polished call").
+      if (opts.smoke && opts.only) {
+        throw new RegionError('--smoke and --only are mutually exclusive');
+      }
+
       // Step 1 — Load config.
       // Start the spinner BEFORE loadConfig so config errors get the
       // spinner.fail() treatment from index.js's catch (06-RESEARCH §Pattern 1).
@@ -88,6 +102,12 @@ export function buildProgram() {
       // selector warnings between spinner.stop()/start() (06-RESEARCH §Pitfall 2),
       // and emit the final success line on both stderr (via spinner.succeed) and
       // stdout (pipe-capturable, §Pitfall 6).
+      //
+      // Phase 8: pass `only: opts.only` (string | undefined) through to runCapture.
+      // runCapture validates --only upfront (throws RegionError on unknown name
+      // BEFORE any Chromium launch, per Plan 03 §"upfront fail-fast"). The
+      // top-level catch in index.js routes the throw through formatError's new
+      // Guard 4 (RegionError) for the actionable `Error:` surface.
       const results = await runCapture(config, {
         onProgress: (event) => {
           if (event.type === 'step') {
@@ -100,13 +120,18 @@ export function buildProgram() {
             spinner.start();
           }
         },
+        only: opts.only,
       });
 
       spinner.succeed(`${results.length} screenshot(s) written`);
       currentSpinner = null;
-      // One stdout line per viewport — pipe-capturable per 06-RESEARCH §Pitfall 6.
-      for (const { outputPath } of results) {
-        console.log(`screenshot written: ${outputPath}`);
+      // One stdout line per result — pipe-capturable per 06-RESEARCH §Pitfall 6.
+      // Phase 8: label each line with the region name when present (region
+      // capture) or 'full page' otherwise. The two label tokens are distinct
+      // so downstream pipe-consumers can grep/match per category.
+      for (const r of results) {
+        const label = r.regionName ? `region '${r.regionName}'` : 'full page';
+        console.log(`screenshot written (${label}): ${r.outputPath}`);
       }
     });
 
