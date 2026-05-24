@@ -62,6 +62,61 @@ const prepareSchema = z
   // Entire `prepare` block is optional in YAML — .default({}) lets minimal configs omit it
   .default({});
 
+// Phase 8 (REGION-01/02): single region entry shape with selector-XOR-(from+to)
+// gate. Both modes share the same outer `z.object` so a `regions: [...]` array
+// can mix selector entries and anchor entries; the per-entry `.superRefine`
+// enforces "exactly one mode chosen" per RESEARCH §Pattern 1/2 + §Pitfall — a
+// `z.union([selectorSchema, anchorSchema])` alternative was rejected because
+// union errors degrade to "Invalid input — expected one of these shapes"
+// (RESEARCH.md:109) which loses the per-region naming the planner wants in
+// formatZodError output.
+//
+// Path token choice for the per-entry custom issues below:
+//   `path: []` (empty) — formatZodError renders as `<root>: region 'X': ...`.
+// Chosen over `path: ['<name>']` because the message body already names the
+// region, so an empty path avoids the doubled-name surface
+// (`hero: region 'hero': ...`). Both options satisfy the <behavior> bullets.
+//
+// `padding` is a non-negative integer defaulting to 0 (RESEARCH §Pattern 3 —
+// asymmetric `{top, right, bottom, left}` deferred per planning_context Open
+// Question #2 lock). The default lives on the field via `.default(0)` so
+// downstream `captureRegion` consumers never have to write `?? 0`.
+export const regionSchema = z
+  .object({
+    name: z.string().min(1),
+    selector: z.string().min(1).optional(),
+    from: z.string().min(1).optional(),
+    to: z.string().min(1).optional(),
+    padding: z.number().int().min(0).default(0),
+  })
+  .superRefine((data, ctx) => {
+    const hasSelector = data.selector !== undefined;
+    const hasFrom = data.from !== undefined;
+    const hasTo = data.to !== undefined;
+    const hasAnchor = hasFrom && hasTo;
+    const halfAnchor = hasFrom !== hasTo; // exactly one of from/to set
+    if (hasSelector && (hasAnchor || halfAnchor)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: `region '${data.name}': use 'selector' OR 'from'+'to', not both`,
+      });
+    } else if (!hasSelector && !hasAnchor && !halfAnchor) {
+      // neither selector nor either anchor half
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: `region '${data.name}': must declare 'selector' OR both 'from' and 'to'`,
+      });
+    } else if (halfAnchor) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: `region '${data.name}': 'from' and 'to' must both be set`,
+      });
+    }
+  });
+
 // Root base schema: both viewport keys are .optional() at the field level so zod
 // parses the raw object without rejecting unknown combinations.  The mutual-exclusivity
 // invariant is enforced by the .superRefine below.
@@ -86,6 +141,13 @@ const baseConfigSchema = z.object({
   viewports: viewportsSchema.optional(),
   page: pageSchema,
   prepare: prepareSchema,
+  // Phase 8 (REGION-01/02): optional array of region entries. NO `.default([])`
+  // — back-compat requires `undefined` when the block is omitted so downstream
+  // can distinguish "no regions: block declared" from "explicit empty block".
+  // Per-entry shape + selector-XOR-(from+to) gate live on regionSchema above;
+  // root-level cross-field checks (duplicate names + {region}-in-output) live
+  // on the chained .superRefine below.
+  regions: z.array(regionSchema).optional(),
 });
 
 // Full configSchema: mutual-exclusivity refinement → normalize transform.
@@ -124,6 +186,45 @@ export const configSchema = baseConfigSchema
     }
     // viewports[] was supplied — pass through as-is.
     return { ...rest, viewports };
+  })
+  // Phase 8 (REGION-01/02/03): root-level cross-field refinement runs AFTER
+  // Phase 7's normalize transform. Zod 3 allows .superRefine to chain after
+  // .transform — the refinement sees the transformed value (data.viewports is
+  // already plural-normalized; data.regions passes through untransformed since
+  // regionSchema's per-entry transforms only fill the padding default).
+  .superRefine((data, ctx) => {
+    if (data.regions === undefined) return; // back-compat: no regions block → no checks
+
+    // (a) Duplicate region-name check. Matches Phase 7's `duplicate name '<X>'`
+    //     message shape so formatZodError's catch-all renders this as
+    //     `regions: duplicate name 'hero'` (mirrors viewportsSchema).
+    const names = data.regions.map((r) => r.name);
+    if (new Set(names).size !== names.length) {
+      const seen = new Set();
+      for (const n of names) {
+        if (seen.has(n)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['regions'],
+            message: `duplicate name '${n}'`,
+          });
+          break; // report only the first duplicate (cleaner UX, matches viewportsSchema)
+        }
+        seen.add(n);
+      }
+    }
+
+    // (b) Overwrite-prevention check: when any region is declared, the output
+    //     template MUST contain {region} so per-region paths are distinct.
+    //     Mirrors the {viewport}-uniqueness invariant Phase 7 D-02 established
+    //     (uniqueness enforced at validation time, not at runtime).
+    if (data.regions.length > 0 && !data.output.includes('{region}')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['output'],
+        message: 'template must contain {region} when regions are declared (to avoid overwrites)',
+      });
+    }
   });
 
 /**
