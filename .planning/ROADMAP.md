@@ -81,4 +81,4 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 | 5. Scroll-Stitch Output   | v0.1      | 3/3            | Complete    | 2026-05-22 |
 | 6. Terminal UX            | v0.1      | 2/2            | Complete    | 2026-05-22 |
 | 7. Multi-viewport Capture | v0.2      | 4/4            | Complete    | 2026-05-24 |
-| 8. Region Capture         | v0.2      | 4/4            | In Progress | -          |
+| 8. Region Capture         | v0.2      | 4/4            | Complete    | 2026-05-24 |

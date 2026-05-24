@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Multi-viewport & Region Capture
-status: executing
-stopped_at: Phase 08 all 4 plans complete + visual checkpoint approved; verification pending
-last_updated: "2026-05-24T13:30:00.000Z"
-last_activity: 2026-05-24 -- Phase 08 Wave 4 complete + visual checkpoint approved; phase verification starting
+status: complete
+stopped_at: Phase 08 COMPLETE — 4/4 plans shipped, 5/5 success criteria PASS, visual checkpoint approved; v0.2 milestone ready to close
+last_updated: "2026-05-24T13:40:00.000Z"
+last_activity: 2026-05-24 -- Phase 08 verification 5/5 PASS; v0.2 milestone complete
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
   completed_plans: 8
   percent: 100
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-22)
 
 **Core value:** Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
-**Current focus:** Phase 08 — region-capture (executing)
+**Current focus:** v0.2 milestone COMPLETE — ready for /gsd:complete-milestone
 
 ## Current Position
 
-Phase: 08 (region-capture) — Wave 4 complete + visual checkpoint approved; phase verification in flight
-Next: After verification PASS — v0.2 milestone-complete check
-Last activity: 2026-05-24 -- Phase 08 Wave 4 (08-04 CLI + fixture) complete; visual checkpoint approved
+Phase: 08 (region-capture) — COMPLETE (2026-05-24), 5/5 success criteria PASS
+Next: /gsd:complete-milestone to archive v0.2 and start v0.3, or /gsd:ship for PR
+Last activity: 2026-05-24 -- Phase 08 verification 5/5 PASS
 
 ## Performance Metrics
 
