@@ -67,7 +67,7 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 
 - [x] 08-01-PLAN.md — Schema: regionSchema (selector-XOR-anchor superRefine) + root regions field + duplicate-name + {region}-in-output cross-field refinements (Wave 1)
 - [x] 08-02-PLAN.md — New src/capture/region.js (captureRegion + RegionError + padRect/unionRect/clampToDocument helpers) + {region} placeholder in resolveTemplate (Wave 2)
-- [ ] 08-03-PLAN.md — runCapture region loop + resolveRegions helper + --only fail-fast validation + Open-Q#1-A regions+full-page branch (Wave 3)
+- [x] 08-03-PLAN.md — runCapture region loop + resolveRegions helper + --only fail-fast validation + Open-Q#1-A regions+full-page branch (Wave 3)
 - [ ] 08-04-PLAN.md — --only commander option + --smoke/--only mutex + formatError RegionError Guard 4 + serve-smoke.js HTML extension + samples/smoke-regions.yaml fixture + human visual checkpoint (Wave 4)
 
 ## Progress
@@ -81,4 +81,4 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 | 5. Scroll-Stitch Output   | v0.1      | 3/3            | Complete    | 2026-05-22 |
 | 6. Terminal UX            | v0.1      | 2/2            | Complete    | 2026-05-22 |
 | 7. Multi-viewport Capture | v0.2      | 4/4            | Complete    | 2026-05-24 |
-| 8. Region Capture         | v0.2      | 2/4            | In Progress | -          |
+| 8. Region Capture         | v0.2      | 3/4            | In Progress | -          |
