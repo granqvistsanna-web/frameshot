@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Multi-viewport & Region Capture
 status: executing
-stopped_at: Phase 08 Wave 1 complete — 08-01 schema regions merged
-last_updated: "2026-05-24T12:30:00.000Z"
-last_activity: 2026-05-24 -- Phase 08 Wave 1 complete (08-01 schema); Wave 2 starting
+stopped_at: Phase 08 Wave 2 complete — 08-02 region capture module + template merged
+last_updated: "2026-05-24T12:50:00.000Z"
+last_activity: 2026-05-24 -- Phase 08 Wave 2 complete (08-02 captureRegion + {region} template); Wave 3 starting
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 8
-  completed_plans: 5
-  percent: 62
+  completed_plans: 6
+  percent: 75
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-22)
 
 ## Current Position
 
-Phase: 08 (region-capture) — EXECUTING (Wave 2/4)
-Next: Wave 3 (08-03 runCapture region loop) after 08-02 completes
-Last activity: 2026-05-24 -- Phase 08 Wave 1 (08-01 schema) complete; Wave 2 dispatched
+Phase: 08 (region-capture) — EXECUTING (Wave 3/4)
+Next: Wave 4 (08-04 CLI + fixture, autonomous: false) after 08-03 completes
+Last activity: 2026-05-24 -- Phase 08 Wave 2 (08-02 captureRegion + template) complete; Wave 3 dispatched
 
 ## Performance Metrics
 
