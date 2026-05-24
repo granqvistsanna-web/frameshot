@@ -23,7 +23,7 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 
 ### v0.2 Multi-viewport & Region Capture
 
-- [ ] **Phase 7: Multi-viewport Capture** — One config + one `capture` run produces one full-page PNG per declared viewport
+- [x] **Phase 7: Multi-viewport Capture** — One config + one `capture` run produces one full-page PNG per declared viewport
 - [ ] **Phase 8: Region Capture** — Capture named regions (by selector or from/to anchors) instead of (or alongside) the full page, with `--only=<name>` filter
 
 ## Phase Details
@@ -46,7 +46,7 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 - [x] 07-01-PLAN.md — Schema + loader: viewportEntrySchema/viewportsSchema + mutually-exclusive root refinement + singular→plural normalize transform (Wave 1)
 - [x] 07-02-PLAN.md — runCapture per-viewport loop + launchBrowser(config, viewportEntry) refactor + per-viewport-scoped onProgress events + array return shape (Wave 2)
 - [x] 07-03-PLAN.md — CLI ora adapter + server SSE adapter consume array return; per-viewport spinner prefix; UI form stays single-viewport per D-05 (Wave 3)
-- [ ] 07-04-PLAN.md — samples/smoke-multi.yaml hermetic 2-viewport fixture + human visual checkpoint (Wave 3, after 07-03)
+- [x] 07-04-PLAN.md — samples/smoke-multi.yaml hermetic 2-viewport fixture + human visual checkpoint (Wave 3, after 07-03)
 
 ---
 
@@ -80,5 +80,5 @@ Full milestone detail: [milestones/v0.1-ROADMAP.md](milestones/v0.1-ROADMAP.md)
 | 4. Prepare Pipeline       | v0.1      | 5/5            | Complete    | 2026-05-22 |
 | 5. Scroll-Stitch Output   | v0.1      | 3/3            | Complete    | 2026-05-22 |
 | 6. Terminal UX            | v0.1      | 2/2            | Complete    | 2026-05-22 |
-| 7. Multi-viewport Capture | v0.2      | 3/4            | In Progress | -          |
+| 7. Multi-viewport Capture | v0.2      | 4/4            | Complete    | 2026-05-24 |
 | 8. Region Capture         | v0.2      | 0/4            | Planned     | -          |
