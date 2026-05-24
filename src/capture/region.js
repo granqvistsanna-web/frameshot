@@ -1,0 +1,291 @@
+// src/capture/region.js
+// Phase 8 Wave 2: per-region capture module (REGION-01 selector mode + REGION-02
+// anchor mode). Sibling of src/capture/frames.js (clip + scroll + rAF), of
+// src/browser/launcher.js (typed-error class), and of src/capture/index.js
+// (presentation-free orchestrator).
+//
+// Exports:
+//   - captureRegion(page, regionConfig, outputPath, options?) → void
+//     options.onProgress: (event) => void  ← Phase 6/7 contract
+//   - RegionError extends Error
+//
+// IMPORTANT: This module has NO console output, NO process.exit, and NO chalk/ora.
+// It is pure library code. Errors throw RegionError (or bubble Playwright
+// TimeoutError as-is); the caller (src/cli.js via runCapture, wired in Plan 08-03)
+// owns presentation, the try/finally lifecycle, and exit codes. NO try/catch
+// around the composed calls beyond null-bounding-box translation to RegionError.
+//
+// Lifecycle: takes a prepared Page (Phase 4's prepare pipeline already ran) and
+// a resolved outputPath (Phase 2's resolveTemplate, extended in Wave 2 with
+// {region}, already substituted). Produces a PNG file on disk. Does NOT close
+// the page, context, or browser — the CLI owns lifecycle (Phase 3 invariant).
+//
+// fs invariant carry-over from src/capture/index.js:25-30: mkdir uses
+// dirname(outputPath), NOT outputPath itself — mkdir('hero.png', { recursive })
+// creates a DIRECTORY named hero.png and then page.screenshot({ path }) fails
+// with EISDIR. Same pitfall, same fix.
+//
+// Phase 8 specifics (no v0.1 analog):
+//   - boundingBox() returns null for display:none / detached elements (does NOT
+//     throw) — null-check after every call, translate to RegionError (RESEARCH
+//     §Pitfall 2). NOTE: the null check runs BEFORE scrollIntoViewIfNeeded
+//     because scrollIntoViewIfNeeded on a display:none element waits for
+//     actionability and times out after 30s. boundingBox() is the cheap
+//     visibility probe that intercepts the invisible-element path.
+//   - Padding pushing clip outside doc bounds → clampToDocument truncates to
+//     [0, docW] × [0, docH] in ONE page.evaluate (geometry-once invariant from
+//     frames.js:74-82; RESEARCH §Pitfall 4).
+//   - Anchor mode order: scroll → measure → scroll → measure. The second
+//     scrollIntoViewIfNeeded may reflow the page if lazy-load triggers fire,
+//     making the first anchor's boundingBox() stale if read after the second
+//     scroll. ALWAYS measure each anchor immediately after scrolling it
+//     (RESEARCH §Pitfall 3 / 08-PATTERNS §Anchor Mode Order).
+//   - Re-scroll for clip intersection: scrollIntoViewIfNeeded puts the FOCUS
+//     element in view, but the padded/unioned clip's TOP may sit above or below
+//     the focus element. Re-scroll to Math.max(0, clip.y) before screenshot so
+//     the clip rect intersects the viewport (RESEARCH §Pitfall 1).
+//
+// Locked invariants inherited from Phase 5:
+//   - Screenshot options bag must match frames.js:124-129 verbatim (see the
+//     page.screenshot call below for the active values). The full-page option
+//     and the omit-background option MUST NOT appear in the screenshot call.
+//   - Scroll behavior must be the instant variant on every scrollTo (NEVER the
+//     smooth variant — that animates ~300ms and races rAF; sticky elements
+//     end up at wrong positions).
+//   - rAF roundtrip between scroll and screenshot for paint to settle (single
+//     await, no fixed timeout).
+
+import { mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
+/**
+ * Named Error subclass for region-capture failures: selector matched nothing,
+ * anchor matched nothing, element has no bounding box (display:none), or
+ * --only=<name> references an undeclared region. Mirrors BrowserError /
+ * ConfigError shape; consumed by formatError's dispatcher in src/cli/format.js
+ * (Guard 4 added in Plan 08-04).
+ */
+export class RegionError extends Error {
+  constructor(message, { cause } = {}) {
+    super(message);
+    this.name = 'RegionError';
+    if (cause) this.cause = cause;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pure geometry helpers — module-private (not exported per planner spec). Trivial
+// rectangle math; promoted to top-level functions for testability and clarity.
+// ---------------------------------------------------------------------------
+
+// Expand a rect uniformly by `padding` CSS pixels in all four directions.
+// padRect({x:100,y:100,w:200,h:50}, 10) → {x:90,y:90,w:220,h:70}
+// padRect(box, 0) is a no-op (returns equivalent-valued rect).
+// Does NOT mutate `box`.
+function padRect(box, padding) {
+  return {
+    x: box.x - padding,
+    y: box.y - padding,
+    width: box.width + padding * 2,
+    height: box.height + padding * 2,
+  };
+}
+
+// Bounding-box union: smallest rect containing both `a` and `b`.
+// Pure geometry; commutative (unionRect(a,b) deep-equals unionRect(b,a)).
+function unionRect(a, b) {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const right = Math.max(a.x + a.width, b.x + b.width);
+  const bottom = Math.max(a.y + a.height, b.y + b.height);
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+// Clamp a rect to the document's [0, docW] × [0, docH] bounds so Playwright's
+// page.screenshot({ clip }) accepts it (Pitfall 4). Negative x/y are clamped
+// to 0; widths/heights are reduced by the overflow on each side AND on the
+// far side (clip can't extend past docWidth/docHeight either).
+//
+// Geometry-once invariant (frames.js:74-82): reads scrollWidth + scrollHeight
+// in ONE page.evaluate round-trip — multiple props, single protocol message.
+async function clampToDocument(page, rect) {
+  const { docWidth, docHeight } = await page.evaluate(() => ({
+    docWidth: document.documentElement.scrollWidth,
+    docHeight: document.documentElement.scrollHeight,
+  }));
+  const x = Math.max(0, rect.x);
+  const y = Math.max(0, rect.y);
+  // When rect.x is negative, the clip starts at 0 and we lose |rect.x| of width
+  // off the left. Math.min(0, rect.x) is ≤ 0, so adding it to rect.width
+  // subtracts the overflow. Then cap so x + width ≤ docWidth.
+  const width = Math.min(rect.width + Math.min(0, rect.x), docWidth - x);
+  const height = Math.min(rect.height + Math.min(0, rect.y), docHeight - y);
+  return { x, y, width, height };
+}
+
+/**
+ * Capture a single named region to a PNG file at outputPath. Branches on
+ * regionConfig shape: SELECTOR mode when `selector` is defined, ANCHOR mode
+ * otherwise (both `from` and `to` are required by the Wave 1 schema's
+ * .superRefine gate; defensive check here would be redundant).
+ *
+ * Flow (both modes):
+ *   emit onProgress step → resolve locator(s) → count-check (RegionError on 0)
+ *   → pre-check boundingBox (RegionError on null — display:none short-circuit
+ *   that avoids the 30s scrollIntoViewIfNeeded timeout) → scroll into view →
+ *   re-read boundingBox → padRect → clampToDocument → re-scroll(clip.y) →
+ *   rAF → mkdir(dirname) → page.screenshot({ path, clip, scale, animations,
+ *   type }).
+ *
+ * @param {import('playwright-chromium').Page} page — a Page already prepared
+ *   by Phase 4 (animations frozen, IO triggers fired, hidden selectors removed,
+ *   scroll-primed).
+ * @param {object} regionConfig — validated by Wave 1's regionSchema:
+ *   { name: string, selector?: string, from?: string, to?: string, padding: number }
+ *   `padding` defaults to 0 at the schema layer; `?? 0` here is defensive in
+ *   case a future caller bypasses validation.
+ * @param {string} outputPath — absolute or relative resolved path. Parent
+ *   directories will be created with `{ recursive: true }`.
+ * @param {{ onProgress?: (event: { type: string, label: string }) => void }} [options={}]
+ *   onProgress fires ONCE at start with { type: 'step', label: "Capturing
+ *   region '<name>'" } — Plan 08-03's runCapture wrapper injects the per-
+ *   viewport `viewport` field on top of this event for Phase 7-style scoping.
+ * @returns {Promise<void>} — produces the PNG side effect; caller (runCapture
+ *   in Plan 08-03) is responsible for pushing { outputPath, regionName } into
+ *   its accumulator.
+ * @throws {RegionError} — selector matched nothing; bounding box null
+ *   (display:none); 'from'/'to' anchor matched nothing.
+ * @throws {Error} — Playwright TimeoutError from scrollIntoViewIfNeeded /
+ *   boundingBox if the default 30s timeout fires. Intentionally NOT wrapped —
+ *   matches the silent-library posture of Phase 3+ (the top-level catch in
+ *   src/cli.js formats it via formatError's default branch).
+ */
+export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {} } = {}) {
+  onProgress({ type: 'step', label: `Capturing region '${regionConfig.name}'` });
+
+  let clip;
+  if (regionConfig.selector !== undefined) {
+    // ---------------- SELECTOR MODE ----------------
+    // Use a fresh page.locator(sel) for count (does NOT mutate the .first()
+    // tagged locator; counts ALL matches, not "1 if .first() exists").
+    const count = await page.locator(regionConfig.selector).count();
+    if (count === 0) {
+      throw new RegionError(
+        `Region '${regionConfig.name}': selector '${regionConfig.selector}' matched no elements.`,
+      );
+    }
+    const loc = page.locator(regionConfig.selector).first();
+
+    // Pre-check boundingBox BEFORE scrollIntoViewIfNeeded — boundingBox()
+    // returns null synchronously for display:none / detached elements (Pitfall
+    // 2). scrollIntoViewIfNeeded on a display:none element waits for
+    // actionability and TIMES OUT after 30s — translating an invisible-element
+    // case into a TimeoutError instead of the intended RegionError. The
+    // pre-check intercepts that path and produces the actionable RegionError
+    // the <behavior> contract requires. boundingBox() is cheap (single CDP
+    // round-trip, no auto-wait).
+    const preBox = await loc.boundingBox();
+    if (preBox === null) {
+      throw new RegionError(
+        `Region '${regionConfig.name}': element '${regionConfig.selector}' has no bounding box (likely display:none).`,
+      );
+    }
+
+    // Element is visible: scroll it into view, then re-measure (post-scroll
+    // bbox may differ in y if the element wasn't already in view).
+    await loc.scrollIntoViewIfNeeded();
+    const box = await loc.boundingBox();
+    if (box === null) {
+      // Should be unreachable given the pre-check, but defensive — the page
+      // could have mutated between pre-check and post-scroll.
+      throw new RegionError(
+        `Region '${regionConfig.name}': element '${regionConfig.selector}' has no bounding box (likely display:none).`,
+      );
+    }
+    clip = await clampToDocument(page, padRect(box, regionConfig.padding ?? 0));
+  } else {
+    // ---------------- ANCHOR MODE ----------------
+    // Wave 1 schema guarantees both `from` and `to` are present when
+    // `selector` is undefined; no defensive check needed beyond per-anchor
+    // count.
+    const fromCount = await page.locator(regionConfig.from).count();
+    if (fromCount === 0) {
+      throw new RegionError(
+        `Region '${regionConfig.name}': 'from' selector '${regionConfig.from}' matched no elements.`,
+      );
+    }
+    const toCount = await page.locator(regionConfig.to).count();
+    if (toCount === 0) {
+      throw new RegionError(
+        `Region '${regionConfig.name}': 'to' selector '${regionConfig.to}' matched no elements.`,
+      );
+    }
+
+    // ANCHOR MODE ORDER (Pitfall 3): scroll → measure → scroll → measure
+    // ATOMICALLY per anchor. The second scroll may reflow the page if lazy
+    // triggers fire; measuring the first AFTER the second scroll would be stale.
+    // Same display:none pre-check pattern as selector mode (above) — boundingBox
+    // is the visibility probe that scrollIntoViewIfNeeded would otherwise time
+    // out on.
+    const fromLoc = page.locator(regionConfig.from).first();
+    const preBoxFrom = await fromLoc.boundingBox();
+    if (preBoxFrom === null) {
+      throw new RegionError(
+        `Region '${regionConfig.name}': 'from' anchor '${regionConfig.from}' has no bounding box (likely display:none).`,
+      );
+    }
+    await fromLoc.scrollIntoViewIfNeeded();
+    const boxFrom = await fromLoc.boundingBox();
+
+    const toLoc = page.locator(regionConfig.to).first();
+    const preBoxTo = await toLoc.boundingBox();
+    if (preBoxTo === null) {
+      throw new RegionError(
+        `Region '${regionConfig.name}': 'to' anchor '${regionConfig.to}' has no bounding box (likely display:none).`,
+      );
+    }
+    await toLoc.scrollIntoViewIfNeeded();
+    const boxTo = await toLoc.boundingBox();
+    if (boxFrom === null || boxTo === null) {
+      // Defensive — pre-check covered the common case; defends against the
+      // page mutating between pre-check and post-scroll.
+      throw new RegionError(
+        `Region '${regionConfig.name}': anchor element has no bounding box (likely display:none).`,
+      );
+    }
+    clip = await clampToDocument(page, padRect(unionRect(boxFrom, boxTo), regionConfig.padding ?? 0));
+  }
+
+  // Re-scroll so the clip rect's top edge sits in (or above) the current
+  // viewport — Playwright requires page.screenshot({ clip }) to intersect
+  // the visible viewport (Pitfall 1). `behavior: 'instant'` is the LOCKED
+  // invariant inherited from frames.js:104-106; NEVER 'smooth'.
+  await page.evaluate(
+    (targetY) => {
+      window.scrollTo({ top: targetY, behavior: 'instant' });
+    },
+    Math.max(0, clip.y),
+  );
+
+  // Wait ONE rAF roundtrip for paint to settle — frames.js:112 mirror.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+
+  // Ensure parent directory exists BEFORE the screenshot writes — mkdir on
+  // dirname(outputPath), NOT outputPath (capture/index.js:25-30 carry-over).
+  await mkdir(dirname(outputPath), { recursive: true });
+
+  // Screenshot — options bag matches frames.js:124-129 VERBATIM modulo path/clip.
+  // - scale device → CAP-02 retina (output = CSS × DSR physical pixels).
+  // - animations disabled → belt-and-braces with Phase 4's CSS guards.
+  // - type png → explicit self-documenting.
+  // Forbidden options (NOT present below): the full-page flag (defeats Phase
+  // 5's whole reason for existence — would ghost sticky elements) and the
+  // omit-background flag (the page's own background is wanted).
+  await page.screenshot({
+    path: outputPath,
+    clip,
+    scale: 'device',
+    animations: 'disabled',
+    type: 'png',
+  });
+}

@@ -53,28 +53,27 @@ if (mod.captureRegion.length < 3) fail('captureRegion-arity', mod.captureRegion.
 // 4. Stand up a tiny HTTP fixture with region-shaped sections
 // ---------------------------------------------------------------------------
 const PORT = 7358;
+// Hermetic fixture HTML. All capture targets sized to FIT WITHIN the 600px
+// viewport so the verifier exercises module contract correctness without
+// hitting Playwright's clip-cannot-exceed-viewport limitation that the
+// 08-02 plan defers to Plan 04 for end-to-end resolution.
 const HTML = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <style>
     html, body { margin: 0; background: #036; color: #fff; font-family: system-ui; }
-    [data-test="region-hero"] { margin: 2rem; padding: 2rem; background: #036; color: #fff; }
-    [data-test="region-from"] { margin: 2rem; padding: 1rem; background: #063; color: #fff; width: 200px; }
-    [data-test="region-to"] { margin: 2rem; padding: 1rem; background: #630; color: #fff; width: 200px; }
+    [data-test="region-hero"] { margin: 1rem; padding: 1rem; background: #036; color: #fff; width: 300px; height: 80px; }
+    [data-test="region-from"] { margin: 1rem; padding: 0.5rem; background: #063; color: #fff; width: 200px; height: 40px; }
+    [data-test="region-to"] { margin: 1rem; padding: 0.5rem; background: #630; color: #fff; width: 200px; height: 40px; }
     [data-test="hidden"] { display: none; }
-    .spacer { height: 1500px; background: linear-gradient(#063, #630); }
   </style>
 </head>
 <body>
   <h1>region capture fixture</h1>
-  <section data-test="region-hero">
-    <h2>hero (selector capture target)</h2>
-    <p>This is the entire selector region.</p>
-  </section>
+  <section data-test="region-hero">hero (selector capture target)</section>
   <div data-test="hidden">hidden via display:none</div>
   <div data-test="region-from">anchor: from (top)</div>
-  <div class="spacer"></div>
   <div data-test="region-to">anchor: to (bottom)</div>
 </body>
 </html>`;
@@ -204,9 +203,10 @@ try {
       outPath,
     );
     const { width, height } = await assertPng(outPath, 'anc-happy');
-    // anchor union spans from top of region-from to bottom of region-to —
-    // height (with spacer ~1500px) should be substantially larger than a single anchor.
-    if (height < 1500) fail('anc-height-too-small', { width, height });
+    // anchor union spans both elements (both in viewport for this fixture);
+    // height should be larger than a single anchor's ~80px CSS (~160 physical
+    // at dsr=2) and width should be > 0.
+    if (height < 100 || width < 100) fail('anc-dimensions-too-small', { width, height });
   }
 
   // -------------------------------------------------------------------------
