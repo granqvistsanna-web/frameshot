@@ -16,11 +16,11 @@ Scope: 4 requirements across 2 categories. Single-page-per-config remains in for
 
 ### Region capture
 
-- [ ] **REGION-01**: User can declare named regions in config by CSS selector (`regions: [{ name, selector, padding? }]`) and capture only that element to its own PNG — scrolled into view, prepare pipeline applied, padding honored.
+- [x] **REGION-01**: User can declare named regions in config by CSS selector (`regions: [{ name, selector, padding? }]`) and capture only that element to its own PNG — scrolled into view, prepare pipeline applied, padding honored.
 
-- [ ] **REGION-02**: User can declare named regions by from/to anchors (`regions: [{ name, from, to, padding? }]`) — capture computes the bounding box between the two anchor elements and clips to it.
+- [x] **REGION-02**: User can declare named regions by from/to anchors (`regions: [{ name, from, to, padding? }]`) — capture computes the bounding box between the two anchor elements and clips to it.
 
-- [ ] **REGION-03**: User can pass `--only=<region-name>` to `framershot capture` to capture a single named region instead of the full page. Without the flag, the full-page stitch behavior from v0.1 is unchanged.
+- [x] **REGION-03**: User can pass `--only=<region-name>` to `framershot capture` to capture a single named region instead of the full page. Without the flag, the full-page stitch behavior from v0.1 is unchanged.
 
 ## Validated (carried from v0.1, not re-evaluated)
 
@@ -54,10 +54,10 @@ The full v0.1 validated list lives in `milestones/v0.1-REQUIREMENTS.md`. Carry-f
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MULTI-01 | Phase 7 | Complete (Plans 01-03) |
-| REGION-01 | Phase 8 | Pending |
-| REGION-02 | Phase 8 | Pending |
-| REGION-03 | Phase 8 | Pending |
+| MULTI-01 | Phase 7 | Complete (Plans 01–04, verified 2026-05-24) |
+| REGION-01 | Phase 8 | Complete (Plans 01–04, verified 2026-05-24) |
+| REGION-02 | Phase 8 | Complete (Plans 01–04, verified 2026-05-24) |
+| REGION-03 | Phase 8 | Complete (Plans 03–04, verified 2026-05-24) |
 
 **Coverage:**
 

@@ -4,13 +4,15 @@
 
 A local Node.js CLI that takes high-quality screenshots of Framer sites, with per-site YAML configs that handle the parts vanilla Playwright botches: sticky navs, scroll-triggered animations, lazy-loaded media, custom viewports, and full-page stitching. Personal tool — not meant for distribution.
 
-**Current state (v0.1 shipped 2026-05-22):** Single-page, single-viewport capture works end-to-end. `framershot capture <config.yaml>` produces a clean, retina full-page PNG to a templated path. ora progress, actionable errors, and the full prepare pipeline (animation disable + Framer Motion IO shim + selector hiding + scroll prime + extraDelay) are live.
+**Current state (v0.2 shipped 2026-05-24):** Single-page, multi-viewport capture works end-to-end — one config declares an array of viewports, one `framershot capture <config.yaml>` run produces one full-page retina PNG per viewport, each in its own Playwright browser context. On top of that, named region capture (by CSS selector or from/to anchor pair) and a `--only=<region>` CLI filter let the same config produce element-scoped PNGs alongside (or instead of) the full-page stitch. v0.1 single-viewport / no-regions configs still run unchanged. ora progress, actionable errors, and the full prepare pipeline (animation disable + Framer Motion IO shim + selector hiding + scroll prime + extraDelay) are reused verbatim per viewport and per region.
 
 ## Core Value
 
 Reliably capture clean, retina-quality screenshots of Framer sites without ghosted navs, half-played animations, or missing lazy-loaded content.
 
 Validated post-v0.1: the four daily pain points (sticky-nav ghosting, mid-flight appear effects, blank lazy-loaded images, font-flash) are all solved in the shipped output. The config file is, as predicted, the daily-touch surface — getting its ergonomics right has mattered more than internal architecture.
+
+Validated post-v0.2: the prepare pipeline reused verbatim per viewport and per region — no regressions, no cross-viewport state leakage. The schema's backward-compatible normalization (singular `viewport:` → `viewports: [{ ..., name: 'default' }]` via root `.transform`) means daily v0.1 configs never had to change; v0.2 is purely additive at the YAML surface.
 
 ## Requirements
 
@@ -30,24 +32,18 @@ Validated post-v0.1: the four daily pain points (sticky-nav ghosting, mid-flight
 - ✓ Full-page scroll-and-stitch capture (sharp composite, no `fullPage:true` ghosting) — v0.1 (OUT-01, OUT-02)
 - ✓ Output writes to templated path with parent dirs auto-created — v0.1 (OUT-03)
 
-## Current Milestone: v0.2 Multi-viewport & Region Capture
+### Validated (shipped in v0.2)
 
-**Goal:** Capture multiple viewports in one run and capture individual regions (by selector or from/to anchors) from a config — while keeping v0.1's single-config, single-page ergonomics intact.
+- ✓ Multi-viewport per run — declare `viewports: [...]` in one config, one `framershot capture` run produces one full-page PNG per viewport with per-viewport browser context isolation — v0.2 (MULTI-01)
+- ✓ Region capture by CSS selector — `regions: [{ name, selector, padding? }]` scrolled into view, prepare pipeline applied, padding honored — v0.2 (REGION-01)
+- ✓ Region capture by from/to anchors — `regions: [{ name, from, to, padding? }]` clipped to the bounding box spanning the two anchor elements — v0.2 (REGION-02)
+- ✓ CLI `--only=<region-name>` flag — fail-fast validation pre-Chromium-launch; without the flag, full-page stitch behavior from v0.1 is unchanged (regions are additive) — v0.2 (REGION-03)
 
-**Target features:**
-- Multi-viewport per run (declare desktop / tablet / mobile in one config, capture all)
-- Region capture by CSS selector (scroll into view + `element.screenshot()` with padding)
-- Region capture by from/to anchors (bounding box between two anchors)
-- `--only=<region>` CLI flag to capture a single region instead of the full page
+### Active (next milestone)
 
-### Active (v0.2 scope)
+(None defined yet — see `/gsd:new-milestone` to scope v0.3.)
 
-- [ ] Multi-viewport per run (desktop / tablet / mobile from one config) — MULTI-01
-- [ ] Region capture by CSS selector (scroll into view, `element.screenshot()` with padding) — REGION-01
-- [ ] Region capture by from/to anchors (compute bounding box between two anchors) — REGION-02
-- [ ] CLI `--only=<region>` flag to capture a specific region instead of the full page — REGION-03
-
-### Deferred past v0.2
+### Deferred (carry-forward to v0.3+)
 
 - [ ] Multi-page per config — MULTI-02
 - [ ] CLI `--viewport=<name>` and `--pages=<list>` filter flags — MULTI-03, MULTI-04
@@ -68,9 +64,9 @@ Validated post-v0.1: the four daily pain points (sticky-nav ghosting, mid-flight
 ## Context
 
 - Personal use case: capturing Framer sites (e.g. pubq.se) for marketing assets, archival, and visual reference
-- Daily friction this replaces: Playwright's `fullPage: true` ghosts sticky navs; Framer Motion appear effects get caught mid-flight; lazy-loaded images come up blank; font flash leaves screenshots with fallback fonts — **all four resolved in v0.1**
-- The config file is the daily-touch surface — getting its ergonomics right matters more than internal architecture (confirmed: zod + named field errors are pleasant in practice)
-- Codebase state at v0.1 ship: ~2,061 LOC JS across `src/` (browser/, capture/, cli/, config/, output/, prepare/); 98 commits; ESM throughout
+- Daily friction this replaces: Playwright's `fullPage: true` ghosts sticky navs; Framer Motion appear effects get caught mid-flight; lazy-loaded images come up blank; font flash leaves screenshots with fallback fonts — **all four resolved in v0.1, preserved through v0.2**
+- The config file is the daily-touch surface — getting its ergonomics right matters more than internal architecture (confirmed across v0.1 and v0.2: zod + named field errors are pleasant in practice; backward-compatible normalization via `.transform` made v0.2's `viewports: [...]` shape additive without breaking v0.1 configs)
+- Codebase state at v0.2 ship: ~3,356 LOC JS across `src/` (browser/, capture/, cli/, config/, output/, prepare/, server/); +~1,295 LOC over v0.1; ~148 commits total; ESM throughout. v0.2 added `src/capture/region.js` and grew `src/server/` substantially (a web-UI surface emerged alongside the CLI during v0.2).
 
 ## Constraints
 
@@ -91,8 +87,14 @@ Validated post-v0.1: the four daily pain points (sticky-nav ghosting, mid-flight
 | Single error sink in `index.js` (libraries throw typed errors) | `ConfigError`, `BrowserError` carry pre-formatted messages; only top-level catch calls `console.error` / `process.exit`. Keeps library modules pure and testable. | ✓ Good — Phase 6 `formatError` dispatcher is the only formatter; works cleanly. |
 | ESM + executable shebang committed via `git update-index --chmod=+x` | So `npm link` produces a working `framershot` command immediately after clone. | ✓ Good — `framershot` runs from any cwd. |
 | Caret-major version ranges in `package.json` (`^1`, `^12`, …) | Let npm resolve latest within major; avoid over-pinning. | ✓ Good — no surprise breakages across the 4-day milestone. |
-| Wave-based parallel plan execution with zero `files_modified` overlap | Phase 4 ran 4 plans in parallel, Phase 5 ran 2 — merges stayed trivial because each plan owned a distinct file. | ✓ Good — pattern to reuse in v0.2. |
+| Wave-based parallel plan execution with zero `files_modified` overlap | Phase 4 ran 4 plans in parallel, Phase 5 ran 2 — merges stayed trivial because each plan owned a distinct file. | ✓ Good — reused in v0.2: Phase 7 ran in 3 waves, Phase 8 in 4 waves, no merge conflicts. |
 | Name: framershot | User-chosen; bin name, package name, config namespace all use this. | ✓ Good. |
+| Per-viewport loop in `runCapture` (D-03, v0.2 Phase 7-02), not in callers | CLI and server stay dumb adapters consuming an array return shape; the iteration concern is internal to `runCapture`. Avoids duplicating lifecycle/event-scoping logic across two adapters. | ✓ Good — Phase 7-03 CLI/server changes were lean (just array consumers + per-result formatting). |
+| `launchBrowser(config, viewportEntry)` two-arg signature (D-04, v0.2 Phase 7-02) | Separates per-viewport geometry from top-level baseURL + DSR. Keeps the launcher pure; `runCapture` owns the per-iteration lifecycle (context.close → browser.close in `try/finally`). | ✓ Good — per-viewport isolation observable in live runs (`.does-not-exist` warning fires once per viewport). |
+| UI form stays single-viewport (D-05, v0.2 Phase 7-03) | Multi-viewport ergonomics belong to YAML, not the web form. The form is for quick one-off captures; the array shape belongs in version-controlled configs. | ✓ Good — kept the web UI scope tight; no form complexity creep. |
+| Single `z.object` + `.superRefine` over `z.union` for `regionSchema` (v0.2 Phase 8-01) | Preserves actionable per-entry error messages (e.g. `regions[0] 'hero': selector and from/to are mutually exclusive`); `z.union` would flatten errors and lose the per-region name surface. | ✓ Good — all 4 region error paths produce clean `Error:` prefix via Guard 4 of `formatError`. |
+| Open-Q#1 lock A: regions + no `--only` = N regions + 1 full-page per viewport (v0.2 Phase 8-03) | Regions are additive, not replacing — preserves v0.1 default behavior. Users opt into "region only" by passing `--only=<name>`. | ✓ Good — daily v0.1 configs that add regions get both surfaces; default is non-surprising. |
+| `--only` fail-fast validation pre-Chromium-launch (v0.2 Phase 8-03) | Invalid region names should not waste a Chromium cold-start. Validation reads the regions list before `chromium.launch()`. | ✓ Good — typed `RegionError` thrown immediately; no wasted browser session. |
 
 ## Evolution
 
@@ -112,4 +114,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-22 — milestone v0.2 (Multi-viewport & Region Capture) started.*
+*Last updated: 2026-05-24 after v0.2 milestone shipped (Multi-viewport & Region Capture).*
