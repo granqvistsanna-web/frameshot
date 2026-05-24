@@ -24,12 +24,16 @@ function slugify(value) {
   return slug || 'untitled';
 }
 
-export function resolveTemplate(template, { date, viewport, page }) {
+export function resolveTemplate(template, { date, viewport, page, region }) {
   // {date} is NOT slugified — YYYY-MM-DD hyphens are intentional and path-safe.
   // {viewport} and {page} ARE slugified — handles spaces, unicode, etc.
+  // {region} is slugified when present; left literal when region arg is undefined (full-page run).
   // The template itself is NOT slugified — '/' path separators must survive.
   return template
     .replaceAll('{date}', date)
     .replaceAll('{viewport}', slugify(viewport))
-    .replaceAll('{page}', slugify(page));
+    .replaceAll('{page}', slugify(page))
+    // {region} literal-fallback posture mirrors template.js:6-7 (unknown
+    // placeholders stay literal so typos surface in the output path).
+    .replaceAll('{region}', region ? slugify(region) : '{region}');
 }

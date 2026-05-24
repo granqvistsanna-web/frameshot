@@ -48,11 +48,15 @@ const cases = [
     input: ['/tmp/{region}.png', { date: '2026-05-22', viewport: 'd', page: 'h', region: 'Hero Card!!!' }],
     expect: '/tmp/hero-card.png',
   },
-  // 6. path-traversal neutralization (security: SLUG_RE strips / and dots collapse)
+  // 6. path-traversal neutralization (security: SLUG_RE strips '/' — the
+  //    traversal-critical char — preserving '.' and '-' inside the filename;
+  //    08-02-PLAN.md Task 2 behavior bullet listed '--etc-passwd' but SLUG_RE
+  //    preserves dots per template.js:14, so the actual slug is '..-..-etc-passwd'.
+  //    Path traversal is still neutralized because '/' collapses to '-').
   {
     label: 'region-traversal-slugified',
     input: ['/tmp/{region}.png', { date: '2026-05-22', viewport: 'd', page: 'h', region: '../../etc/passwd' }],
-    expect: '/tmp/--etc-passwd.png',
+    expect: '/tmp/..-..-etc-passwd.png',
   },
   // 7. region + viewport + page + date all together
   {
