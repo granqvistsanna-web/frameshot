@@ -1078,6 +1078,125 @@ export function renderUi({ version = '0.0.0' } = {}) {
     font-weight: 400;
   }
 
+  /* Pin offset block — only meaningful when at least one ratio chip is checked.
+     The block is hidden until then via [hidden]. Slider follows the "irrelevant
+     given current settings" pattern (.is-dim) when no chips are checked. */
+  .pin-offset-block { margin-top: 14px; }
+  .pin-offset-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .pin-offset-label-row .field-label { margin: 0; }
+  .pin-offset-label-row .pin-offset-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg-2);
+    font-feature-settings: 'tnum';
+  }
+
+  /* Per-ratio preview row — small page silhouettes, one per checked ratio.
+     Backdrop is either a stylized gradient (no recent capture) or the most
+     recent full-page screenshot. The pin window overlay slides with the
+     offset slider and is sized to the chip's ratio over an assumed (or
+     measured, when a backdrop is available) page aspect. */
+  .pin-preview-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .pin-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .pin-preview-silhouette {
+    position: relative;
+    width: 56px;
+    /* Default 1:3.2 page aspect — overridden inline when a real capture's
+       dimensions become known so the silhouette matches the actual page. */
+    aspect-ratio: 1 / 3.2;
+    background:
+      linear-gradient(180deg,
+        rgba(244, 244, 245, 0.06) 0%,
+        rgba(244, 244, 245, 0.03) 30%,
+        rgba(244, 244, 245, 0.08) 60%,
+        rgba(244, 244, 245, 0.02) 100%);
+    border: 1px solid var(--rule-2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .pin-preview-silhouette.has-bg {
+    background-size: cover;
+    background-position: top center;
+    background-repeat: no-repeat;
+  }
+  .pin-preview-window {
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    background: var(--accent-soft);
+    border-top: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
+    transition: top 120ms ease-out, height 120ms ease-out;
+    pointer-events: none;
+  }
+  .pin-preview-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--fg-3);
+    letter-spacing: 0.06em;
+    font-feature-settings: 'tnum';
+  }
+
+  /* Backdrop — color swatch + hex text input sit on one line. The native
+     color picker is a small clickable square; the hex field shows the value
+     and accepts manual entry. They stay in sync via JS. */
+  .backdrop-color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .backdrop-color-row input[type=color] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--rule-2);
+    border-radius: 6px;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    flex: none;
+  }
+  .backdrop-color-row input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .backdrop-color-row input[type=color]::-webkit-color-swatch { border: 0; border-radius: 4px; }
+  .backdrop-color-row input[type=color]::-moz-color-swatch { border: 0; border-radius: 4px; }
+  .backdrop-color-row input[type=text] {
+    flex: 1;
+    min-width: 0;
+  }
+  .backdrop-swatches {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .backdrop-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1px solid var(--rule-2);
+    cursor: pointer;
+    padding: 0;
+    transition: transform 120ms ease-out, border-color 120ms ease-out;
+  }
+  .backdrop-swatch:hover { transform: scale(1.1); border-color: var(--fg-3); }
+  .backdrop-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
   /* Format/quality row — like row-2 but collapses to a single column when
      quality is hidden (PNG), so the Format select isn't orphaned. */
   .format-row {
@@ -1220,6 +1339,15 @@ export function renderUi({ version = '0.0.0' } = {}) {
             <label class="vp-chip"><input type="checkbox" data-ratio="1.778" data-slug="9x16"><span>Idea / video</span><span class="vp-chip-meta">9:16</span></label>
           </div>
           <label class="vp-toggle" id="pinsOnlyChip"><input type="checkbox" id="pinsOnlyToggle" disabled><span>Pins only · skip full-page for these devices</span></label>
+          <div class="pin-offset-block" id="pinOffsetBlock" hidden>
+            <div class="pin-offset-label-row">
+              <label class="field-label" for="pinOffset">Vertical offset</label>
+              <span class="pin-offset-val"><span id="pinOffsetValue">0</span>%</span>
+            </div>
+            <input id="pinOffset" type="range" min="0" max="100" value="0" class="range">
+            <div class="pin-preview-row" id="pinPreviewRow"></div>
+            <span class="help">0% = top of page · 100% = flush bottom · preview uses your latest full-page capture when available</span>
+          </div>
           <div class="vp-section-label">Custom</div>
           <label class="vp-toggle"><input type="checkbox" id="customViewportToggle"><span>Add a custom viewport</span></label>
         </div>
@@ -1263,6 +1391,43 @@ export function renderUi({ version = '0.0.0' } = {}) {
             </div>
           </div>
           <span class="help">retina PNGs are 10–15 MB · JPEG @ 85 ≈ 10× smaller, universally supported · WebP for max compression</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="section-label">Backdrop</div>
+        <label class="vp-toggle"><input type="checkbox" id="backdropToggle"><span>Frame with colored background</span></label>
+        <div id="backdropOptions" hidden>
+          <div class="field" style="margin-top: 14px;">
+            <label class="field-label" for="backdropColorHex">Color</label>
+            <div class="backdrop-color-row">
+              <input type="color" id="backdropColor" value="#FFE45C">
+              <input type="text" id="backdropColorHex" value="#FFE45C" maxlength="7" spellcheck="false">
+            </div>
+            <div class="backdrop-swatches" id="backdropSwatches">
+              <button type="button" class="backdrop-swatch" data-color="#FFE45C" style="background:#FFE45C" title="Yellow"></button>
+              <button type="button" class="backdrop-swatch" data-color="#F4F0E8" style="background:#F4F0E8" title="Cream"></button>
+              <button type="button" class="backdrop-swatch" data-color="#E8E4DD" style="background:#E8E4DD" title="Stone"></button>
+              <button type="button" class="backdrop-swatch" data-color="#171513" style="background:#171513" title="Ink"></button>
+              <button type="button" class="backdrop-swatch" data-color="#FF6B5C" style="background:#FF6B5C" title="Coral"></button>
+              <button type="button" class="backdrop-swatch" data-color="#6FCF97" style="background:#6FCF97" title="Mint"></button>
+              <button type="button" class="backdrop-swatch" data-color="#7AA2F7" style="background:#7AA2F7" title="Sky"></button>
+              <button type="button" class="backdrop-swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="row-2">
+              <div>
+                <label class="field-label" for="backdropPadding">Padding · px</label>
+                <input id="backdropPadding" type="number" min="0" max="400" value="48">
+              </div>
+              <div>
+                <label class="field-label" for="backdropRadius">Inner radius · px</label>
+                <input id="backdropRadius" type="number" min="0" max="200" value="12">
+              </div>
+            </div>
+            <span class="help">padding wraps the screenshot · radius rounds the inner corners (filled with backdrop color)</span>
+          </div>
         </div>
       </div>
 
@@ -1394,6 +1559,10 @@ const els = {
   vpDevice: $('vpDevice'),
   vpPin: $('vpPin'),
   pinsOnlyToggle: $('pinsOnlyToggle'),
+  pinOffsetBlock: $('pinOffsetBlock'),
+  pinOffset: $('pinOffset'),
+  pinOffsetValue: $('pinOffsetValue'),
+  pinPreviewRow: $('pinPreviewRow'),
   customViewport: $('customViewport'),
   customViewportToggle: $('customViewportToggle'),
   vpName: $('vpName'), vpWidth: $('vpWidth'), vpHeight: $('vpHeight'),
@@ -1414,6 +1583,13 @@ const els = {
   extraDelay: $('extraDelay'),
   frameDelay: $('frameDelay'),
   frameDelayWrap: $('frameDelayWrap'),
+  backdropToggle: $('backdropToggle'),
+  backdropOptions: $('backdropOptions'),
+  backdropColor: $('backdropColor'),
+  backdropColorHex: $('backdropColorHex'),
+  backdropSwatches: $('backdropSwatches'),
+  backdropPadding: $('backdropPadding'),
+  backdropRadius: $('backdropRadius'),
   regionsList: $('regions-list'),
   addRegion: $('add-region'),
   submit: $('submit-btn'),
@@ -1506,10 +1682,110 @@ function syncFrameDelayRelevance() {
   els.frameDelayWrap.classList.toggle('is-dim', irrelevant);
 }
 
+// ── Pin offset + preview ───────────────────────────────────
+// Single global slider — applies the same fraction to every checked pin ratio
+// across every device. Preview renders one silhouette per checked ratio with
+// a window overlay sized to the ratio over an assumed (or measured) page
+// aspect. When a recent full-page screenshot is available (from the latest
+// run's currentOutputs), it's loaded as the silhouette backdrop and the
+// aspect ratio is taken from the actual image dimensions — much more
+// accurate than the 1:3.2 default for the user's specific page.
+const DEFAULT_PAGE_ASPECT = 3.2; // page height / page width — rough marketing-page assumption
+
+// lastFullPage = { url, aspect: pageHeight/pageWidth } once a backdrop loads.
+// Captured into closure; updated by trySetBackdrop() and consumed by
+// renderPinPreview(). Null until at least one full-page capture has run.
+let lastFullPage = null;
+
+function syncPinOffsetBlockVisibility() {
+  const anyRatio = ratioCheckboxes().some((cb) => cb.checked);
+  els.pinOffsetBlock.hidden = !anyRatio;
+}
+
+// Build one preview tile per checked ratio. Each tile shows the silhouette
+// of a "page" (gradient or real backdrop) with a colored window overlay sized
+// to the ratio and positioned by the current offset slider value. Recomputed
+// from scratch on every change — cheap (≤4 small DOM trees).
+function renderPinPreview() {
+  const offset = Number(els.pinOffset.value) / 100;
+  els.pinOffsetValue.textContent = els.pinOffset.value;
+
+  const checked = ratioCheckboxes().filter((cb) => cb.checked);
+  els.pinPreviewRow.innerHTML = '';
+  if (checked.length === 0) return;
+
+  // pageAspect is page_height / page_width. The silhouette is rendered with
+  // 'aspect-ratio: 1 / pageAspect' and the pin window height is
+  // (ratio / pageAspect) × silhouetteHeight — i.e., (ratio / pageAspect) × 100%.
+  const pageAspect = lastFullPage?.aspect ?? DEFAULT_PAGE_ASPECT;
+
+  for (const cb of checked) {
+    const ratio = Number(cb.dataset.ratio);
+    const slug = cb.dataset.slug;
+    // Clamp to (0, 1] so the window never exceeds the silhouette (degenerate
+    // case: pinHeight > pageHeight → window is 100% tall, no room to slide).
+    const winFrac = Math.min(1, ratio / pageAspect);
+    const room = 1 - winFrac;
+    const topFrac = room * offset;
+
+    const tile = document.createElement('div');
+    tile.className = 'pin-preview';
+
+    const sil = document.createElement('div');
+    sil.className = 'pin-preview-silhouette';
+    if (lastFullPage) {
+      sil.classList.add('has-bg');
+      sil.style.backgroundImage = 'url("' + lastFullPage.url + '")';
+      sil.style.aspectRatio = '1 / ' + pageAspect;
+    }
+
+    const win = document.createElement('div');
+    win.className = 'pin-preview-window';
+    win.style.top = (topFrac * 100) + '%';
+    win.style.height = (winFrac * 100) + '%';
+    sil.appendChild(win);
+
+    const label = document.createElement('div');
+    label.className = 'pin-preview-label';
+    label.textContent = slug.replace('x', ':').replace('1:2-1', '1:2.1');
+
+    tile.appendChild(sil);
+    tile.appendChild(label);
+    els.pinPreviewRow.appendChild(tile);
+  }
+}
+
+// Try to use a full-page output as the silhouette backdrop. Picks the first
+// output that has no regionName AND no pin-slug suffix on its viewportName —
+// that's the full-page sibling for a given device. Loads the image off-DOM
+// to read naturalWidth/Height so the silhouette can render at the actual
+// page aspect (much more accurate than the 3.2 default for the user's page).
+function trySetBackdrop(outputs) {
+  if (!outputs || outputs.length === 0) return;
+  const ratioSlugs = ratioCheckboxes().map((cb) => cb.dataset.slug);
+  const fullPage = outputs.find((o) => {
+    if (o.regionName) return false;
+    if (!o.viewportName) return false;
+    return !ratioSlugs.some((s) => o.viewportName.endsWith('-' + s));
+  });
+  if (!fullPage) return;
+  const img = new Image();
+  img.onload = () => {
+    const aspect = img.naturalHeight / img.naturalWidth;
+    lastFullPage = { url: fullPage.urlPath, aspect };
+    renderPinPreview();
+  };
+  // Failure (missing file, network) leaves lastFullPage as-is — the silhouette
+  // gracefully falls back to the stylized gradient.
+  img.src = fullPage.urlPath;
+}
+
 function onViewportSelectionChange() {
   syncPinsOnlyEnabled();
   syncFrameDelayRelevance();
   syncConcurrencyToViewports();
+  syncPinOffsetBlockVisibility();
+  renderPinPreview();
   updateSubmitLabel();
 }
 
@@ -1527,6 +1803,10 @@ els.concurrency.addEventListener('input', () => {
   concurrencyUserTouched = true;
   els.concurrencyValue.textContent = els.concurrency.value;
 });
+
+// Pin offset slider — drives the preview live. The actual value is sent at
+// submit time via readForm; nothing else depends on this state.
+els.pinOffset.addEventListener('input', renderPinPreview);
 
 // Density pills — discrete 1×/2×/3× segmented control replacing the prior
 // number-with-0.5-step input. Selection is stored as data-dsr on the active
@@ -1683,6 +1963,36 @@ function readRegions() {
 
 els.addRegion.addEventListener('click', () => addRegionRow());
 
+// ── Backdrop ──────────────────────────────────────────────
+// Color picker + hex text field stay in sync via two event paths. The hex
+// field accepts both #RRGGBB and RRGGBB shorthand — we normalize before
+// pushing into the color input (which requires the leading #). Invalid hex
+// (anything not /^#?[0-9a-f]{6}$/i) silently no-ops the sync so the user can
+// type freely without snapback. Schema-side validation catches malformed hex
+// at submit time.
+function setBackdropColor(hex) {
+  const normalized = /^#?[0-9a-fA-F]{6}$/.test(hex)
+    ? (hex.startsWith('#') ? hex : '#' + hex).toUpperCase()
+    : null;
+  if (!normalized) return;
+  els.backdropColor.value = normalized;
+  els.backdropColorHex.value = normalized;
+  for (const sw of els.backdropSwatches.querySelectorAll('.backdrop-swatch')) {
+    sw.classList.toggle('is-active', sw.dataset.color.toUpperCase() === normalized);
+  }
+}
+els.backdropColor.addEventListener('input', () => setBackdropColor(els.backdropColor.value));
+els.backdropColorHex.addEventListener('change', () => setBackdropColor(els.backdropColorHex.value));
+els.backdropColorHex.addEventListener('blur', () => setBackdropColor(els.backdropColorHex.value));
+for (const sw of els.backdropSwatches.querySelectorAll('.backdrop-swatch')) {
+  sw.addEventListener('click', () => setBackdropColor(sw.dataset.color));
+}
+els.backdropToggle.addEventListener('change', () => {
+  els.backdropOptions.hidden = !els.backdropToggle.checked;
+});
+// Initial swatch highlight for the default value
+setBackdropColor(els.backdropColorHex.value);
+
 const pad = (n) => String(n).padStart(2, '0');
 const stamp = () => {
   const d = new Date();
@@ -1714,20 +2024,36 @@ function readForm() {
     .filter((cb) => cb.checked)
     .map((cb) => ({ slug: cb.dataset.slug, ratio: Number(cb.dataset.ratio) }));
   const skipFullPage = els.pinsOnlyToggle.checked && ratios.length > 0;
+  // pinOffset is a fraction in [0..1]; UI shows it as a 0..100 integer percent.
+  // Only attached to pin entries when non-zero so the wire shape stays minimal
+  // for the common case and recent-runs entries from older builds replay cleanly.
+  const pinOffsetFrac = Number(els.pinOffset.value) / 100;
   const viewports = [];
   for (const dev of devices) {
     if (!skipFullPage) viewports.push(dev);
     for (const r of ratios) {
-      viewports.push({
+      const pinEntry = {
         name: dev.name + '-' + r.slug,
         width: dev.width,
         height: dev.height,
         pinHeight: Math.round(dev.width * r.ratio),
-      });
+      };
+      if (pinOffsetFrac > 0) pinEntry.pinOffset = pinOffsetFrac;
+      viewports.push(pinEntry);
     }
   }
   const hideLines = els.hide.value.split('\\n').map((s) => s.trim()).filter(Boolean);
   const regions = readRegions();
+  // Backdrop is opt-in — when the toggle is off we send no field, so the
+  // schema's optional() leaves config.backdrop === undefined and the capture
+  // pipeline skips the post-process step entirely.
+  const backdrop = els.backdropToggle.checked
+    ? {
+        color: els.backdropColorHex.value.toUpperCase(),
+        padding: Number(els.backdropPadding.value) || 0,
+        radius: Number(els.backdropRadius.value) || 0,
+      }
+    : undefined;
   return {
     baseUrl: els.baseUrl.value.trim(),
     page: { path: els.pagePath.value.trim() || '/', name: els.pageName.value.trim() || 'home' },
@@ -1746,6 +2072,7 @@ function readForm() {
       frameDelay: Number(els.frameDelay.value) || 0,
     },
     ...(regions.length > 0 ? { regions } : {}),
+    ...(backdrop ? { backdrop } : {}),
   };
 }
 
@@ -1767,12 +2094,21 @@ function fillForm(saved) {
   els.customViewport.hidden = true;
   // Pass 1 — reconstruct ratio-chip selections from any pin entries by
   // matching the saved name's suffix against the slug each chip stores.
+  // While we're iterating, also snap the pin-offset slider to the first
+  // non-zero pinOffset we find (all pin entries in a single run share the
+  // same offset, so picking the first is sufficient).
+  let restoredOffset = 0;
   for (const vp of savedViewports) {
     if (vp.pinHeight === undefined) continue;
     for (const cb of ratioCheckboxes()) {
       if (vp.name.endsWith('-' + cb.dataset.slug)) cb.checked = true;
     }
+    if (typeof vp.pinOffset === 'number' && restoredOffset === 0) {
+      restoredOffset = vp.pinOffset;
+    }
   }
+  els.pinOffset.value = String(Math.round(restoredOffset * 100));
+  els.pinOffsetValue.textContent = els.pinOffset.value;
   // Derive pins-only: the run is pins-only iff every saved entry is a pin
   // entry (i.e. every entry has pinHeight set) AND at least one pin entry
   // exists. Avoids false positives on legacy/full-page-only runs.
@@ -1823,6 +2159,8 @@ function fillForm(saved) {
   syncPinsOnlyEnabled();
   syncFrameDelayRelevance();
   syncConcurrencyToViewports();
+  syncPinOffsetBlockVisibility();
+  renderPinPreview();
 
   setDsr(saved.deviceScaleFactor);
   if (saved.format) {
@@ -1842,6 +2180,19 @@ function fillForm(saved) {
   els.frameDelay.value = saved.prepare?.frameDelay ?? 0;
   clearRegions();
   (saved.regions ?? []).forEach((r) => addRegionRow(r));
+  // Backdrop restore — when the saved run carries one, populate the fields
+  // and reveal the options group; otherwise reset to the off state so an
+  // older backdrop-less run doesn't leave a stale toggle from the previous fill.
+  if (saved.backdrop) {
+    els.backdropToggle.checked = true;
+    els.backdropOptions.hidden = false;
+    setBackdropColor(saved.backdrop.color);
+    if (typeof saved.backdrop.padding === 'number') els.backdropPadding.value = saved.backdrop.padding;
+    if (typeof saved.backdrop.radius === 'number') els.backdropRadius.value = saved.backdrop.radius;
+  } else {
+    els.backdropToggle.checked = false;
+    els.backdropOptions.hidden = true;
+  }
   updateSubmitLabel();
 }
 
@@ -1867,13 +2218,19 @@ function summarizeRunViewports(vps) {
   if (vps.length === 1) return vps[0].name + ' ' + vps[0].width + '×' + vps[0].height;
   // Count unique device roots and unique pin ratios (slug suffix after the
   // last '-'). Falls back to "N viewports" if no pin entries were emitted.
+  // Also pick up a per-run pinOffset if any pin entry carries one (all pin
+  // entries in a run share the same value, so first-found is sufficient).
   const ratioSlugs = ratioCheckboxes().map((cb) => cb.dataset.slug);
   const deviceRoots = new Set();
   const pinSlugs = new Set();
   let hasPin = false;
+  let offsetPct = 0;
   for (const vp of vps) {
     if (vp.pinHeight !== undefined) {
       hasPin = true;
+      if (typeof vp.pinOffset === 'number' && offsetPct === 0) {
+        offsetPct = Math.round(vp.pinOffset * 100);
+      }
       const slug = ratioSlugs.find((s) => vp.name.endsWith('-' + s));
       if (slug) {
         pinSlugs.add(slug);
@@ -1886,7 +2243,8 @@ function summarizeRunViewports(vps) {
     }
   }
   if (hasPin && pinSlugs.size > 0) {
-    return deviceRoots.size + ' dev × ' + pinSlugs.size + ' pin';
+    const base = deviceRoots.size + ' dev × ' + pinSlugs.size + ' pin';
+    return offsetPct > 0 ? base + ' @ ' + offsetPct + '%' : base;
   }
   return vps.length + ' viewports';
 }
@@ -2118,6 +2476,9 @@ function hideGallery() {
 
 function showResults(outputs) {
   currentOutputs = outputs;
+  // Best-effort: swap the pin-preview backdrop to whichever full-page output
+  // landed in this run. No-op when none qualifies; never blocks the gallery.
+  trySetBackdrop(outputs);
   if (outputs.length <= 1) {
     hideGallery();
     if (outputs.length === 1) showHero(outputs[0]);
@@ -2365,6 +2726,8 @@ renderRuns();
 syncPinsOnlyEnabled();
 syncFrameDelayRelevance();
 syncConcurrencyToViewports();
+syncPinOffsetBlockVisibility();
+renderPinPreview();
 updateSubmitLabel();
 </script>
 </body>

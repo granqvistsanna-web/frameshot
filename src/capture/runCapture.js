@@ -140,7 +140,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
   // in `.png` (v0.1 default + the server's hardcoded template); swapExtension
   // rewrites the extension once per resolved path so callers never have to
   // think about format-vs-template skew.
-  const { format, quality } = config;
+  const { format, quality, backdrop, deviceScaleFactor } = config;
 
   // v0.3 (DISC-01): viewport is the OUTER loop, page is the INNER loop. One
   // browser+context per viewport — pages are reused tabs in the same context,
@@ -206,8 +206,10 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
               hideStickyAfterFirstFrame: config.prepare.hideSticky,
               frameDelay: config.prepare.frameDelay,
               maxHeight: vp.pinHeight,
+              pinOffset: vp.pinOffset,
               format,
               quality,
+              backdrop,
             });
             localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name });
           } else {
@@ -228,6 +230,8 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
                 onProgress: (event) => onProgress({ ...event, ...scope }),
                 format,
                 quality,
+                backdrop,
+                deviceScaleFactor,
               });
               localResults.push({
                 outputPath: regionPath,
@@ -250,8 +254,10 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
                 hideStickyAfterFirstFrame: config.prepare.hideSticky,
                 frameDelay: config.prepare.frameDelay,
                 maxHeight: vp.pinHeight,
+                pinOffset: vp.pinOffset,
                 format,
                 quality,
+                backdrop,
               });
               localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name });
             }

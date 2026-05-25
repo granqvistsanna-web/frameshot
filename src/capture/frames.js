@@ -76,7 +76,7 @@
  *   overlap region cleanly. Pattern 1 lines 327-332.
  */
 export async function captureFrames(page, options = {}) {
-  const { onProgress, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight } = options;
+  const { onProgress, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight, pinOffset = 0 } = options;
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
   const { viewportWidth, viewportHeight, totalHeight: rawTotalHeight, deviceScaleFactor } =
@@ -94,8 +94,22 @@ export async function captureFrames(page, options = {}) {
   // is a no-op and behavior is identical to the v0.1 contract.
   const totalHeight = maxHeight !== undefined ? Math.min(rawTotalHeight, maxHeight) : rawTotalHeight;
 
-  // Step 2 — Pre-compute frameYOffsets in CSS pixels.
-  // Single-frame fast path when the page fits in one viewport (mirrors
+  // Pin-format offset (v0.5): when pinOffset is set alongside maxHeight, shift
+  // the captured window down the page by `pinOffset` fraction of the available
+  // room (rawTotalHeight - totalHeight). 0 = top (v0.4 behavior, default),
+  // 1 = flush bottom. Clamped to [0,1] and to a non-negative room amount so
+  // short pages (where pinHeight ≥ pageHeight) collapse to startY=0 cleanly.
+  // For full-page captures (no maxHeight) startY is always 0 — pinOffset has
+  // no meaningful interpretation without a window to slide.
+  const room = Math.max(0, rawTotalHeight - totalHeight);
+  const startY = (maxHeight !== undefined && room > 0)
+    ? Math.round(room * Math.min(1, Math.max(0, pinOffset)))
+    : 0;
+
+  // Step 2 — Pre-compute frameYOffsets in CSS pixels (window-relative — i.e.,
+  // canvas-placement coords, starting at 0). The page-scroll positions are
+  // `startY + frameYOffsets[i]`; stitch.js sees the window-relative offsets.
+  // Single-frame fast path when the window fits in one viewport (mirrors
   // hide.js:45-47 defensive-branch posture). Otherwise push nFull evenly-spaced
   // offsets and append one clamped last frame when there is a remainder.
   const frameYOffsets = [];
@@ -112,11 +126,14 @@ export async function captureFrames(page, options = {}) {
   const total = frameYOffsets.length;
   for (let i = 0; i < total; i++) {
     const y = frameYOffsets[i];
+    // Page-scroll position: window-relative frame offset shifted by the pin
+    // startY. When startY === 0 this collapses to `y` exactly (v0.4 contract).
+    const scrollY = startY + y;
 
     // (a) Scroll instantly to target position (Risk 7 — NEVER 'smooth').
     await page.evaluate((targetY) => {
       window.scrollTo({ top: targetY, behavior: 'instant' });
-    }, y);
+    }, scrollY);
 
     // (b) Wait ONE rAF roundtrip for paint to settle (Risk 8, Pitfall 3 —
     //     Phase 4's scrollPrime already triggered lazy-load IOs so we only need
@@ -145,7 +162,12 @@ export async function captureFrames(page, options = {}) {
     //      translateX(-50%) / scale()) are preserved. After frame 0, the
     //      hideStickyAfterFirstFrame block below tears everything back down
     //      with visibility:hidden so the nav doesn't tile in scrolled frames.
-    if (i === 0 && hideStickyAfterFirstFrame) {
+    // Restore is gated on startY === 0: when the pin window starts mid-page
+    // (v0.5 pinOffset > 0), the user has explicitly asked for a mid-page view —
+    // re-revealing hide-on-scroll navs would defeat that intent. The
+    // post-frame-0 hide block below still runs, so navs don't tile down
+    // subsequent frames.
+    if (i === 0 && hideStickyAfterFirstFrame && startY === 0) {
       await page.evaluate(() => {
         for (const el of document.querySelectorAll('*')) {
           const cs = getComputedStyle(el);
@@ -172,6 +194,22 @@ export async function captureFrames(page, options = {}) {
         }
       });
       // Let the reveal paint before the screenshot resolves.
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+    }
+
+    // When the pin window starts mid-page (startY > 0), hide stickies BEFORE
+    // the first screenshot so the captured top of the pin is clean. Without
+    // this, position:fixed nav/banners would sit on top of frame 0's mid-page
+    // content. Mirrors the post-frame-0 hide block but runs earlier.
+    if (i === 0 && hideStickyAfterFirstFrame && startY > 0) {
+      await page.evaluate(() => {
+        for (const el of document.querySelectorAll('*')) {
+          const pos = getComputedStyle(el).position;
+          if (pos === 'fixed' || pos === 'sticky') {
+            el.style.setProperty('visibility', 'hidden', 'important');
+          }
+        }
+      });
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
     }
 

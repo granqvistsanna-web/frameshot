@@ -163,6 +163,7 @@ async function handleCapture(req, res) {
     ...(body.format !== undefined ? { format: body.format } : {}),
     ...(body.quality !== undefined ? { quality: body.quality } : {}),
     ...(body.concurrency !== undefined ? { concurrency: body.concurrency } : {}),
+    ...(body.backdrop !== undefined ? { backdrop: body.backdrop } : {}),
     ...(hasRegions ? { regions: body.regions } : {}),
   };
 

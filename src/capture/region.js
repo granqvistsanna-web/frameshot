@@ -80,7 +80,7 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { encodeImage } from './stitch.js';
+import { encodeImage, applyBackdrop } from './stitch.js';
 
 /**
  * Named Error subclass for region-capture failures: selector matched nothing,
@@ -220,7 +220,7 @@ async function measureDocBox(page, loc) {
  *   matches the silent-library posture of Phase 3+ (the top-level catch in
  *   src/cli.js formats it via formatError's default branch).
  */
-export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {}, format = 'png', quality = 85 } = {}) {
+export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {}, format = 'png', quality = 85, backdrop, deviceScaleFactor = 1 } = {}) {
   onProgress({ type: 'step', label: `Capturing region '${regionConfig.name}'` });
 
   let clip;
@@ -362,6 +362,13 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
     animations: 'disabled',
     type: 'png',
   });
-  const encoded = await encodeImage(raw, { format, quality });
+  // When the user has opted into a colored backdrop, wrap the raw region
+  // capture in a padded canvas before the format-encode hop. Same helper the
+  // full-page path uses, so the visual treatment is identical across region
+  // and full-page outputs.
+  const framed = backdrop
+    ? await applyBackdrop(raw, { ...backdrop, deviceScaleFactor })
+    : raw;
+  const encoded = await encodeImage(framed, { format, quality });
   await writeFile(outputPath, encoded);
 }

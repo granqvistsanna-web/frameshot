@@ -21,11 +21,15 @@ const viewportSchema = z.object({
 // this CSS-pixel height — the page renders at width×height as usual (so the layout
 // is natural for the chosen device width) but the output image stops at the pin
 // height. Used by the UI's Pinterest ratio chips: pinHeight = round(width × ratio).
+// pinOffset (optional, v0.5): fraction in [0..1] of "available vertical room"
+// (pageHeight - pinHeight). 0 = top of page (legacy behavior, default when omitted),
+// 1 = flush bottom. Only honored alongside pinHeight; ignored for full-page entries.
 export const viewportEntrySchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   name: z.string().min(1),
   pinHeight: z.number().int().positive().optional(),
+  pinOffset: z.number().min(0).max(1).optional(),
 });
 
 // Array of 1+ viewport entries with unique names.
@@ -207,6 +211,19 @@ const baseConfigSchema = z.object({
   // jpeg/webp only — png ignores it.
   format: z.enum(['png', 'jpeg', 'webp']).default('png'),
   quality: z.number().int().min(1).max(100).default(85),
+  // Optional colored padding wrapped around the final image (uniform on all
+  // sides). Off by default — when omitted, the encoded image is unchanged.
+  // color: 6-digit hex (with leading #). padding/radius are CSS pixels and
+  // get multiplied by deviceScaleFactor at apply time so they scale with
+  // retina output. radius applies rounded corners to the inner screenshot
+  // (corners become the backdrop color via composite over a flat canvas).
+  backdrop: z
+    .object({
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'color must be a 6-digit hex like #FFE45C'),
+      padding: z.number().int().min(0).max(400).default(48),
+      radius: z.number().int().min(0).max(200).default(0),
+    })
+    .optional(),
   // v0.1 singular alias — optional at the field level; mutual exclusivity enforced below.
   viewport: viewportSchema.optional(),
   // v0.2 plural form — optional at the field level; mutual exclusivity enforced below.
