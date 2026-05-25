@@ -72,134 +72,58 @@ export function renderUi({ version = '0.0.0' } = {}) {
 
   /* ── HEAD ───────────────────────────────────────────── */
   .head {
-    padding: 26px 28px 22px;
+    padding: 18px 22px 16px;
     border-bottom: 1px solid var(--rule);
-    position: relative;
-    overflow: hidden;
-  }
-  .head::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(circle at 50% -20%, rgba(255, 92, 27, 0.09), transparent 70%);
-    z-index: 0;
-  }
-  .head > * { position: relative; z-index: 1; }
-
-  .build-tag {
-    position: absolute;
-    top: 26px; right: 28px;
-    z-index: 2;
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--fg-2);
-    background: var(--surface-2);
-    padding: 4px 10px 4px 9px;
-    border: 1px solid var(--rule-2);
-    border-radius: 999px;
-    font-feature-settings: 'tnum', 'zero';
-  }
-  .build-tag::before {
-    content: '';
-    display: inline-block;
-    width: 5px; height: 5px;
-    background: var(--ok);
-    margin-right: 7px;
-    transform: translateY(-1px);
-    border-radius: 50%;
-    box-shadow: 0 0 6px rgba(111, 207, 151, 0.45);
   }
 
   .brand-row {
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 9px;
   }
   .brand-mark {
-    width: 26px;
-    height: 26px;
+    width: 18px;
+    height: 18px;
     flex: none;
     display: block;
   }
   .brand-mark .frame {
     fill: none;
-    stroke: var(--fg);
+    stroke: var(--fg-2);
     stroke-width: 1.75;
     stroke-linecap: square;
   }
   .brand-mark .dot {
-    fill: var(--accent);
-    filter: drop-shadow(0 0 6px var(--accent-soft));
+    fill: var(--fg-2);
   }
 
   .wordmark {
     font-family: var(--sans);
-    font-size: 32px;
-    font-weight: 600;
-    line-height: 0.95;
-    letter-spacing: -0.025em;
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.005em;
     color: var(--fg);
   }
-  .wordmark em {
-    font-style: normal;
-    font-weight: 600;
-    color: var(--accent);
-    margin-left: -0.02em;
-    display: inline-block;
-    text-shadow: 0 0 12px var(--accent-soft);
-  }
 
-  .tagline {
-    margin-top: 13px;
+  .build-tag {
+    margin-left: auto;
     font-family: var(--mono);
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--fg-2);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .tagline .dot { color: var(--fg-3); }
-  .tagline .branch {
+    font-size: 10.5px;
     color: var(--fg-3);
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .tagline .branch::before {
-    content: '';
-    width: 4px; height: 4px;
-    background: var(--accent);
-    border-radius: 50%;
-    box-shadow: 0 0 6px var(--accent);
+    font-feature-settings: 'tnum', 'zero';
   }
 
   /* ── SECTION LABELS ──────────────────────────────────── */
   .section-label {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    display: block;
     font-family: var(--sans);
-    font-size: 10px;
+    font-size: 11.5px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--fg-2);
-    margin: 0 0 14px;
-  }
-  .section-label .n {
+    letter-spacing: 0;
     color: var(--fg-3);
-    font-family: var(--mono);
-    font-feature-settings: 'tnum', 'zero';
-    border-right: 1px solid var(--rule);
-    padding-right: 10px;
-    margin-right: 4px;
+    margin: 0 0 12px;
   }
-  .section-label .rule { display: none; }
 
   /* ── FORM ────────────────────────────────────────────── */
   form { padding: 24px 28px 28px; }
@@ -217,9 +141,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     display: block;
     font-family: var(--sans);
     font-weight: 500;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    font-size: 11.5px;
     color: var(--fg-2);
     margin-bottom: 6px;
     font-feature-settings: 'tnum';
@@ -377,49 +299,39 @@ export function renderUi({ version = '0.0.0' } = {}) {
     color: var(--bg);
     border: 0;
     border-radius: 6px;
-    padding: 12px 18px;
+    padding: 10px 16px;
     font-family: var(--sans);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: -0.005em;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.20),
-      0 0 0 1px var(--accent);
-    transition: background 150ms ease-out, box-shadow 150ms ease-out, transform 80ms ease-out;
+    transition: background 120ms ease-out, box-shadow 120ms ease-out;
   }
   button.primary .kbd {
     position: absolute;
-    right: 14px;
+    right: 12px;
     top: 50%;
     transform: translateY(-50%);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
-    background: rgba(10, 10, 11, 0.20);
+    width: 17px;
+    height: 17px;
+    background: rgba(10, 10, 11, 0.16);
     border-radius: 4px;
     font-family: var(--mono);
     font-weight: 500;
     font-size: 10px;
-    letter-spacing: 0;
     color: var(--bg);
-    transition: background 150ms ease-out;
   }
   button.primary:hover:not(:disabled) {
     background: var(--accent-hot);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 0 0 1px var(--accent-hot),
-      0 0 0 3px var(--accent-soft);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
-  button.primary:hover:not(:disabled) .kbd { background: rgba(10, 10, 11, 0.30); }
-  button.primary:active:not(:disabled) { transform: translateY(1px); }
   button.primary:disabled { opacity: 0.42; cursor: not-allowed; }
 
   .help {
@@ -460,11 +372,9 @@ export function renderUi({ version = '0.0.0' } = {}) {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-family: var(--mono);
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--fg-2);
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--fg-3);
   }
   .led {
     width: 7px; height: 7px;
@@ -533,10 +443,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .log-line.idle .msg {
     color: var(--fg-3);
     font-family: var(--sans);
-    font-style: normal;
     font-weight: 400;
-    font-size: 14px;
-    letter-spacing: 0;
+    font-size: 12.5px;
   }
 
   /* Frame progress bar with tick marks */
@@ -578,10 +486,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
     gap: 4px;
   }
   .preview-meta .label {
-    font-family: var(--mono);
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
+    font-family: var(--sans);
+    font-size: 11px;
     color: var(--fg-3);
   }
   .preview-meta .path {
@@ -623,12 +529,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
     color: var(--fg-2);
     border: 1px solid var(--rule-2);
     border-radius: 6px;
-    padding: 7px 11px;
+    padding: 6px 11px;
     font-family: var(--sans);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
     text-decoration: none;
     cursor: pointer;
     transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out, box-shadow 150ms ease-out;
@@ -682,10 +586,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .preview-frame.empty {
     color: var(--fg-3);
     font-family: var(--sans);
-    font-style: normal;
-    font-weight: 300;
-    font-size: 22px;
-    letter-spacing: -0.005em;
+    font-weight: 400;
+    font-size: 13px;
   }
 
   /* ── GALLERY (N>1 outputs) ───────────────────────────── */
@@ -698,10 +600,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
     flex-wrap: wrap;
   }
   .gallery-actions .summary {
-    font-family: var(--mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
+    font-family: var(--sans);
+    font-size: 11px;
     color: var(--fg-3);
     font-feature-settings: 'tnum';
   }
@@ -772,9 +672,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .gallery-tile .tile-actions .meta-btn {
     flex: 1;
-    padding: 6px 8px;
-    font-size: 9px;
-    letter-spacing: 0.10em;
+    padding: 5px 8px;
+    font-size: 11px;
     justify-content: center;
     gap: 4px;
   }
@@ -845,11 +744,11 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .runs li .name {
     font-family: var(--sans);
     font-weight: 500;
-    font-size: 18px;
+    font-size: 13.5px;
     color: var(--fg);
-    line-height: 1.15;
-    margin-bottom: 6px;
-    letter-spacing: -0.015em;
+    line-height: 1.25;
+    margin-bottom: 4px;
+    letter-spacing: -0.005em;
   }
   .runs li .name em { font-style: normal; color: var(--accent); }
   .runs li .meta {
@@ -865,14 +764,12 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .runs li.empty {
     color: var(--fg-3);
     cursor: default;
-    font-style: normal;
     font-family: var(--sans);
     font-weight: 400;
-    font-size: 14px;
-    padding: 22px;
+    font-size: 12px;
+    padding: 18px 22px;
     border: 0;
     line-height: 1.5;
-    letter-spacing: 0;
   }
   .runs li.empty:hover { background: transparent; padding-left: 22px; }
 
@@ -885,12 +782,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
     color: var(--fg-2);
     border: 1px solid var(--rule-2);
     border-radius: 6px;
-    padding: 7px 11px;
+    padding: 6px 11px;
     font-family: var(--sans);
     font-weight: 500;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    font-size: 12px;
     cursor: pointer;
     width: 100%;
     transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
@@ -969,10 +864,9 @@ export function renderUi({ version = '0.0.0' } = {}) {
     border: 0;
     border-bottom: 1px solid transparent;
     padding: 5px 12px 7px;
-    font-family: var(--mono);
-    font-size: 9.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
+    font-family: var(--sans);
+    font-size: 11.5px;
+    font-weight: 500;
     cursor: pointer;
     margin-bottom: -1px;
     transition: color 150ms ease-out, border-color 150ms ease-out;
@@ -993,11 +887,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
     color: var(--fg-2);
     border: 1px dashed var(--rule-2);
     border-radius: 6px;
-    padding: 10px 14px;
-    font-family: var(--mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+    padding: 9px 14px;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
     width: 100%;
     transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
@@ -1019,8 +912,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
     border-radius: 6px;
     background: var(--surface-2);
     cursor: pointer;
-    font-family: var(--mono);
-    font-size: 12px;
+    font-family: var(--sans);
+    font-size: 12.5px;
     color: var(--fg-2);
     transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
     user-select: none;
@@ -1065,10 +958,9 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .vp-chip:has(input:checked) .vp-chip-meta { color: var(--fg-2); }
   .vp-section-label {
-    font-family: var(--mono);
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
     color: var(--fg-3);
     margin: 14px 0 7px;
   }
@@ -1176,9 +1068,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     margin-left: 8px;
     color: var(--fg-3);
     font-family: var(--sans);
-    font-size: 10px;
-    letter-spacing: 0;
-    text-transform: none;
+    font-size: 11px;
     font-weight: 400;
   }
 
@@ -1274,27 +1164,20 @@ export function renderUi({ version = '0.0.0' } = {}) {
   <!-- ── LEFT PANEL ── -->
   <aside class="panel">
     <div class="head">
-      <div class="build-tag">v${version} · local</div>
       <div class="brand-row">
         <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
           <path class="frame" d="M3 8V3H8 M16 3H21V8 M21 16V21H16 M8 21H3V16"/>
           <rect class="dot" x="10.5" y="10.5" width="3" height="3"/>
         </svg>
-        <div class="wordmark">framershot<em>.</em></div>
-      </div>
-      <div class="tagline">
-        <span>retina capture</span>
-        <span class="dot">·</span>
-        <span>framer sites</span>
-        <span class="dot">·</span>
-        <span class="branch">local</span>
+        <div class="wordmark">framershot</div>
+        <div class="build-tag">v${version}</div>
       </div>
     </div>
 
     <form id="capture-form" autocomplete="off" spellcheck="false">
 
       <div class="group">
-        <div class="section-label"><span class="n">01</span> Source <span class="rule"></span></div>
+        <div class="section-label">Source</div>
         <div class="field">
           <label class="field-label" for="baseUrl">Base URL</label>
           <input id="baseUrl" type="text" placeholder="https://framer.site" required>
@@ -1314,7 +1197,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
       </div>
 
       <div class="group">
-        <div class="section-label"><span class="n">02</span> Render <span class="rule"></span></div>
+        <div class="section-label">Render</div>
         <div class="field">
           <div class="vp-section-label">Device</div>
           <div class="vp-chips" id="vpDevice">
@@ -1378,7 +1261,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
       </div>
 
       <div class="group">
-        <div class="section-label"><span class="n">03</span> Prepare <span class="rule"></span></div>
+        <div class="section-label">Prepare</div>
         <div class="field">
           <label class="field-label" for="hide">Hide selectors</label>
           <textarea id="hide" placeholder="nav.sticky&#10;#cookie-banner&#10;.intercom-widget"></textarea>
@@ -1406,7 +1289,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
       </div>
 
       <div class="group">
-        <div class="section-label"><span class="n">04</span> Regions <span class="rule"></span></div>
+        <div class="section-label">Regions</div>
         <div id="regions-list" class="regions-list"></div>
         <button type="button" id="add-region" class="region-add">+ Add region</button>
         <span class="help">leave empty for full-page only · adding regions also captures the full page as <code>full.png</code></span>
@@ -1423,19 +1306,19 @@ export function renderUi({ version = '0.0.0' } = {}) {
 
     <div class="log-shell">
       <div class="status-head">
-        <div class="section-label"><span class="n">05</span> Exposure log <span class="rule"></span></div>
+        <div class="section-label">Log</div>
         <span class="led-wrap"><span class="led" id="led"></span><span id="led-text">idle</span></span>
       </div>
       <div class="bracketed log-frame" id="status">
-        <div class="log-line idle"><span class="ts">--:--:--</span><span class="msg">awaiting source · fill the panel to begin</span></div>
+        <div class="log-line idle"><span class="ts">--:--:--</span><span class="msg">Idle</span></div>
       </div>
     </div>
 
     <div class="preview-shell">
-      <div class="section-label"><span class="n">06</span> Plate <span class="rule"></span></div>
+      <div class="section-label">Preview</div>
       <div class="preview-meta" id="result-meta" hidden>
         <div class="where">
-          <span class="label">Saved to · click to copy path</span>
+          <span class="label">Path · click to copy</span>
           <button class="path" id="result-path" type="button" title="copy full path"></button>
         </div>
         <div class="actions">
@@ -1444,10 +1327,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
           <a class="meta-btn" id="result-open" target="_blank" rel="noopener">Open <span class="arrow">↗</span></a>
         </div>
       </div>
-      <div class="bracketed preview-frame empty" id="result">no exposure yet</div>
+      <div class="bracketed preview-frame empty" id="result">No capture yet</div>
       <div id="gallery-actions" class="gallery-actions" hidden>
-        <div class="summary">Run output · <span class="count" id="gallery-count">0</span> files</div>
-        <button class="meta-btn primary" id="download-all" type="button"><span class="arrow">↓</span> Download all · zip</button>
+        <div class="summary"><span class="count" id="gallery-count">0</span> files</div>
+        <button class="meta-btn primary" id="download-all" type="button"><span class="arrow">↓</span> Download all</button>
       </div>
       <div id="result-gallery" class="gallery-grid" hidden></div>
     </div>
@@ -1457,11 +1340,11 @@ export function renderUi({ version = '0.0.0' } = {}) {
   <!-- ── RIGHT RAIL ── -->
   <aside class="panel right-rail">
     <div class="rail-head">
-      <h2>Recent exposures<span class="count" id="rail-count"></span></h2>
+      <h2>Recent<span class="count" id="rail-count"></span></h2>
     </div>
-    <ul id="runs" class="runs"><li class="empty">no plates yet · captures appear here</li></ul>
+    <ul id="runs" class="runs"><li class="empty">No runs yet</li></ul>
     <div class="rail-foot">
-      <button class="ghost" id="clear-runs" type="button">Clear archive</button>
+      <button class="ghost" id="clear-runs" type="button">Clear</button>
     </div>
   </aside>
 
@@ -1969,12 +1852,13 @@ function shortHost(url) {
 }
 
 // Compact summary for the recent-runs rail. Returns either '' (nothing to add)
-// or ' · <summary>' (note the leading separator HTML — caller concatenates).
+// or a plain text fragment — caller wraps with a separator element so the
+// localStorage-sourced run fields never touch innerHTML.
 // Three cases: 0 viewports → silent; 1 viewport → "<name> <w>×<h>"; many →
 // either "N viewports" (no pins) or "D dev × R pin" (matrix runs).
-function summarizeRunViewports(vps, sep) {
+function summarizeRunViewports(vps) {
   if (vps.length === 0) return '';
-  if (vps.length === 1) return sep + vps[0].name + ' ' + vps[0].width + '×' + vps[0].height;
+  if (vps.length === 1) return vps[0].name + ' ' + vps[0].width + '×' + vps[0].height;
   // Count unique device roots and unique pin ratios (slug suffix after the
   // last '-'). Falls back to "N viewports" if no pin entries were emitted.
   const ratioSlugs = ratioCheckboxes().map((cb) => cb.dataset.slug);
@@ -1996,9 +1880,9 @@ function summarizeRunViewports(vps, sep) {
     }
   }
   if (hasPin && pinSlugs.size > 0) {
-    return sep + deviceRoots.size + ' dev × ' + pinSlugs.size + ' pin';
+    return deviceRoots.size + ' dev × ' + pinSlugs.size + ' pin';
   }
-  return sep + vps.length + ' viewports';
+  return vps.length + ' viewports';
 }
 
 function renderRuns() {
@@ -2008,7 +1892,7 @@ function renderRuns() {
   if (runs.length === 0) {
     const li = document.createElement('li');
     li.className = 'empty';
-    li.textContent = 'no plates yet · captures appear here';
+    li.textContent = 'No runs yet';
     els.runs.appendChild(li);
     return;
   }
@@ -2025,14 +1909,22 @@ function renderRuns() {
 
     const meta = document.createElement('span');
     meta.className = 'meta';
-    const dim = '<span class="dot">·</span>';
     // Legacy entries (pre-multi-viewport) carried a single viewport; new
     // entries carry viewports[]. Render either gracefully. For matrix runs
     // (devices × pin ratios), show the breakdown rather than the opaque "N
     // viewports" — "2 dev × 3 pin" tells you what the run actually shot.
     const vps = run.viewports ?? (run.viewport ? [run.viewport] : []);
-    meta.innerHTML = shortHost(run.baseUrl) + run.page.path
-      + summarizeRunViewports(vps, dim);
+    // textContent for every localStorage-sourced field; the · separator is the
+    // only HTML element here, built as a real DOM node.
+    meta.appendChild(document.createTextNode(shortHost(run.baseUrl) + run.page.path));
+    const summary = summarizeRunViewports(vps);
+    if (summary) {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.textContent = '·';
+      meta.appendChild(dot);
+      meta.appendChild(document.createTextNode(summary));
+    }
 
     const glyph = document.createElement('span');
     glyph.className = 'recall-glyph';
