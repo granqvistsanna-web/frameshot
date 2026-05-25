@@ -17,10 +17,15 @@ const viewportSchema = z.object({
 
 // v0.2 plural shape — `name` is REQUIRED per D-02 so the {viewport} placeholder
 // in output templates can never silently produce identical paths for two viewports.
+// pinHeight (optional, v0.4): when set, the full-page scroll-stitch is clamped at
+// this CSS-pixel height — the page renders at width×height as usual (so the layout
+// is natural for the chosen device width) but the output image stops at the pin
+// height. Used by the UI's Pinterest ratio chips: pinHeight = round(width × ratio).
 export const viewportEntrySchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   name: z.string().min(1),
+  pinHeight: z.number().int().positive().optional(),
 });
 
 // Array of 1+ viewport entries with unique names.
@@ -276,6 +281,9 @@ export const configSchema = baseConfigSchema
     const normalizedViewports = viewport !== undefined
       ? [{ width: viewport.width, height: viewport.height, name: viewport.name ?? 'default' }]
       : viewports;
+    // Note: viewport (singular) cannot carry pinHeight — it's a v0.1 shape
+    // predating ratio captures. Multi-viewport plural form is the only path
+    // that gets pinHeight, which matches the UI flow that introduced it.
     // v0.3 (DISC-01): same posture for page → pages. Singular `page:` becomes
     // a one-element `pages:[{path, name}]`. Downstream consumers (runCapture,
     // server) read config.pages[] exclusively.

@@ -194,6 +194,10 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
 
           if (targets.length === 0) {
             // Full-page only — back-compat path (no regions declared, no --only).
+            // vp.pinHeight (v0.4): when set on the viewport entry, the scroll-stitch
+            // clamps to this CSS-pixel height — produces a ratio-shaped pin output
+            // (e.g., 1440×2160 for a 2:3 desktop pin) instead of a full-page capture.
+            // Undefined = original full-page behavior.
             onProgress({ type: 'step', ...scope, label: 'Capturing frame 0/?' });
             await captureFullPage(navigatedPage, outputPath, {
               onProgress: (current, total) => {
@@ -201,6 +205,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
               },
               hideStickyAfterFirstFrame: config.prepare.hideSticky,
               frameDelay: config.prepare.frameDelay,
+              maxHeight: vp.pinHeight,
               format,
               quality,
             });
@@ -234,6 +239,8 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             }
             // Open Q#1 lock A: when regions are declared AND --only is unset,
             // ALSO capture the full page for this viewport+page combination.
+            // vp.pinHeight is honored here too so a pin viewport + declared
+            // regions still produces a ratio-shaped image instead of full-page.
             if (only === undefined && config.regions !== undefined) {
               onProgress({ type: 'step', ...scope, label: 'Capturing full page' });
               await captureFullPage(navigatedPage, outputPath, {
@@ -241,6 +248,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
                   onProgress({ type: 'frame', ...scope, current, total });
                 },
                 hideStickyAfterFirstFrame: config.prepare.hideSticky,
+                maxHeight: vp.pinHeight,
                 format,
                 quality,
               });

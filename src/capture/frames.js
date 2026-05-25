@@ -76,16 +76,23 @@
  *   overlap region cleanly. Pattern 1 lines 327-332.
  */
 export async function captureFrames(page, options = {}) {
-  const { onProgress, hideStickyAfterFirstFrame = true, frameDelay = 0 } = options;
+  const { onProgress, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight } = options;
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
-  const { viewportWidth, viewportHeight, totalHeight, deviceScaleFactor } =
+  const { viewportWidth, viewportHeight, totalHeight: rawTotalHeight, deviceScaleFactor } =
     await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       totalHeight: document.documentElement.scrollHeight,
       deviceScaleFactor: window.devicePixelRatio,
     }));
+
+  // Pin-format clamp (v0.4): when the caller passes maxHeight, cap totalHeight
+  // at that value so the scroll-stitch stops early and the output image is
+  // ratio-shaped instead of full-page. Capped to the actual scrollHeight so
+  // short pages don't produce blank padding. When maxHeight is omitted, this
+  // is a no-op and behavior is identical to the v0.1 contract.
+  const totalHeight = maxHeight !== undefined ? Math.min(rawTotalHeight, maxHeight) : rawTotalHeight;
 
   // Step 2 — Pre-compute frameYOffsets in CSS pixels.
   // Single-frame fast path when the page fits in one viewport (mirrors
@@ -135,8 +142,16 @@ export async function captureFrames(page, options = {}) {
     // clip coordinates are relative to the current viewport (CSS pixels from
     // the top of the visible area), so y is always 0 — we have already scrolled
     // to position `y` above; this clip captures the full visible viewport.
+    // Clip height = min(viewportHeight, remaining canvas height). This matters
+    // in two cases: (a) very short pages where totalHeight < viewportHeight, and
+    // (b) pin-format captures where maxHeight has clamped totalHeight to less
+    // than a full viewport. In both, capturing a full-viewport frame would
+    // overflow the stitcher's canvas (sharp.composite rejects overlays larger
+    // than the canvas). For the standard multi-frame path this collapses to
+    // viewportHeight, preserving the v0.1 contract bit-for-bit.
+    const clipHeight = Math.min(viewportHeight, totalHeight - y);
     const buf = await page.screenshot({
-      clip: { x: 0, y: 0, width: viewportWidth, height: viewportHeight },
+      clip: { x: 0, y: 0, width: viewportWidth, height: clipHeight },
       animations: 'disabled',
       scale: 'device',
       type: 'png',
