@@ -353,6 +353,14 @@ export const configSchema = baseConfigSchema
  * boundary — no downstream consumer ever reads `config.viewport` (singular).
  */
 
+// POST /api/zip body. `paths` is the list of run-output paths to bundle.
+// Max 200 keeps a hostile/malformed request from trying to zip the whole disk;
+// real runs top out around N viewports × M regions, well under that.
+export const zipRequestSchema = z.object({
+  paths: z.array(z.string().min(1)).min(1).max(200),
+  filename: z.string().min(1).max(120).optional(),
+});
+
 /**
  * Turns a ZodError into one user-facing line per issue.
  * - Names the field (issue.path.join('.'))

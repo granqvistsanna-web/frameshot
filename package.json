@@ -1,6 +1,6 @@
 {
   "name": "framershot",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Local CLI for clean, retina-quality screenshots of Framer sites",
   "type": "module",
   "private": true,
@@ -15,12 +15,13 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "playwright-chromium": "^1",
-    "sharp": "^0.33",
+    "archiver": "^8.0.0",
+    "chalk": "^5",
     "commander": "^12",
     "js-yaml": "^4",
-    "zod": "^3",
-    "chalk": "^5",
-    "ora": "^8"
+    "ora": "^8",
+    "playwright-chromium": "^1",
+    "sharp": "^0.33",
+    "zod": "^3"
   }
 }

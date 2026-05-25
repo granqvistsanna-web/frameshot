@@ -3,7 +3,7 @@
 // requests beyond the Google Fonts stylesheet (gracefully degrades to system
 // serif/mono when offline).
 
-export function renderUi() {
+export function renderUi({ version = '0.0.0' } = {}) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -24,10 +24,10 @@ export function renderUi() {
     --fg-3:         #52525B;
     --rule:         #1F1F22;
     --rule-2:       #2A2A2E;
-    --accent:       #FF5C1B;
-    --accent-hot:   #FF7338;
-    --accent-soft:  rgba(255, 92, 27, 0.14);
-    --accent-line:  rgba(255, 92, 27, 0.35);
+    --accent:       #F4F4F5;
+    --accent-hot:   #FFFFFF;
+    --accent-soft:  rgba(244, 244, 245, 0.10);
+    --accent-line:  rgba(244, 244, 245, 0.28);
     --ok:           #6FCF97;
     --warn:         #E0B341;
     --err:          #FF6B6B;
@@ -55,6 +55,7 @@ export function renderUi() {
     position: relative;
     display: grid;
     grid-template-columns: 380px 1fr 280px;
+    grid-template-rows: 1fr auto;
     min-height: 100vh;
   }
   @media (max-width: 1180px) { .layout { grid-template-columns: 380px 1fr; } .right-rail { display: none; } }
@@ -112,9 +113,31 @@ export function renderUi() {
     box-shadow: 0 0 6px rgba(111, 207, 151, 0.45);
   }
 
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+  .brand-mark {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    display: block;
+  }
+  .brand-mark .frame {
+    fill: none;
+    stroke: var(--fg);
+    stroke-width: 1.75;
+    stroke-linecap: square;
+  }
+  .brand-mark .dot {
+    fill: var(--accent);
+    filter: drop-shadow(0 0 6px var(--accent-soft));
+  }
+
   .wordmark {
     font-family: var(--sans);
-    font-size: 38px;
+    font-size: 32px;
     font-weight: 600;
     line-height: 0.95;
     letter-spacing: -0.025em;
@@ -130,14 +153,30 @@ export function renderUi() {
   }
 
   .tagline {
-    margin-top: 11px;
+    margin-top: 13px;
     font-family: var(--mono);
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.18em;
     color: var(--fg-2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
-  .tagline .dot { color: var(--fg-3); margin: 0 8px; }
+  .tagline .dot { color: var(--fg-3); }
+  .tagline .branch {
+    color: var(--fg-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .tagline .branch::before {
+    content: '';
+    width: 4px; height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--accent);
+  }
 
   /* ── SECTION LABELS ──────────────────────────────────── */
   .section-label {
@@ -1054,11 +1093,178 @@ export function renderUi() {
     text-align: center;
   }
 
+  /* Density pills — discrete 1×/2×/3× segmented control */
+  .seg-pills {
+    display: inline-flex;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+  }
+  .seg-pill {
+    background: transparent;
+    color: var(--fg-2);
+    border: 0;
+    border-radius: 4px;
+    padding: 5px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: color 150ms ease-out, background 150ms ease-out;
+    font-feature-settings: 'tnum';
+  }
+  .seg-pill:hover { color: var(--fg); }
+  .seg-pill.is-active {
+    background: var(--accent-soft);
+    color: var(--fg);
+    box-shadow: inset 0 0 0 1px var(--accent-line);
+  }
+
+  /* Behavior toggles that sit alongside the chip groups — wider, full-width
+     rows that don't masquerade as selection chips. Distinguished by dashed
+     border so it reads as "action" not "option in a set". */
+  .vp-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    padding: 8px 11px;
+    border: 1px dashed var(--rule-2);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--fg-2);
+    user-select: none;
+    transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
+  }
+  .vp-toggle:hover:not(.is-disabled) { color: var(--fg); border-color: var(--fg-3); }
+  .vp-toggle.is-disabled { opacity: 0.4; cursor: not-allowed; }
+  .vp-toggle input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border: 1px solid var(--rule-2);
+    border-radius: 2px;
+    background: transparent;
+    margin: 0;
+    cursor: inherit;
+    position: relative;
+    flex: none;
+  }
+  .vp-toggle input:checked { background: var(--accent-soft); border-color: var(--accent); }
+  .vp-toggle input:checked::after {
+    content: '';
+    position: absolute;
+    top: 1px; left: 4px;
+    width: 3px; height: 6px;
+    border: solid var(--accent);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+  }
+  .vp-toggle:has(input:checked):not(.is-disabled) {
+    color: var(--fg);
+    border-color: var(--accent-line);
+    border-style: solid;
+    background: var(--accent-soft);
+  }
+
+  /* Section sub-label hint — sits inline with vp-section-label */
+  .vp-section-hint {
+    margin-left: 8px;
+    color: var(--fg-3);
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+  }
+
+  /* Format/quality row — like row-2 but collapses to a single column when
+     quality is hidden (PNG), so the Format select isn't orphaned. */
+  .format-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .format-row.is-single { grid-template-columns: 1fr; }
+
+  /* Generic "this field is irrelevant given current settings" treatment */
+  .is-dim {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
   /* Tasteful scrollbar in the runs rail */
   .runs::-webkit-scrollbar { width: 8px; }
   .runs::-webkit-scrollbar-track { background: transparent; }
   .runs::-webkit-scrollbar-thumb { background: var(--rule-2); border: 2px solid transparent; background-clip: padding-box; border-radius: 0; }
   .runs::-webkit-scrollbar-thumb:hover { background: var(--fg-3); background-clip: padding-box; }
+
+  /* ── STATUS BAR ──────────────────────────────────────── */
+  .status-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 26px;
+    padding: 0 18px;
+    background: var(--surface);
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    letter-spacing: 0.04em;
+    font-feature-settings: 'tnum', 'zero';
+    user-select: none;
+    position: relative;
+    z-index: 2;
+  }
+  .status-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+    pointer-events: none;
+  }
+  .status-bar .seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-bar .sep { color: var(--rule-2); }
+  .status-bar .key { color: var(--fg-2); }
+  .status-bar .accent { color: var(--accent); }
+  .status-bar .branch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--fg-2);
+  }
+  .status-bar .branch-glyph {
+    color: var(--fg-3);
+    font-family: var(--mono);
+  }
+  .status-bar .dot-led {
+    display: inline-block;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--fg-3);
+    transition: background 200ms ease-out, box-shadow 200ms ease-out;
+  }
+  .status-bar .dot-led.running { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+  .status-bar .dot-led.ok { background: var(--ok); box-shadow: 0 0 5px var(--ok); }
+  .status-bar .dot-led.err { background: var(--err); box-shadow: 0 0 5px var(--err); }
+  .status-bar .clock {
+    color: var(--fg-2);
+    font-feature-settings: 'tnum';
+  }
+  @media (max-width: 600px) {
+    .status-bar .seg.middle { display: none; }
+  }
 
 </style>
 </head>
@@ -1068,9 +1274,21 @@ export function renderUi() {
   <!-- ── LEFT PANEL ── -->
   <aside class="panel">
     <div class="head">
-      <div class="build-tag">v0.1 · local</div>
-      <div class="wordmark">framershot<em>.</em></div>
-      <div class="tagline">retina capture <span class="dot">·</span> framer sites</div>
+      <div class="build-tag">v${version} · local</div>
+      <div class="brand-row">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+          <path class="frame" d="M3 8V3H8 M16 3H21V8 M21 16V21H16 M8 21H3V16"/>
+          <rect class="dot" x="10.5" y="10.5" width="3" height="3"/>
+        </svg>
+        <div class="wordmark">framershot<em>.</em></div>
+      </div>
+      <div class="tagline">
+        <span>retina capture</span>
+        <span class="dot">·</span>
+        <span>framer sites</span>
+        <span class="dot">·</span>
+        <span class="branch">local</span>
+      </div>
     </div>
 
     <form id="capture-form" autocomplete="off" spellcheck="false">
@@ -1096,7 +1314,7 @@ export function renderUi() {
       </div>
 
       <div class="group">
-        <div class="section-label"><span class="n">02</span> Viewports <span class="rule"></span></div>
+        <div class="section-label"><span class="n">02</span> Render <span class="rule"></span></div>
         <div class="field">
           <div class="vp-section-label">Device</div>
           <div class="vp-chips" id="vpDevice">
@@ -1105,16 +1323,16 @@ export function renderUi() {
             <label class="vp-chip"><input type="checkbox" data-preset="tablet"><span>Tablet</span><span class="vp-chip-meta">768×1024</span></label>
             <label class="vp-chip"><input type="checkbox" data-preset="mobile"><span>Mobile</span><span class="vp-chip-meta">375×667</span></label>
           </div>
-          <div class="vp-section-label">Pinterest · ratio × each device</div>
+          <div class="vp-section-label">Pinterest <span class="vp-section-hint">each ratio captured at every selected device width</span></div>
           <div class="vp-chips" id="vpPin">
             <label class="vp-chip"><input type="checkbox" data-ratio="1.5"   data-slug="2x3"><span>Standard pin</span><span class="vp-chip-meta">2:3</span></label>
             <label class="vp-chip"><input type="checkbox" data-ratio="1.0"   data-slug="1x1"><span>Square pin</span><span class="vp-chip-meta">1:1</span></label>
             <label class="vp-chip"><input type="checkbox" data-ratio="2.1"   data-slug="1x2-1"><span>Long pin</span><span class="vp-chip-meta">1:2.1</span></label>
             <label class="vp-chip"><input type="checkbox" data-ratio="1.778" data-slug="9x16"><span>Idea / video</span><span class="vp-chip-meta">9:16</span></label>
           </div>
-          <label class="vp-chip" style="grid-template-columns:none;margin-top:6px;"><input type="checkbox" id="pinsOnlyToggle"><span>Pins only · skip full-page for these devices</span></label>
+          <label class="vp-toggle" id="pinsOnlyChip"><input type="checkbox" id="pinsOnlyToggle" disabled><span>Pins only · skip full-page for these devices</span></label>
           <div class="vp-section-label">Custom</div>
-          <label class="vp-chip" style="grid-template-columns:none;"><input type="checkbox" id="customViewportToggle"><span>Add a custom viewport</span></label>
+          <label class="vp-toggle"><input type="checkbox" id="customViewportToggle"><span>Add a custom viewport</span></label>
         </div>
         <div class="field" id="customViewport" hidden>
           <div class="row-3">
@@ -1126,18 +1344,22 @@ export function renderUi() {
         <div class="field">
           <label class="field-label" for="concurrency">Concurrency</label>
           <div class="concurrency-row">
-            <input id="concurrency" type="range" min="1" max="8" value="1" class="range">
-            <div class="concurrency-badge"><span id="concurrencyValue">1</span>×</div>
+            <input id="concurrency" type="range" min="1" max="8" value="2" class="range">
+            <div class="concurrency-badge"><span id="concurrencyValue">2</span>×</div>
           </div>
           <span class="help">browsers in parallel · capped to viewport count · each ≈ 400 MB</span>
         </div>
         <div class="field">
-          <label class="field-label" for="dsr">Density · ×</label>
-          <input id="dsr" type="number" min="1" max="3" step="0.5" value="2">
-          <span class="help">retina = 2 · range 1 – 3</span>
+          <label class="field-label">Density</label>
+          <div class="seg-pills" id="dsrPills" role="radiogroup" aria-label="Pixel density">
+            <button type="button" class="seg-pill" data-dsr="1" role="radio" aria-checked="false">1×</button>
+            <button type="button" class="seg-pill is-active" data-dsr="2" role="radio" aria-checked="true">2×</button>
+            <button type="button" class="seg-pill" data-dsr="3" role="radio" aria-checked="false">3×</button>
+          </div>
+          <span class="help">retina = 2× · 3× doubles file size with little visible gain</span>
         </div>
         <div class="field">
-          <div class="row-2">
+          <div class="format-row" id="formatRow">
             <div>
               <label class="field-label" for="format">Format</label>
               <select id="format">
@@ -1165,6 +1387,8 @@ export function renderUi() {
         <div class="field">
           <label class="check"><input type="checkbox" id="animations" checked> <span>Disable Framer animations</span></label>
           <label class="check"><input type="checkbox" id="scrollPrime" checked> <span>Scroll prime · lazy load</span></label>
+          <label class="check"><input type="checkbox" id="hideSticky" checked> <span>Hide sticky nav after frame 0</span></label>
+          <label class="check"><input type="checkbox" id="hideFramerBadge" checked> <span>Hide "Made in Framer" badge</span></label>
         </div>
         <div class="field">
           <div class="row-2">
@@ -1172,7 +1396,7 @@ export function renderUi() {
               <label class="field-label" for="extraDelay">Settle delay · ms</label>
               <input id="extraDelay" type="number" min="0" step="50" value="0">
             </div>
-            <div>
+            <div id="frameDelayWrap">
               <label class="field-label" for="frameDelay">Per-frame · ms</label>
               <input id="frameDelay" type="number" min="0" step="50" value="0">
             </div>
@@ -1241,6 +1465,25 @@ export function renderUi() {
     </div>
   </aside>
 
+  <!-- ── STATUS BAR ── -->
+  <footer class="status-bar" role="contentinfo">
+    <div class="seg">
+      <span class="branch"><span class="branch-glyph">⎇</span><span>main</span></span>
+      <span class="sep">·</span>
+      <span>screenshots/</span>
+    </div>
+    <div class="seg middle">
+      <span class="dot-led" id="status-bar-led"></span>
+      <span id="status-bar-text">idle</span>
+    </div>
+    <div class="seg">
+      <span class="key">framershot</span>
+      <span class="accent">v${version}</span>
+      <span class="sep">·</span>
+      <span class="clock" id="status-bar-clock">--:--</span>
+    </div>
+  </footer>
+
 </div>
 
 <script type="module">
@@ -1265,18 +1508,23 @@ const els = {
   customViewport: $('customViewport'),
   customViewportToggle: $('customViewportToggle'),
   vpName: $('vpName'), vpWidth: $('vpWidth'), vpHeight: $('vpHeight'),
+  pinsOnlyChip: $('pinsOnlyChip'),
   concurrency: $('concurrency'),
   concurrencyValue: $('concurrencyValue'),
-  dsr: $('dsr'),
+  dsrPills: $('dsrPills'),
   format: $('format'),
+  formatRow: $('formatRow'),
   quality: $('quality'),
   qualityValue: $('qualityValue'),
   qualityField: $('qualityField'),
   hide: $('hide'),
   animations: $('animations'),
   scrollPrime: $('scrollPrime'),
+  hideSticky: $('hideSticky'),
+  hideFramerBadge: $('hideFramerBadge'),
   extraDelay: $('extraDelay'),
   frameDelay: $('frameDelay'),
+  frameDelayWrap: $('frameDelayWrap'),
   regionsList: $('regions-list'),
   addRegion: $('add-region'),
   submit: $('submit-btn'),
@@ -1297,6 +1545,9 @@ const els = {
   clearRuns: $('clear-runs'),
   led: $('led'),
   ledText: $('led-text'),
+  statusBarLed: $('status-bar-led'),
+  statusBarText: $('status-bar-text'),
+  statusBarClock: $('status-bar-clock'),
 };
 
 const platform = navigator.userAgentData?.platform ?? navigator.platform ?? '';
@@ -1324,34 +1575,134 @@ function selectedViewportCount() {
 
 // Concurrency slider can't exceed the number of selected viewports — past that
 // it's wasted UI capacity (worker pool caps internally too, but the value the
-// user sees should reflect what'll actually run).
-function clampConcurrencyToViewports() {
-  const cap = Math.max(1, selectedViewportCount());
-  if (Number(els.concurrency.value) > cap) {
-    els.concurrency.value = cap;
-    els.concurrencyValue.textContent = cap;
+// user sees should reflect what'll actually run). Both the .max attribute and
+// the current .value need clamping; otherwise the thumb visually overshoots
+// the cap and snaps back on mouseup. .userTouched lets us preserve a manual
+// pick across viewport changes (so adding viewports doesn't quietly bump the
+// user's chosen 1× to 4×).
+const HARD_CONCURRENCY_MAX = 8;
+let concurrencyUserTouched = false;
+function syncConcurrencyToViewports() {
+  const vpCount = Math.max(1, selectedViewportCount());
+  const cap = Math.min(HARD_CONCURRENCY_MAX, vpCount);
+  els.concurrency.max = String(cap);
+  let next = Number(els.concurrency.value);
+  if (!concurrencyUserTouched) {
+    // Default heuristic: 2 in parallel is a sweet spot on modern dev laptops
+    // (~800 MB RAM), faster than serial without thrashing. Capped at vpCount.
+    next = Math.min(2, cap);
   }
+  if (next > cap) next = cap;
+  els.concurrency.value = String(next);
+  els.concurrencyValue.textContent = String(next);
+}
+
+// Pins-only is only meaningful when at least one ratio is checked — otherwise
+// toggling it has no effect (the readForm matrix has no pins to "only" capture).
+// Reflect that by disabling the chip when no ratios are selected, and forcing
+// it off so it doesn't silently activate when ratios are added later.
+function syncPinsOnlyEnabled() {
+  const anyRatio = ratioCheckboxes().some((cb) => cb.checked);
+  els.pinsOnlyToggle.disabled = !anyRatio;
+  els.pinsOnlyChip.classList.toggle('is-disabled', !anyRatio);
+  if (!anyRatio && els.pinsOnlyToggle.checked) els.pinsOnlyToggle.checked = false;
+}
+
+// frameDelay only applies to the full-page scroll-stitch loop. When pins-only
+// is active, no full-page captures run — dim the field so the user sees it'll
+// have no effect rather than silently ignoring a non-zero value.
+function syncFrameDelayRelevance() {
+  const anyRatio = ratioCheckboxes().some((cb) => cb.checked);
+  const irrelevant = anyRatio && els.pinsOnlyToggle.checked;
+  els.frameDelayWrap.classList.toggle('is-dim', irrelevant);
+}
+
+function onViewportSelectionChange() {
+  syncPinsOnlyEnabled();
+  syncFrameDelayRelevance();
+  syncConcurrencyToViewports();
+  updateSubmitLabel();
 }
 
 els.customViewportToggle.addEventListener('change', () => {
   els.customViewport.hidden = !els.customViewportToggle.checked;
-  clampConcurrencyToViewports();
+  onViewportSelectionChange();
 });
 
 for (const cb of allVpCheckboxes()) {
-  cb.addEventListener('change', clampConcurrencyToViewports);
+  cb.addEventListener('change', onViewportSelectionChange);
 }
-els.pinsOnlyToggle.addEventListener('change', clampConcurrencyToViewports);
+els.pinsOnlyToggle.addEventListener('change', onViewportSelectionChange);
 
 els.concurrency.addEventListener('input', () => {
+  concurrencyUserTouched = true;
   els.concurrencyValue.textContent = els.concurrency.value;
 });
 
+// Density pills — discrete 1×/2×/3× segmented control replacing the prior
+// number-with-0.5-step input. Selection is stored as data-dsr on the active
+// pill; readForm pulls it at submit. setDsr is also called by fillForm when
+// replaying a saved run.
+function setDsr(value) {
+  // Saved DSRs might be 1.5/2.5 from the old number input — snap to the
+  // nearest pill rather than leaving nothing active.
+  const target = String(Math.round(Number(value) || 2));
+  let matched = false;
+  for (const btn of els.dsrPills.querySelectorAll('.seg-pill')) {
+    const on = btn.dataset.dsr === target;
+    if (on) matched = true;
+    btn.classList.toggle('is-active', on);
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  }
+  if (!matched) {
+    const fallback = els.dsrPills.querySelector('.seg-pill[data-dsr="2"]');
+    fallback?.classList.add('is-active');
+    fallback?.setAttribute('aria-checked', 'true');
+  }
+}
+function getDsr() {
+  const active = els.dsrPills.querySelector('.seg-pill.is-active');
+  return active ? Number(active.dataset.dsr) : 2;
+}
+for (const btn of els.dsrPills.querySelectorAll('.seg-pill')) {
+  btn.addEventListener('click', () => setDsr(btn.dataset.dsr));
+}
+
+// If the user pastes a full URL with a path into Base URL (e.g.
+// https://site.com/contact), Playwright's context.baseURL + page.goto('/')
+// would resolve to https://site.com/ — silently dropping /contact and
+// screenshotting the home page. Split the path out into the Path field so
+// the captured URL matches what was pasted. Only auto-fills Path/Slug when
+// they're still at defaults, so manual edits aren't clobbered.
+function splitBaseUrl() {
+  const raw = els.baseUrl.value.trim();
+  if (!raw) return;
+  let parsed;
+  try { parsed = new URL(raw); }
+  catch { return; }
+  const path = parsed.pathname + parsed.search + parsed.hash;
+  if (path === '/' || path === '') return;
+  els.baseUrl.value = parsed.origin;
+  if (els.pagePath.value.trim() === '' || els.pagePath.value.trim() === '/') {
+    els.pagePath.value = path;
+  }
+  if (els.pageName.value.trim() === '' || els.pageName.value.trim() === 'home') {
+    const slug = parsed.pathname.replace(/^\\/+|\\/+$/g, '').split('/').pop() || 'home';
+    els.pageName.value = slug.replace(/[^a-zA-Z0-9._-]/g, '-') || 'home';
+  }
+}
+els.baseUrl.addEventListener('blur', splitBaseUrl);
+els.baseUrl.addEventListener('paste', () => setTimeout(splitBaseUrl, 0));
+
 // Quality control only applies to lossy codecs — PNG has no quality knob, so
 // hide the slider when png is picked. Keep the stored value intact so a flip
-// back to webp/jpeg restores the last setting without resetting to 85.
+// back to webp/jpeg restores the last setting without resetting to 85. The
+// .is-single class collapses the row to a single column so Format isn't
+// orphaned in a 2-col grid with a hole on the right.
 function syncQualityVisibility() {
-  els.qualityField.hidden = els.format.value === 'png';
+  const png = els.format.value === 'png';
+  els.qualityField.hidden = png;
+  els.formatRow.classList.toggle('is-single', png);
 }
 els.format.addEventListener('change', syncQualityVisibility);
 els.quality.addEventListener('input', () => {
@@ -1493,12 +1844,14 @@ function readForm() {
     page: { path: els.pagePath.value.trim() || '/', name: els.pageName.value.trim() || 'home' },
     viewports,
     concurrency: Number(els.concurrency.value) || 1,
-    deviceScaleFactor: Number(els.dsr.value),
+    deviceScaleFactor: getDsr(),
     format: els.format.value,
     quality: Number(els.quality.value) || 85,
     prepare: {
       animations: els.animations.checked,
       scrollPrime: els.scrollPrime.checked,
+      hideSticky: els.hideSticky.checked,
+      hideFramerBadge: els.hideFramerBadge.checked,
       hide: hideLines,
       extraDelay: Number(els.extraDelay.value) || 0,
       frameDelay: Number(els.frameDelay.value) || 0,
@@ -1569,13 +1922,20 @@ function fillForm(saved) {
       els.vpHeight.value = dev.height;
     }
   }
+  // Saved concurrency is an explicit user pick — treat it as "touched" so
+  // the auto-default doesn't override it on subsequent viewport changes.
   if (typeof saved.concurrency === 'number') {
+    concurrencyUserTouched = true;
     els.concurrency.value = saved.concurrency;
     els.concurrencyValue.textContent = saved.concurrency;
+  } else {
+    concurrencyUserTouched = false;
   }
-  clampConcurrencyToViewports();
+  syncPinsOnlyEnabled();
+  syncFrameDelayRelevance();
+  syncConcurrencyToViewports();
 
-  els.dsr.value = saved.deviceScaleFactor;
+  setDsr(saved.deviceScaleFactor);
   if (saved.format) {
     els.format.value = saved.format;
     syncQualityVisibility();
@@ -1587,10 +1947,13 @@ function fillForm(saved) {
   els.hide.value = (saved.prepare?.hide ?? []).join('\\n');
   els.animations.checked = saved.prepare?.animations ?? true;
   els.scrollPrime.checked = saved.prepare?.scrollPrime ?? true;
+  els.hideSticky.checked = saved.prepare?.hideSticky ?? true;
+  els.hideFramerBadge.checked = saved.prepare?.hideFramerBadge ?? true;
   els.extraDelay.value = saved.prepare?.extraDelay ?? 0;
   els.frameDelay.value = saved.prepare?.frameDelay ?? 0;
   clearRegions();
   (saved.regions ?? []).forEach((r) => addRegionRow(r));
+  updateSubmitLabel();
 }
 
 function loadRuns() {
@@ -1604,6 +1967,40 @@ function shortHost(url) {
   try { return new URL(url).host.replace(/^www\\./, ''); }
   catch { return url; }
 }
+
+// Compact summary for the recent-runs rail. Returns either '' (nothing to add)
+// or ' · <summary>' (note the leading separator HTML — caller concatenates).
+// Three cases: 0 viewports → silent; 1 viewport → "<name> <w>×<h>"; many →
+// either "N viewports" (no pins) or "D dev × R pin" (matrix runs).
+function summarizeRunViewports(vps, sep) {
+  if (vps.length === 0) return '';
+  if (vps.length === 1) return sep + vps[0].name + ' ' + vps[0].width + '×' + vps[0].height;
+  // Count unique device roots and unique pin ratios (slug suffix after the
+  // last '-'). Falls back to "N viewports" if no pin entries were emitted.
+  const ratioSlugs = ratioCheckboxes().map((cb) => cb.dataset.slug);
+  const deviceRoots = new Set();
+  const pinSlugs = new Set();
+  let hasPin = false;
+  for (const vp of vps) {
+    if (vp.pinHeight !== undefined) {
+      hasPin = true;
+      const slug = ratioSlugs.find((s) => vp.name.endsWith('-' + s));
+      if (slug) {
+        pinSlugs.add(slug);
+        deviceRoots.add(vp.name.slice(0, -('-' + slug).length));
+      } else {
+        deviceRoots.add(vp.name);
+      }
+    } else {
+      deviceRoots.add(vp.name);
+    }
+  }
+  if (hasPin && pinSlugs.size > 0) {
+    return sep + deviceRoots.size + ' dev × ' + pinSlugs.size + ' pin';
+  }
+  return sep + vps.length + ' viewports';
+}
+
 function renderRuns() {
   const runs = loadRuns();
   els.runs.innerHTML = '';
@@ -1630,13 +2027,12 @@ function renderRuns() {
     meta.className = 'meta';
     const dim = '<span class="dot">·</span>';
     // Legacy entries (pre-multi-viewport) carried a single viewport; new
-    // entries carry viewports[]. Render either gracefully.
+    // entries carry viewports[]. Render either gracefully. For matrix runs
+    // (devices × pin ratios), show the breakdown rather than the opaque "N
+    // viewports" — "2 dev × 3 pin" tells you what the run actually shot.
     const vps = run.viewports ?? (run.viewport ? [run.viewport] : []);
-    let vpSummary;
-    if (vps.length === 0) vpSummary = '';
-    else if (vps.length === 1) vpSummary = vps[0].name + ' ' + vps[0].width + '×' + vps[0].height;
-    else vpSummary = vps.length + ' viewports';
-    meta.innerHTML = shortHost(run.baseUrl) + run.page.path + (vpSummary ? dim + vpSummary : '');
+    meta.innerHTML = shortHost(run.baseUrl) + run.page.path
+      + summarizeRunViewports(vps, dim);
 
     const glyph = document.createElement('span');
     glyph.className = 'recall-glyph';
@@ -1667,7 +2063,16 @@ els.clearRuns.addEventListener('click', () => {
 function setLed(state, text) {
   els.led.className = 'led' + (state ? ' ' + state : '');
   els.ledText.textContent = text;
+  els.statusBarLed.className = 'dot-led' + (state ? ' ' + state : '');
+  els.statusBarText.textContent = text;
 }
+
+function updateClock() {
+  const d = new Date();
+  els.statusBarClock.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+updateClock();
+setInterval(updateClock, 15000);
 
 function logReset() { els.status.innerHTML = ''; }
 function logLine(msg, cls = '') {
@@ -1897,10 +2302,36 @@ els.resultReveal.addEventListener('click', async () => {
   }
 });
 
+// Submit label reflects the current scope: idle state shows "Capture" (1 shot)
+// or "Capture N shots" (multi). Runs the count off selectedViewportCount so it
+// reacts immediately to chip/toggle changes. While submitting it's overridden
+// with "Capturing…" — updateSubmitLabel skips while disabled so a tick doesn't
+// flicker mid-run.
+function updateSubmitLabel() {
+  if (els.submit.disabled) return;
+  const n = selectedViewportCount();
+  els.submitLabel.textContent = n > 1 ? 'Capture ' + n + ' shots' : 'Capture';
+}
+
 function setSubmitting(on) {
   els.submit.disabled = on;
-  els.submitLabel.textContent = on ? 'Capturing…' : 'Capture';
+  if (on) {
+    els.submitLabel.textContent = 'Capturing…';
+  } else {
+    updateSubmitLabel();
+  }
 }
+
+// Cmd+Enter (mac) / Ctrl+Enter (others) submits from anywhere in the form —
+// matches the ↵ kbd glyph already shown in the button. Plain Enter still
+// submits when focus is on a single-line input (browser default), but is
+// captured by textareas — Cmd+Enter is the universal shortcut.
+els.form.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (!(e.metaKey || e.ctrlKey)) return;
+  e.preventDefault();
+  if (!els.submit.disabled) els.form.requestSubmit();
+});
 
 els.form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -2029,6 +2460,14 @@ els.form.addEventListener('submit', async (e) => {
 });
 
 renderRuns();
+// Initial sync — apply the pins-only/frameDelay/concurrency/submit-label
+// derivations once on load so the UI reflects the default-checked Desktop chip
+// (1 viewport → concurrency=1, single-shot "Capture" label) without waiting
+// for the first user interaction.
+syncPinsOnlyEnabled();
+syncFrameDelayRelevance();
+syncConcurrencyToViewports();
+updateSubmitLabel();
 </script>
 </body>
 </html>`;

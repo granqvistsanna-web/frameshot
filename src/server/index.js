@@ -15,14 +15,28 @@
 
 import http from 'node:http';
 import { readFile, access } from 'node:fs/promises';
-import { resolve, join, normalize, extname } from 'node:path';
-import { configSchema } from '../config/schema.js';
+import { resolve, join, normalize, extname, basename, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ZipArchive } from 'archiver';
+import { configSchema, zipRequestSchema } from '../config/schema.js';
 import { runCapture } from '../capture/runCapture.js';
 import { renderUi } from './ui.js';
 import { ConfigError } from '../config/load.js';
 import { BrowserError } from '../browser/launcher.js';
 
 const SCREENSHOT_ROOT = resolve(process.cwd(), 'screenshots');
+const PKG_VERSION = await readPkgVersion();
+
+async function readPkgVersion() {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pkgPath = resolve(here, '../../package.json');
+    const raw = await readFile(pkgPath, 'utf8');
+    return JSON.parse(raw).version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
 
 const MIME = {
   '.png': 'image/png',
@@ -70,7 +84,7 @@ async function handleRequest(req, res) {
     const url = new URL(req.url, 'http://localhost');
 
     if (req.method === 'GET' && url.pathname === '/') {
-      const html = renderUi();
+      const html = renderUi({ version: PKG_VERSION });
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       res.end(html);
       return;
@@ -83,6 +97,11 @@ async function handleRequest(req, res) {
 
     if (req.method === 'POST' && url.pathname === '/api/reveal') {
       await handleReveal(req, res);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/zip') {
+      await handleZip(req, res);
       return;
     }
 
@@ -180,10 +199,11 @@ async function handleCapture(req, res) {
     });
     send({
       type: 'done',
-      outputs: results.map(({ outputPath, viewportName }) => ({
+      outputs: results.map(({ outputPath, viewportName, regionName }) => ({
         outputPath,
         urlPath: outputPathToUrl(outputPath),
         viewportName,
+        ...(regionName ? { regionName } : {}),
       })),
     });
   } catch (err) {
@@ -260,6 +280,99 @@ async function handleReveal(req, res) {
   spawn('open', ['-R', absPath], { stdio: 'ignore', detached: true }).unref();
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ ok: true }));
+}
+
+// Resolve one user-supplied path string under SCREENSHOT_ROOT. Returns either
+// { absPath } on success or { error: { status, message } } on rejection. Shared
+// by handleZip; handleReveal predates this helper and stays inline so its
+// branching error replies don't change shape.
+function resolveScreenshotPath(input) {
+  const raw = String(input || '').replace(/^\.\//, '').replace(/^\//, '');
+  if (!raw.startsWith('screenshots/')) {
+    return { error: { status: 400, message: `path must be under screenshots/: ${input}` } };
+  }
+  const rel = raw.slice('screenshots/'.length);
+  const absPath = normalize(join(SCREENSHOT_ROOT, rel));
+  if (!absPath.startsWith(SCREENSHOT_ROOT + '/') && absPath !== SCREENSHOT_ROOT) {
+    return { error: { status: 403, message: `forbidden: ${input}` } };
+  }
+  return { absPath };
+}
+
+async function handleZip(req, res) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  let body;
+  try {
+    body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain' });
+    res.end('invalid JSON body');
+    return;
+  }
+
+  const parsed = zipRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    res.writeHead(400, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({
+      error: 'Invalid zip request',
+      issues: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
+    }));
+    return;
+  }
+
+  // Resolve + verify every path BEFORE we start streaming the zip. Once
+  // archiver.pipe(res) is wired the headers are committed; mid-stream rejection
+  // would leave the client with a half-zip and no error surface.
+  const resolved = [];
+  for (const p of parsed.data.paths) {
+    const { absPath, error } = resolveScreenshotPath(p);
+    if (error) {
+      res.writeHead(error.status, { 'content-type': 'text/plain' });
+      res.end(error.message);
+      return;
+    }
+    try {
+      await access(absPath);
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        res.writeHead(404, { 'content-type': 'text/plain' });
+        res.end(`not found: ${p}`);
+        return;
+      }
+      throw err;
+    }
+    resolved.push(absPath);
+  }
+
+  // Default filename uses the same HH-MM-SS shape the capture pipeline already
+  // uses, so a zip "looks like" the run that produced it.
+  const safeName = parsed.data.filename
+    ? parsed.data.filename.replace(/[^a-zA-Z0-9._-]/g, '-')
+    : `framershot-${new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)}.zip`;
+
+  res.writeHead(200, {
+    'content-type': 'application/zip',
+    'content-disposition': `attachment; filename="${safeName}"`,
+    'cache-control': 'no-store',
+  });
+
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+  archive.on('error', (err) => {
+    // Headers are already out — best we can do is destroy the response so the
+    // client sees a truncated download instead of a silent "success".
+    res.destroy(err);
+  });
+  archive.pipe(res);
+
+  // Flat layout — basenames are already self-describing
+  // (`home-hero-desktop-11-56-09.png`). Collisions are theoretically possible
+  // if a single zip mixes runs from the same second; archiver lets duplicates
+  // through, which is acceptable for this tool.
+  for (const absPath of resolved) {
+    archive.file(absPath, { name: basename(absPath) });
+  }
+  await archive.finalize();
 }
 
 async function handleStaticScreenshot(pathname, res) {
