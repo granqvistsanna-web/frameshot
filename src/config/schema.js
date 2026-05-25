@@ -159,9 +159,19 @@ const baseConfigSchema = z.object({
     .refine((u) => u.startsWith('http://') || u.startsWith('https://'), {
       message: 'baseUrl must use http or https',
     }),
-  // output: just string min(1) — placeholder enforcement belongs to the template resolver
+  // output: just string min(1) — placeholder enforcement belongs to the template resolver.
+  // The extension in the template (typically .png) is rewritten downstream to
+  // match `format` (see src/output/template.js#swapExtension), so users can
+  // change format without editing their template.
   output: z.string().min(1),
   deviceScaleFactor: z.number().min(1).max(3).default(2),
+  // Encoded output format. PNG is lossless (default — preserves the v0.1 contract);
+  // JPEG/WebP apply lossy compression keyed off `quality`. Retina full-page PNGs
+  // hit 10–15 MB for marketing pages; WebP @ quality 85 typically lands 8–12×
+  // smaller with no perceptible loss for screenshots. `quality` is honored for
+  // jpeg/webp only — png ignores it.
+  format: z.enum(['png', 'jpeg', 'webp']).default('png'),
+  quality: z.number().int().min(1).max(100).default(85),
   // v0.1 singular alias — optional at the field level; mutual exclusivity enforced below.
   viewport: viewportSchema.optional(),
   // v0.2 plural form — optional at the field level; mutual exclusivity enforced below.
