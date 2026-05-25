@@ -287,11 +287,17 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .check input:checked::after { transform: translateX(14px); background: var(--accent); }
   .check:hover input:not(:checked) { border-color: var(--fg-3); }
 
-  /* Submit */
+  /* Submit — sticky to viewport bottom so a tall form never buries the CTA.
+     Negative horizontal margin extends bg edge-to-edge inside the form, so the
+     line and background align with the panel chrome (not the form padding). */
   .submit-row {
-    margin-top: 26px;
-    padding-top: 24px;
+    position: sticky;
+    bottom: 0;
+    margin: 24px -28px 0;
+    padding: 16px 28px 22px;
+    background: var(--surface);
     border-top: 1px solid var(--rule);
+    z-index: 5;
   }
   button.primary {
     width: 100%;
@@ -1247,8 +1253,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
               <label class="field-label" for="format">Format</label>
               <select id="format">
                 <option value="png">PNG · lossless</option>
-                <option value="webp" selected>WebP · 10× smaller</option>
-                <option value="jpeg">JPEG</option>
+                <option value="webp">WebP · 10× smaller</option>
+                <option value="jpeg" selected>JPEG · universal</option>
               </select>
             </div>
             <div id="qualityField">
@@ -1256,7 +1262,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
               <input id="quality" type="range" min="1" max="100" value="85" class="range">
             </div>
           </div>
-          <span class="help">retina PNGs are 10–15 MB · WebP @ 85 ≈ 8× smaller, visually identical for screenshots</span>
+          <span class="help">retina PNGs are 10–15 MB · JPEG @ 85 ≈ 10× smaller, universally supported · WebP for max compression</span>
         </div>
       </div>
 
