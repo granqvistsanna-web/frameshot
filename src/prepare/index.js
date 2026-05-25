@@ -19,7 +19,7 @@
 //   2. scrollPrime    — gated on prepareConfig.scrollPrime (schema.js:29)
 //   3. extraDelay     — unconditional call; function short-circuits on ms<=0
 
-import { hideSelectors, hideFramerBadge } from './hide.js';
+import { hideSelectors, hideFramerBadge, hideStickyAndFixed } from './hide.js';
 import { scrollPrime, extraDelay } from './scroll.js';
 export { installAnimationGuards } from './animations.js';
 
@@ -41,13 +41,6 @@ export async function runPreparePipeline(page, prepareConfig) {
   // PREP-03 — hide selectors. Empty list is a no-op (hide.js short-circuits).
   const hideSummary = await hideSelectors(page, prepareConfig.hide);
 
-  // Framer-specific: hide the "Made in Framer" badge before any frame is
-  // captured. Default-on per schema. Silent on no-match — absence on
-  // non-Framer sites is expected, not an error.
-  if (prepareConfig.hideFramerBadge) {
-    await hideFramerBadge(page);
-  }
-
   // PREP-04 — scroll prime. Gated by config; defaults to true.
   if (prepareConfig.scrollPrime) {
     await scrollPrime(page);
@@ -55,6 +48,18 @@ export async function runPreparePipeline(page, prepareConfig) {
 
   // PREP-05 — extra delay. Defaults to 0; the helper short-circuits on <=0.
   await extraDelay(page, prepareConfig.extraDelay);
+
+  // The badge + sticky/fixed sweeps run LAST — after scrollPrime and any
+  // extraDelay — so they catch elements that Framer's runtime mounts in
+  // response to the first scroll (the badge in particular is sometimes
+  // late-injected). visibility:hidden preserves layout so scrollHeight stays
+  // stable for the capture loop's geometry-once invariant.
+  if (prepareConfig.hideFramerBadge) {
+    await hideFramerBadge(page);
+  }
+  if (prepareConfig.hideSticky) {
+    await hideStickyAndFixed(page);
+  }
 
   return { hideSummary };
 }

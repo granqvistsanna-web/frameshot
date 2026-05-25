@@ -89,11 +89,12 @@ export async function hideSelectors(page, selectors) {
 
 /**
  * Hide the "Made in Framer" badge using known selectors plus a defensive
- * computed-style sweep (any position:fixed anchor pointing at framer.com).
- * Uses `visibility: hidden !important` — same reasoning as hideSelectors:
- * `display:none` would shrink scrollHeight and break the capture loop's
- * frame math. Silent on no-match — the badge legitimately doesn't exist on
- * non-Framer sites, and absence is not an error.
+ * computed-style sweep (any position:fixed anchor pointing at framer.com /
+ * framer.website / framer.link, or any element whose id/class contains
+ * "framer-badge"). Uses `visibility: hidden !important` — same reasoning as
+ * hideSelectors: `display:none` would shrink scrollHeight and break the
+ * capture loop's frame math. Silent on no-match — the badge legitimately
+ * doesn't exist on non-Framer sites, and absence is not an error.
  *
  * @param {import('playwright-chromium').Page} page — post-navigation page
  * @returns {Promise<{ matched: number }>} — node count hidden (informational)
@@ -101,19 +102,55 @@ export async function hideSelectors(page, selectors) {
 export async function hideFramerBadge(page) {
   return page.evaluate(() => {
     let matched = 0;
+    const seen = new Set();
     const hide = (node) => {
+      if (seen.has(node)) return;
+      seen.add(node);
       node.style.setProperty('visibility', 'hidden', 'important');
       matched++;
     };
     // Known container id used by Framer's published site runtime.
     const byId = document.getElementById('__framer-badge-container');
     if (byId) hide(byId);
-    // Defensive sweep: any fixed-position anchor targeting framer.com is
-    // almost certainly the badge link. Avoids accidentally hiding inline
-    // framer.com links in page body content (those are not position:fixed).
-    for (const a of document.querySelectorAll('a[href*="framer.com"]')) {
-      if (a === byId) continue;
+    // Any element whose id/class hints at the badge.
+    for (const el of document.querySelectorAll('[id*="framer-badge"], [class*="framer-badge"], [id*="__framer-badge"]')) {
+      hide(el);
+    }
+    // Any fixed-position anchor targeting Framer's domains is almost
+    // certainly the badge link. Avoids hiding inline framer.com links
+    // in page body content (those are not position:fixed).
+    for (const a of document.querySelectorAll('a[href*="framer.com"], a[href*="framer.website"], a[href*="framer.link"]')) {
       if (getComputedStyle(a).position === 'fixed') hide(a);
+    }
+    return { matched };
+  });
+}
+
+/**
+ * Hide every computed position:fixed/sticky element on the page. Sticky navs,
+ * pinned sidebars, cookie banners, chat widgets — anything that would tile
+ * across the stitched full-page image because it follows the viewport during
+ * scroll-capture. Uses `visibility: hidden !important` (NOT `display: none`)
+ * so layout is preserved and `document.documentElement.scrollHeight` stays
+ * stable — the capture loop reads scrollHeight once at frame 0 and relies on
+ * it being constant across the loop.
+ *
+ * Runs AFTER scrollPrime so any Framer/JS-runtime element that mounts on
+ * first scroll is caught. Silent on no-match — many pages have no pinned
+ * elements at all.
+ *
+ * @param {import('playwright-chromium').Page} page — post-navigation page
+ * @returns {Promise<{ matched: number }>} — node count hidden (informational)
+ */
+export async function hideStickyAndFixed(page) {
+  return page.evaluate(() => {
+    let matched = 0;
+    for (const el of document.querySelectorAll('*')) {
+      const pos = getComputedStyle(el).position;
+      if (pos === 'fixed' || pos === 'sticky') {
+        el.style.setProperty('visibility', 'hidden', 'important');
+        matched++;
+      }
     }
     return { matched };
   });

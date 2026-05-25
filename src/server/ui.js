@@ -12,7 +12,7 @@ export function renderUi() {
 <title>framershot · capture</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
   :root {
     --paper:        #0c0a08;
@@ -29,8 +29,14 @@ export function renderUi() {
     --ok:           #7ea66c;
     --warn:         #c69a3a;
     --err:          #c54836;
-    --serif: 'Instrument Serif', 'Times New Roman', Times, serif;
-    --mono:  'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    --display: 'Fraunces', 'Times New Roman', Times, serif;
+    --mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+    /* Reusable variation presets for Fraunces */
+    --vf-wordmark: "opsz" 144, "SOFT" 50, "WONK" 0;
+    --vf-wordmark-em: "opsz" 144, "SOFT" 100, "WONK" 1;
+    --vf-display:  "opsz" 72,  "SOFT" 40, "WONK" 0;
+    --vf-caption:  "opsz" 14,  "SOFT" 60, "WONK" 0;
   }
 
   * { box-sizing: border-box; }
@@ -93,17 +99,23 @@ export function renderUi() {
     color: var(--ink-3);
   }
   .wordmark {
-    font-family: var(--serif);
-    font-size: 38px;
-    font-weight: 400;
-    line-height: 0.95;
-    letter-spacing: -0.025em;
+    font-family: var(--display);
+    font-size: 44px;
+    font-weight: 380;
+    font-variation-settings: var(--vf-wordmark);
+    line-height: 0.92;
+    letter-spacing: -0.028em;
     color: var(--ink);
   }
   .wordmark em {
     font-style: italic;
+    font-weight: 420;
+    font-variation-settings: var(--vf-wordmark-em);
     color: var(--safe);
     letter-spacing: 0;
+    margin-left: -0.04em;
+    display: inline-block;
+    transform: translateY(0.02em);
   }
   .tagline {
     margin-top: 10px;
@@ -276,12 +288,14 @@ export function renderUi() {
 
   .help {
     display: block;
-    margin-top: 5px;
-    font-size: 10px;
+    margin-top: 6px;
+    font-size: 12px;
     color: var(--ink-3);
     font-style: italic;
-    font-family: var(--serif);
-    letter-spacing: 0.01em;
+    font-family: var(--display);
+    font-variation-settings: var(--vf-caption);
+    letter-spacing: 0.005em;
+    line-height: 1.4;
   }
 
   /* ── MAIN ────────────────────────────────────────────── */
@@ -392,7 +406,14 @@ export function renderUi() {
   .log-line.ok   .msg { color: var(--ok); }
   .log-line.warn .msg { color: var(--warn); }
   .log-line.err  .msg { color: var(--err); white-space: pre-wrap; }
-  .log-line.idle .msg { color: var(--ink-3); font-family: var(--serif); font-size: 16px; font-style: italic; }
+  .log-line.idle .msg {
+    color: var(--ink-3);
+    font-family: var(--display);
+    font-variation-settings: var(--vf-display);
+    font-size: 17px;
+    font-style: italic;
+    letter-spacing: 0.002em;
+  }
 
   /* Frame progress bar with tick marks */
   .frame-bar-wrap {
@@ -421,38 +442,85 @@ export function renderUi() {
   .preview-meta {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: flex-start;
     margin-bottom: 14px;
-    font-size: 10.5px;
-    color: var(--ink-2);
-    gap: 14px;
+    gap: 18px;
+    flex-wrap: wrap;
   }
-  .preview-meta .path {
-    font-family: var(--mono);
-    color: var(--ink-2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
+  .preview-meta .where {
+    flex: 1 1 280px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
   .preview-meta .label {
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.22em;
     color: var(--ink-3);
-    margin-right: 8px;
   }
-  .preview-meta a {
-    color: var(--safe);
-    text-decoration: none;
-    font-size: 10px;
+  .preview-meta .path {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    transition: color 180ms;
+    max-width: 100%;
+  }
+  .preview-meta .path:hover { color: var(--ink); }
+  .preview-meta .path .copied {
+    color: var(--ok);
+    font-style: italic;
+    margin-left: 8px;
+    font-family: var(--serif);
+    font-size: 13px;
+    letter-spacing: 0.01em;
+  }
+  .preview-meta .actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .meta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--rule-strong);
+    padding: 7px 11px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.22em;
-    border-bottom: 1px solid var(--safe);
-    padding-bottom: 1px;
-    flex-shrink: 0;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 180ms, border-color 180ms, background 180ms;
+    white-space: nowrap;
   }
-  .preview-meta a:hover { color: var(--safe-hot); border-color: var(--safe-hot); }
+  .meta-btn:hover { color: var(--ink); border-color: var(--ink-3); }
+  .meta-btn.primary {
+    color: var(--paper);
+    background: var(--safe);
+    border-color: var(--safe);
+  }
+  .meta-btn.primary:hover {
+    background: var(--safe-hot);
+    border-color: var(--safe-hot);
+    color: var(--paper);
+    box-shadow: 0 0 18px var(--safe-glow);
+  }
+  .meta-btn .arrow { font-family: var(--serif); font-style: italic; font-size: 13px; line-height: 1; letter-spacing: 0; }
 
   .preview-frame {
     padding: 14px;
@@ -474,10 +542,12 @@ export function renderUi() {
   }
   .preview-frame.empty {
     color: var(--ink-3);
-    font-family: var(--serif);
+    font-family: var(--display);
+    font-variation-settings: "opsz" 96, "SOFT" 70, "WONK" 1;
     font-style: italic;
-    font-size: 24px;
-    letter-spacing: 0.005em;
+    font-weight: 360;
+    font-size: 30px;
+    letter-spacing: -0.005em;
   }
 
   /* ── RIGHT RAIL ──────────────────────────────────────── */
@@ -520,11 +590,12 @@ export function renderUi() {
   .recall-glyph {
     position: absolute;
     right: 22px;
-    top: 14px;
+    top: 16px;
     color: var(--safe);
-    font-family: var(--serif);
+    font-family: var(--display);
+    font-variation-settings: "opsz" 36, "SOFT" 80, "WONK" 1;
     font-style: italic;
-    font-size: 20px;
+    font-size: 22px;
     line-height: 1;
     opacity: 0;
     transform: translateX(-4px);
@@ -540,12 +611,14 @@ export function renderUi() {
     margin-bottom: 4px;
   }
   .runs li .name {
-    font-family: var(--serif);
-    font-size: 22px;
+    font-family: var(--display);
+    font-variation-settings: "opsz" 36, "SOFT" 50, "WONK" 0;
+    font-weight: 400;
+    font-size: 24px;
     color: var(--ink);
-    line-height: 1.1;
+    line-height: 1.05;
     margin-bottom: 6px;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.018em;
   }
   .runs li .name em { font-style: italic; color: var(--safe); }
   .runs li .meta {
@@ -561,11 +634,13 @@ export function renderUi() {
     color: var(--ink-3);
     cursor: default;
     font-style: italic;
-    font-family: var(--serif);
-    font-size: 18px;
+    font-family: var(--display);
+    font-variation-settings: "opsz" 24, "SOFT" 70, "WONK" 0;
+    font-size: 19px;
     padding: 22px;
     border: 0;
     line-height: 1.3;
+    letter-spacing: -0.005em;
   }
   .runs li.empty:hover { background: transparent; padding-left: 22px; }
 
@@ -710,9 +785,15 @@ export function renderUi() {
     <div class="preview-shell">
       <div class="section-label"><span class="n">05</span> Plate <span class="rule"></span></div>
       <div class="preview-meta" id="result-meta" hidden>
-        <span class="label">file</span>
-        <span class="path" id="result-path"></span>
-        <a id="result-open" target="_blank" rel="noopener">Open ↗</a>
+        <div class="where">
+          <span class="label">Saved to · click to copy path</span>
+          <button class="path" id="result-path" type="button" title="copy full path"></button>
+        </div>
+        <div class="actions">
+          <a class="meta-btn primary" id="result-download" download><span class="arrow">↓</span> Download</a>
+          <button class="meta-btn" id="result-reveal" type="button">Reveal</button>
+          <a class="meta-btn" id="result-open" target="_blank" rel="noopener">Open <span class="arrow">↗</span></a>
+        </div>
       </div>
       <div class="bracketed preview-frame empty" id="result">no exposure yet</div>
     </div>
@@ -763,6 +844,8 @@ const els = {
   resultMeta: $('result-meta'),
   resultPath: $('result-path'),
   resultOpen: $('result-open'),
+  resultDownload: $('result-download'),
+  resultReveal: $('result-reveal'),
   runs: $('runs'),
   railCount: $('rail-count'),
   clearRuns: $('clear-runs'),
@@ -1022,9 +1105,11 @@ els.form.addEventListener('submit', async (e) => {
           succeeded = true;
           const active = els.status.querySelector('.log-line.active');
           if (active) active.classList.remove('active');
-          logLine('done · ' + event.outputPath, 'ok');
+          const outputs = event.outputs || [];
+          for (const o of outputs) logLine('done · ' + o.outputPath, 'ok');
           setLed('ok', 'ready');
-          showResult(event.urlPath, event.outputPath);
+          const last = outputs[outputs.length - 1];
+          if (last) showResult(last.urlPath, last.outputPath);
         } else if (event.type === 'error') {
           logLine(event.message, 'err');
           setLed('err', 'error');

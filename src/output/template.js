@@ -1,7 +1,12 @@
 // src/output/template.js
 // Pure output-path template resolver — zero dependencies, no I/O.
-// Callers compute the date string before passing it:
-//   new Date().toISOString().slice(0, 10)  // ISO date YYYY-MM-DD — path-safe, locale-invariant. Do not change to toLocaleDateString.
+// Callers compute date/time strings before passing them:
+//   const d = new Date();
+//   date: d.toISOString().slice(0, 10)              // YYYY-MM-DD
+//   time: d.toISOString().slice(11, 19).replaceAll(':', '-')  // HH-MM-SS (colons replaced; Windows-safe)
+// Both are derived from the same Date so they stay consistent within a run.
+// Do not switch to toLocaleString — locale-invariant ISO output keeps paths
+// portable across machines and CI.
 //
 // Unknown placeholders (e.g. {foo}) are left literal — typos surface visibly
 // in the output path rather than silently being dropped.
@@ -24,13 +29,16 @@ function slugify(value) {
   return slug || 'untitled';
 }
 
-export function resolveTemplate(template, { date, viewport, page, region }) {
-  // {date} is NOT slugified — YYYY-MM-DD hyphens are intentional and path-safe.
+export function resolveTemplate(template, { date, time, viewport, page, region }) {
+  // {date} and {time} are NOT slugified — pre-formatted hyphenated forms are
+  // path-safe and locale-invariant. {time} is optional; when absent, the
+  // placeholder stays literal so the typo surfaces visibly.
   // {viewport} and {page} ARE slugified — handles spaces, unicode, etc.
   // {region} is slugified when present; left literal when region arg is undefined (full-page run).
   // The template itself is NOT slugified — '/' path separators must survive.
   return template
     .replaceAll('{date}', date)
+    .replaceAll('{time}', time ?? '{time}')
     .replaceAll('{viewport}', slugify(viewport))
     .replaceAll('{page}', slugify(page))
     // {region} literal-fallback posture mirrors template.js:6-7 (unknown

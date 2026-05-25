@@ -58,10 +58,12 @@ const prepareSchema = z
     scrollPrime: z.boolean().default(true),
     // PREP-05: extra delay in milliseconds after scroll prime
     extraDelay: z.number().int().min(0).default(0),
-    // Hide every computed position:fixed/sticky element AFTER frame 0 is
-    // captured. Sticky nav appears once at the top of the stitched image
-    // instead of tiling on every scroll step. Default ON.
-    hideStickyAfterFirstFrame: z.boolean().default(true),
+    // Hide every computed position:fixed/sticky element BEFORE the capture
+    // loop starts (runs after scrollPrime so late-mounted elements are
+    // caught). Removes sticky navs, pinned sidebars, cookie/chat widgets
+    // from the stitched full-page image entirely. Default ON — the whole
+    // point of a long-form screenshot is a clean static view.
+    hideSticky: z.boolean().default(true),
     // Hide the "Made in Framer" badge before any frame is captured.
     // Default ON — this is a Framer-targeted tool and the badge is a
     // universal artifact on framer.website pages.

@@ -56,11 +56,13 @@ export function buildProgram() {
         // verification path stays exactly as commit-locked. Does NOT call
         // runCapture (that does full-page; smoke needs ONE viewport-sized shot
         // to prove viewport × DSR math reached rendering).
-        const date = new Date().toISOString().slice(0, 10);
+        const now = new Date();
+        const date = now.toISOString().slice(0, 10);
+        const time = now.toISOString().slice(11, 19).replaceAll(':', '-');
         // smoke takes the first viewport only — see Phase 7 PLAN-03 / ROADMAP success criterion #4 (v0.1 back-compat)
         const viewport = config.viewports[0].name;
         const page = config.page.name;
-        const resolvedOutput = resolveTemplate(config.output, { date, viewport, page });
+        const resolvedOutput = resolveTemplate(config.output, { date, time, viewport, page });
 
         spinner.text = 'Launching Chromium';
         const { browser, context } = await launchBrowser(config, config.viewports[0]);

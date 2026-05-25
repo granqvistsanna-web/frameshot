@@ -106,7 +106,12 @@ function resolveRegions(regions, only) {
  *   by --only) followed by full-page (when --only is unset).
  */
 export async function runCapture(config, { onProgress = () => {}, only } = {}) {
-  const date = new Date().toISOString().slice(0, 10);
+  // Single timestamp shared across all viewports/regions in this run so
+  // every artifact lands under the same {date}/{time} folder — captures
+  // taken seconds apart never collide, captures within one run stay grouped.
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toISOString().slice(11, 19).replaceAll(':', '-');
   const page = config.page.name;
   const results = [];
 
@@ -119,7 +124,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
   resolveRegions(config.regions, only);
 
   for (const vp of config.viewports) {
-    const outputPath = resolveTemplate(config.output, { date, viewport: vp.name, page });
+    const outputPath = resolveTemplate(config.output, { date, time, viewport: vp.name, page });
 
     onProgress({ type: 'step', viewport: vp.name, label: 'Launching Chromium' });
     const { browser, context } = await launchBrowser(config, vp);
@@ -150,7 +155,6 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
           onProgress: (current, total) => {
             onProgress({ type: 'frame', viewport: vp.name, current, total });
           },
-          hideStickyAfterFirstFrame: config.prepare.hideStickyAfterFirstFrame,
         });
         results.push({ outputPath, hideSummary, viewportName: vp.name });
       } else {
@@ -160,6 +164,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
         for (const region of targets) {
           const regionPath = resolveTemplate(config.output, {
             date,
+            time,
             viewport: vp.name,
             page,
             region: region.name,
@@ -183,7 +188,6 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             onProgress: (current, total) => {
               onProgress({ type: 'frame', viewport: vp.name, current, total });
             },
-            hideStickyAfterFirstFrame: config.prepare.hideStickyAfterFirstFrame,
           });
           results.push({ outputPath, hideSummary, viewportName: vp.name });
         }

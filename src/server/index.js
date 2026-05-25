@@ -115,7 +115,7 @@ async function handleCapture(req, res) {
   const candidate = {
     name: body.name || 'ui-capture',
     baseUrl: body.baseUrl,
-    output: './screenshots/{date}/{viewport}/{page}.png',
+    output: './screenshots/{date}/{time}/{viewport}/{page}.png',
     deviceScaleFactor: body.deviceScaleFactor ?? 2,
     viewport: body.viewport,
     page: body.page,
@@ -169,7 +169,7 @@ async function handleCapture(req, res) {
 }
 
 function outputPathToUrl(outputPath) {
-  // outputPath is like "./screenshots/2026-05-22/desktop/home.png" or
+  // outputPath is like "./screenshots/2026-05-22/14-32-07/desktop/home.png" or
   // "screenshots/.../home.png". Strip leading "./" if present, ensure
   // a leading "/".
   const cleaned = outputPath.replace(/^\.\//, '');
