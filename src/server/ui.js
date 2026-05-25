@@ -204,8 +204,8 @@ export function renderUi() {
   }
   input:focus, select:focus, textarea:focus {
     outline: none;
-    border-bottom-color: var(--accent);
-    box-shadow: 0 1px 0 0 var(--accent);
+    border-bottom-color: var(--fg-2);
+    box-shadow: 0 1px 0 0 var(--fg-2), 0 4px 12px -6px var(--accent-soft);
   }
   input::placeholder, textarea::placeholder {
     color: var(--fg-3);
@@ -338,19 +338,18 @@ export function renderUi() {
     color: var(--bg);
     border: 0;
     border-radius: 6px;
-    padding: 13px 18px;
+    padding: 12px 18px;
     font-family: var(--sans);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.20),
       0 0 0 1px var(--accent);
     transition: background 150ms ease-out, box-shadow 150ms ease-out, transform 80ms ease-out;
   }
@@ -750,9 +749,8 @@ export function renderUi() {
     margin: 0;
     font-family: var(--sans);
     font-weight: 500;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+    font-size: 12px;
+    letter-spacing: -0.005em;
     color: var(--fg-2);
   }
   .right-rail h2 .count {
@@ -941,7 +939,7 @@ export function renderUi() {
     transition: color 150ms ease-out, border-color 150ms ease-out;
   }
   .region-tab:hover { color: var(--fg-2); }
-  .region-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .region-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
   .region-mode { margin-bottom: 10px; }
   .region-mode-anchor .row-2 { gap: 12px; }
   .region-padding-row {
