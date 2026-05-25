@@ -57,10 +57,10 @@ import { stitchFrames } from './stitch.js';
  * @returns {Promise<void>}
  */
 export async function captureFullPage(page, outputPath, options = {}) {
-  const { onProgress, hideStickyAfterFirstFrame } = options;
+  const { onProgress, hideStickyAfterFirstFrame, frameDelay } = options;
 
   // Step 1 — OUT-01: scroll + per-viewport screenshots → ordered PNG Buffers + geometry.
-  const { frames, geometry } = await captureFrames(page, { onProgress, hideStickyAfterFirstFrame });
+  const { frames, geometry } = await captureFrames(page, { onProgress, hideStickyAfterFirstFrame, frameDelay });
 
   // Step 2 — OUT-02: sharp composite → one full-page PNG Buffer.
   const pngBuffer = await stitchFrames(frames, geometry);

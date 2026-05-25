@@ -14,7 +14,7 @@
 //   - SSE: write events as they happen; flush on each line.
 
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, access } from 'node:fs/promises';
 import { resolve, join, normalize, extname } from 'node:path';
 import { configSchema } from '../config/schema.js';
 import { runCapture } from '../capture/runCapture.js';
@@ -116,14 +116,15 @@ async function handleCapture(req, res) {
 
   // Build a config object from form input. We force a deterministic output
   // template so the server knows where the file will land and can serve it
-  // back to the browser. When regions are declared the schema (config/schema.js
-  // §root-superRefine) requires {region} in the template — switch to a regions-
-  // aware path that groups per-region files (and the full-page sibling) under a
-  // per-page folder so a page with multiple regions doesn't sprawl.
+  // back to the browser. Flat layout — one folder per date, self-describing
+  // filename. With regions declared the schema (config/schema.js §root-
+  // superRefine) requires {region} in the template; runCapture substitutes
+  // {region} → 'full' for the full-page sibling so it lands alongside the
+  // per-region files with a readable name.
   const hasRegions = Array.isArray(body.regions) && body.regions.length > 0;
   const output = hasRegions
-    ? './screenshots/{date}/{time}/{viewport}/{page}/{region}.png'
-    : './screenshots/{date}/{time}/{viewport}/{page}.png';
+    ? './screenshots/{date}/{page}-{region}-{viewport}-{time}.png'
+    : './screenshots/{date}/{page}-{viewport}-{time}.png';
 
   const candidate = {
     name: body.name || 'ui-capture',
@@ -183,9 +184,9 @@ async function handleCapture(req, res) {
 }
 
 function outputPathToUrl(outputPath) {
-  // outputPath is like "./screenshots/2026-05-22/14-32-07/desktop/home.png" or
-  // "screenshots/.../home.png". Strip leading "./" if present, ensure
-  // a leading "/".
+  // outputPath is like "./screenshots/2026-05-25/home-desktop-11-56-09.png" or
+  // "screenshots/.../home-desktop-11-56-09.png". Strip leading "./" if present,
+  // ensure a leading "/".
   const cleaned = outputPath.replace(/^\.\//, '');
   return `/${cleaned}`;
 }
@@ -232,6 +233,17 @@ async function handleReveal(req, res) {
     res.writeHead(501, { 'content-type': 'text/plain' });
     res.end('reveal in Finder is macOS-only');
     return;
+  }
+
+  try {
+    await access(absPath);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('not found');
+      return;
+    }
+    throw err;
   }
 
   const { spawn } = await import('node:child_process');

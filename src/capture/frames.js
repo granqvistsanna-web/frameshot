@@ -76,7 +76,7 @@
  *   overlap region cleanly. Pattern 1 lines 327-332.
  */
 export async function captureFrames(page, options = {}) {
-  const { onProgress, hideStickyAfterFirstFrame = true } = options;
+  const { onProgress, hideStickyAfterFirstFrame = true, frameDelay = 0 } = options;
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
   const { viewportWidth, viewportHeight, totalHeight, deviceScaleFactor } =
@@ -116,6 +116,14 @@ export async function captureFrames(page, options = {}) {
     //     layout/paint to settle here; a fixed timeout would add ~200ms × nFrames
     //     of waste with no benefit).
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+
+    // (b2) Optional extra dwell per frame — opt-in via prepare.frameDelay.
+    //      Threaded through captureFullPage → captureFrames; 0 = off (no-op).
+    //      Use a non-zero value when per-section animations or lazy content
+    //      need more than one paint to settle in view.
+    if (frameDelay > 0) {
+      await new Promise((r) => setTimeout(r, frameDelay));
+    }
 
     // (c) Screenshot this viewport in physical pixels:
     //   - clip in CSS pixels (Playwright types.d.ts:24276-24296)

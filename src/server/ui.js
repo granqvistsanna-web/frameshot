@@ -238,6 +238,14 @@ export function renderUi() {
     padding-right: 22px;
   }
   select option { background: var(--paper-2); color: var(--ink); }
+  select optgroup {
+    background: var(--paper-2);
+    color: var(--ink-3);
+    font-style: normal;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
 
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .row-3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 14px; }
@@ -526,11 +534,11 @@ export function renderUi() {
     max-width: 100%;
   }
   .preview-meta .path:hover { color: var(--ink); }
-  .preview-meta .path .copied {
+  .preview-meta .where .copied {
     color: var(--ok);
     font-style: italic;
-    margin-left: 8px;
-    font-family: var(--serif);
+    margin-top: 2px;
+    font-family: var(--display);
     font-size: 13px;
     letter-spacing: 0.01em;
   }
@@ -570,7 +578,7 @@ export function renderUi() {
     color: var(--paper);
     box-shadow: 0 0 18px var(--safe-glow);
   }
-  .meta-btn .arrow { font-family: var(--serif); font-style: italic; font-size: 13px; line-height: 1; letter-spacing: 0; }
+  .meta-btn .arrow { font-family: var(--display); font-style: italic; font-size: 13px; line-height: 1; letter-spacing: 0; }
 
   .preview-frame {
     padding: 14px;
@@ -859,10 +867,18 @@ export function renderUi() {
         <div class="field">
           <label class="field-label" for="viewportPreset">Preset</label>
           <select id="viewportPreset">
-            <option value="desktop">Desktop · 1440 × 900</option>
-            <option value="laptop">Laptop · 1280 × 800</option>
-            <option value="tablet">Tablet · 768 × 1024</option>
-            <option value="mobile">Mobile · 375 × 667</option>
+            <optgroup label="Device">
+              <option value="desktop">Desktop · 1440 × 900</option>
+              <option value="laptop">Laptop · 1280 × 800</option>
+              <option value="tablet">Tablet · 768 × 1024</option>
+              <option value="mobile">Mobile · 375 × 667</option>
+            </optgroup>
+            <optgroup label="Pinterest">
+              <option value="pinStandard">Standard pin · 1000 × 1500</option>
+              <option value="pinSquare">Square pin · 1000 × 1000</option>
+              <option value="pinLong">Long pin · 1000 × 2100</option>
+              <option value="pinIdea">Idea / video · 1080 × 1920</option>
+            </optgroup>
             <option value="custom">Custom…</option>
           </select>
         </div>
@@ -892,8 +908,17 @@ export function renderUi() {
           <label class="check"><input type="checkbox" id="scrollPrime" checked> <span>Scroll prime · lazy load</span></label>
         </div>
         <div class="field">
-          <label class="field-label" for="extraDelay">Settle delay · ms</label>
-          <input id="extraDelay" type="number" min="0" step="50" value="0">
+          <div class="row-2">
+            <div>
+              <label class="field-label" for="extraDelay">Settle delay · ms</label>
+              <input id="extraDelay" type="number" min="0" step="50" value="0">
+            </div>
+            <div>
+              <label class="field-label" for="frameDelay">Per-frame · ms</label>
+              <input id="frameDelay" type="number" min="0" step="50" value="0">
+            </div>
+          </div>
+          <span class="help">settle = once before capture · per-frame = each scroll step (full-page only)</span>
         </div>
       </div>
 
@@ -956,10 +981,14 @@ export function renderUi() {
 
 <script type="module">
 const PRESETS = {
-  desktop: { name: 'desktop', width: 1440, height: 900 },
-  laptop:  { name: 'laptop',  width: 1280, height: 800 },
-  tablet:  { name: 'tablet',  width: 768,  height: 1024 },
-  mobile:  { name: 'mobile',  width: 375,  height: 667 },
+  desktop:     { name: 'desktop',     width: 1440, height: 900 },
+  laptop:      { name: 'laptop',      width: 1280, height: 800 },
+  tablet:      { name: 'tablet',      width: 768,  height: 1024 },
+  mobile:      { name: 'mobile',      width: 375,  height: 667 },
+  pinStandard: { name: 'pin-standard', width: 1000, height: 1500 },
+  pinSquare:   { name: 'pin-square',   width: 1000, height: 1000 },
+  pinLong:     { name: 'pin-long',     width: 1000, height: 2100 },
+  pinIdea:     { name: 'pin-idea',     width: 1080, height: 1920 },
 };
 const STORAGE_KEY = 'framershot.recentRuns';
 const MAX_RUNS = 12;
@@ -978,6 +1007,7 @@ const els = {
   animations: $('animations'),
   scrollPrime: $('scrollPrime'),
   extraDelay: $('extraDelay'),
+  frameDelay: $('frameDelay'),
   regionsList: $('regions-list'),
   addRegion: $('add-region'),
   submit: $('submit-btn'),
@@ -995,6 +1025,9 @@ const els = {
   led: $('led'),
   ledText: $('led-text'),
 };
+
+const platform = navigator.userAgentData?.platform ?? navigator.platform ?? '';
+if (!/mac/i.test(platform)) els.resultReveal.hidden = true;
 
 els.viewportPreset.addEventListener('change', () => {
   els.customViewport.hidden = els.viewportPreset.value !== 'custom';
@@ -1107,6 +1140,7 @@ function readForm() {
       scrollPrime: els.scrollPrime.checked,
       hide: hideLines,
       extraDelay: Number(els.extraDelay.value) || 0,
+      frameDelay: Number(els.frameDelay.value) || 0,
     },
     ...(regions.length > 0 ? { regions } : {}),
   };
@@ -1133,6 +1167,7 @@ function fillForm(saved) {
   els.animations.checked = saved.prepare?.animations ?? true;
   els.scrollPrime.checked = saved.prepare?.scrollPrime ?? true;
   els.extraDelay.value = saved.prepare?.extraDelay ?? 0;
+  els.frameDelay.value = saved.prepare?.frameDelay ?? 0;
   clearRegions();
   (saved.regions ?? []).forEach((r) => addRegionRow(r));
 }
@@ -1250,13 +1285,9 @@ function setFrameBar(current, total) {
 }
 
 function deriveDownloadName(outputPath) {
-  // ./screenshots/<date>/<time>/<viewport>/<slug>.png → <slug>-<viewport>-<date>.png
+  // Filename is already self-describing — e.g. home-desktop-11-56-09.png or
+  // home-hero-desktop-11-56-09.png. Just return the basename.
   const parts = outputPath.replace(/^\\.\\//, '').split('/');
-  if (parts.length >= 5 && parts[0] === 'screenshots') {
-    const date = parts[1], viewport = parts[3], file = parts[4];
-    const slug = file.replace(/\\.png$/, '');
-    return slug + '-' + viewport + '-' + date + '.png';
-  }
   return parts[parts.length - 1] || 'capture.png';
 }
 
@@ -1277,15 +1308,23 @@ function showResult(urlPath, outputPath) {
   els.result.appendChild(img);
 }
 
+let copiedFlash = null;
+let copiedTimer = null;
 els.resultPath.addEventListener('click', async () => {
   if (!lastOutputPath) return;
   try {
     await navigator.clipboard.writeText(lastOutputPath);
-    const flash = document.createElement('span');
-    flash.className = 'copied';
-    flash.textContent = 'copied';
-    els.resultPath.appendChild(flash);
-    setTimeout(() => flash.remove(), 1400);
+    if (copiedTimer) clearTimeout(copiedTimer);
+    if (copiedFlash) copiedFlash.remove();
+    copiedFlash = document.createElement('span');
+    copiedFlash.className = 'copied';
+    copiedFlash.textContent = 'copied';
+    els.resultPath.parentNode.appendChild(copiedFlash);
+    copiedTimer = setTimeout(() => {
+      if (copiedFlash) copiedFlash.remove();
+      copiedFlash = null;
+      copiedTimer = null;
+    }, 1400);
   } catch {
     // clipboard may be blocked — path is still visible on screen
   }

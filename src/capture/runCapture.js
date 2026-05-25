@@ -160,6 +160,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             onProgress({ type: 'frame', viewport: vp.name, current, total });
           },
           hideStickyAfterFirstFrame: config.prepare.hideSticky,
+          frameDelay: config.prepare.frameDelay,
         });
         results.push({ outputPath, hideSummary, viewportName: vp.name });
       } else {

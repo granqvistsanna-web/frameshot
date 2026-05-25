@@ -58,6 +58,12 @@ const prepareSchema = z
     scrollPrime: z.boolean().default(true),
     // PREP-05: extra delay in milliseconds after scroll prime
     extraDelay: z.number().int().min(0).default(0),
+    // Extra dwell (in ms) between scroll and screenshot on EACH frame of the
+    // full-page scroll-stitch loop. 0 = off (default; the rAF roundtrip is
+    // sufficient for static Framer pages). Set a non-zero value when the page
+    // has per-section animations or lazy content that needs more than one
+    // paint to settle in view.
+    frameDelay: z.number().int().min(0).default(0),
     // Hide every computed position:fixed/sticky element AFTER frame 0 of the
     // capture loop. The nav/banner appears in the very first viewport-sized
     // shot at the top of the page (matches how the page actually looks on
@@ -101,6 +107,16 @@ export const regionSchema = z
     padding: z.number().int().min(0).default(0),
   })
   .superRefine((data, ctx) => {
+    // 'full' is reserved: runCapture.js:131 substitutes region='full' into the
+    // output template for the full-page capture, so a region named 'full' would
+    // silently overwrite it. Case-insensitive — APFS/HFS+ default to case-insensitive.
+    if (data.name.toLowerCase() === 'full') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: `region '${data.name}': name 'full' is reserved for full-page output`,
+      });
+    }
     const hasSelector = data.selector !== undefined;
     const hasFrom = data.from !== undefined;
     const hasTo = data.to !== undefined;
