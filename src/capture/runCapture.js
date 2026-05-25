@@ -248,6 +248,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
                   onProgress({ type: 'frame', ...scope, current, total });
                 },
                 hideStickyAfterFirstFrame: config.prepare.hideSticky,
+                frameDelay: config.prepare.frameDelay,
                 maxHeight: vp.pinHeight,
                 format,
                 quality,

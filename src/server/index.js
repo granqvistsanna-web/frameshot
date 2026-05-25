@@ -15,7 +15,7 @@
 
 import http from 'node:http';
 import { readFile, access } from 'node:fs/promises';
-import { resolve, join, normalize, extname, basename, dirname } from 'node:path';
+import { resolve, join, normalize, extname, basename, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ZipArchive } from 'archiver';
 import { configSchema, zipRequestSchema } from '../config/schema.js';
@@ -253,7 +253,7 @@ async function handleReveal(req, res) {
   const rel = raw.slice('screenshots/'.length);
   const absPath = normalize(join(SCREENSHOT_ROOT, rel));
 
-  if (!absPath.startsWith(SCREENSHOT_ROOT + '/') && absPath !== SCREENSHOT_ROOT) {
+  if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
     res.writeHead(403, { 'content-type': 'text/plain' });
     res.end('forbidden');
     return;
@@ -293,7 +293,7 @@ function resolveScreenshotPath(input) {
   }
   const rel = raw.slice('screenshots/'.length);
   const absPath = normalize(join(SCREENSHOT_ROOT, rel));
-  if (!absPath.startsWith(SCREENSHOT_ROOT + '/') && absPath !== SCREENSHOT_ROOT) {
+  if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
     return { error: { status: 403, message: `forbidden: ${input}` } };
   }
   return { absPath };
@@ -382,7 +382,7 @@ async function handleStaticScreenshot(pathname, res) {
   const absPath = normalize(join(SCREENSHOT_ROOT, rel));
 
   // Path traversal guard: absPath must stay under SCREENSHOT_ROOT.
-  if (!absPath.startsWith(SCREENSHOT_ROOT + '/') && absPath !== SCREENSHOT_ROOT) {
+  if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
     res.writeHead(403, { 'content-type': 'text/plain' });
     res.end('forbidden');
     return;
