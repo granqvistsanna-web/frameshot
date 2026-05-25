@@ -127,12 +127,11 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
   const time = now.toISOString().slice(11, 19).replaceAll(':', '-');
   const results = [];
 
-  // Fail-fast upfront --only validation — runs BEFORE any Chromium launch so
-  // an unknown flag value never wastes a browser process. Discard the return
-  // value; per-iteration target resolution recomputes (cheap, avoids closing
-  // over a variable that is only needed inside the loop and stays correct if
-  // a future caller mutates config.regions between iterations — which they
-  // should not, but defensive cohesion is free here).
+  // Fail-fast upfront --only validation — called for its throw side-effect so an
+  // unknown flag value never wastes a browser process. Return value discarded;
+  // per-iteration target resolution inside the loop recomputes (cheap, and stays
+  // correct if a future caller mutates config.regions between iterations — which
+  // they should not, but defensive cohesion is free here).
   resolveRegions(config.regions, only);
 
   // Format/quality knob — added in v0.3 so retina marketing-page captures can
@@ -192,26 +191,39 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
           // item (--only match), or N items (all declared regions, --only unset).
           const targets = resolveRegions(config.regions, only);
 
+          // Full-page options bag shared by both call sites below. vp.pinHeight
+          // (v0.4) clamps the scroll-stitch to a CSS-pixel height — undefined
+          // means full-page. vp.pinOffset (v0.5) slides the pin window down the
+          // page when pinHeight is set.
+          // `kind` tags full-page outputs as either 'fullPage' or 'pin' so the UI
+          // can pick the right backdrop for the pin-offset preview without
+          // re-deriving it from a slug-suffix heuristic (which would misfire
+          // if a custom viewport name happened to end with a chip slug).
+          const fullPageKind = vp.pinHeight !== undefined ? 'pin' : 'fullPage';
+          const fullPageOpts = {
+            onProgress: (current, total) => onProgress({ type: 'frame', ...scope, current, total }),
+            // onStepEvent surfaces in-pipeline steps (e.g., "Applying backdrop")
+            // so the SSE client sees the transition between frame capture and
+            // post-process — otherwise a sharp failure looks like the frame
+            // loop crashed.
+            onStepEvent: (e) => onProgress({ type: 'step', ...scope, label: e.label }),
+            hideStickyAfterFirstFrame: config.prepare.hideSticky,
+            frameDelay: config.prepare.frameDelay,
+            maxHeight: vp.pinHeight,
+            pinOffset: vp.pinOffset,
+            format,
+            quality,
+            backdrop,
+          };
+
           if (targets.length === 0) {
             // Full-page only — back-compat path (no regions declared, no --only).
-            // vp.pinHeight (v0.4): when set on the viewport entry, the scroll-stitch
-            // clamps to this CSS-pixel height — produces a ratio-shaped pin output
-            // (e.g., 1440×2160 for a 2:3 desktop pin) instead of a full-page capture.
-            // Undefined = original full-page behavior.
-            onProgress({ type: 'step', ...scope, label: 'Capturing frame 0/?' });
-            await captureFullPage(navigatedPage, outputPath, {
-              onProgress: (current, total) => {
-                onProgress({ type: 'frame', ...scope, current, total });
-              },
-              hideStickyAfterFirstFrame: config.prepare.hideSticky,
-              frameDelay: config.prepare.frameDelay,
-              maxHeight: vp.pinHeight,
-              pinOffset: vp.pinOffset,
-              format,
-              quality,
-              backdrop,
-            });
-            localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name });
+            // "estimating" sentinel: until captureFrames computes frame count we
+            // can't show "0/N", and "0/?" looked like a hang. The first real
+            // frame event overwrites this line.
+            onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
+            await captureFullPage(navigatedPage, outputPath, fullPageOpts);
+            localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
           } else {
             // Region path — one image per region. Per-region onProgress events
             // are wrapped to inject viewport + page scope.
@@ -239,6 +251,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
                 viewportName: vp.name,
                 pageName: pg.name,
                 regionName: region.name,
+                kind: 'region',
               });
             }
             // Open Q#1 lock A: when regions are declared AND --only is unset,
@@ -247,19 +260,8 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             // regions still produces a ratio-shaped image instead of full-page.
             if (only === undefined && config.regions !== undefined) {
               onProgress({ type: 'step', ...scope, label: 'Capturing full page' });
-              await captureFullPage(navigatedPage, outputPath, {
-                onProgress: (current, total) => {
-                  onProgress({ type: 'frame', ...scope, current, total });
-                },
-                hideStickyAfterFirstFrame: config.prepare.hideSticky,
-                frameDelay: config.prepare.frameDelay,
-                maxHeight: vp.pinHeight,
-                pinOffset: vp.pinOffset,
-                format,
-                quality,
-                backdrop,
-              });
-              localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name });
+              await captureFullPage(navigatedPage, outputPath, fullPageOpts);
+              localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
             }
           }
         } finally {

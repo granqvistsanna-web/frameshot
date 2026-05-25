@@ -57,7 +57,7 @@ import { stitchFrames } from './stitch.js';
  * @returns {Promise<void>}
  */
 export async function captureFullPage(page, outputPath, options = {}) {
-  const { onProgress, hideStickyAfterFirstFrame, frameDelay, maxHeight, pinOffset, format = 'png', quality = 85, backdrop } = options;
+  const { onProgress, onStepEvent, hideStickyAfterFirstFrame, frameDelay, maxHeight, pinOffset, format = 'png', quality = 85, backdrop } = options;
 
   // Step 1 — OUT-01: scroll + per-viewport screenshots → ordered PNG Buffers + geometry.
   // maxHeight (v0.4 pin-format): when set, captureFrames clamps totalHeight to
@@ -70,7 +70,9 @@ export async function captureFullPage(page, outputPath, options = {}) {
   // Step 2 — OUT-02: sharp composite → encoded image Buffer (png/jpeg/webp).
   // When `backdrop` is set, stitchFrames wraps the composited image in a
   // colored padded canvas (optionally with rounded inner corners) before encoding.
-  const pngBuffer = await stitchFrames(frames, geometry, { format, quality, backdrop });
+  // onStepEvent surfaces the backdrop step in the SSE stream so failures inside
+  // sharp don't look like the frame loop crashed.
+  const pngBuffer = await stitchFrames(frames, geometry, { format, quality, backdrop, onStepEvent });
 
   // Step 3 — OUT-03: mkdir parent + writeFile. Same fs/promises pattern
   // cli.js:43-45 uses for the smoke screenshot's parent dir. mkdir on

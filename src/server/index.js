@@ -26,6 +26,10 @@ import { BrowserError } from '../browser/launcher.js';
 
 const SCREENSHOT_ROOT = resolve(process.cwd(), 'screenshots');
 const PKG_VERSION = await readPkgVersion();
+// Hard cap on POST body size — well above any legitimate framershot payload
+// (a 200-path zip request with 2 KB paths each is < 500 KB) and stops a
+// hostile/malformed POST from buffering unbounded bytes before JSON.parse.
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
 async function readPkgVersion() {
   try {
@@ -79,9 +83,56 @@ export async function startServer({ port, open = false }) {
   await new Promise(() => {});
 }
 
+// Reject POSTs whose Origin header doesn't match a localhost source. Defends
+// against drive-by CSRF and DNS rebinding from a malicious site (which would
+// send its own Origin like https://evil.com even after rebinding 127.0.0.1).
+// Missing Origin (curl, native scripts) is allowed — reaching 127.0.0.1
+// already implies the caller shares the host.
+function isOriginAllowed(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const u = new URL(origin);
+    return u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+// Stream and JSON-parse a POST body with a hard size cap. Returns the parsed
+// object on success, or null after writing an error response (so callers just
+// `return` early). Replaces the per-handler `for await ... JSON.parse` blocks
+// that buffered unbounded bytes.
+async function readJsonBody(req, res) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > MAX_BODY_BYTES) {
+      res.writeHead(413, { 'content-type': 'text/plain' });
+      res.end('body too large');
+      return null;
+    }
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain' });
+    res.end('invalid JSON body');
+    return null;
+  }
+}
+
 async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, 'http://localhost');
+
+    if (req.method === 'POST' && !isOriginAllowed(req)) {
+      res.writeHead(403, { 'content-type': 'text/plain' });
+      res.end('forbidden origin');
+      return;
+    }
 
     if (req.method === 'GET' && url.pathname === '/') {
       const html = renderUi({ version: PKG_VERSION });
@@ -121,17 +172,8 @@ async function handleRequest(req, res) {
 }
 
 async function handleCapture(req, res) {
-  // Read JSON body
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  let body;
-  try {
-    body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-  } catch {
-    res.writeHead(400, { 'content-type': 'text/plain' });
-    res.end('invalid JSON body');
-    return;
-  }
+  const body = await readJsonBody(req, res);
+  if (body === null) return;
 
   // Build a config object from form input. We force a deterministic output
   // template so the server knows where the file will land and can serve it
@@ -233,16 +275,8 @@ function errorToMessage(err) {
 }
 
 async function handleReveal(req, res) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  let body;
-  try {
-    body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-  } catch {
-    res.writeHead(400, { 'content-type': 'text/plain' });
-    res.end('invalid JSON body');
-    return;
-  }
+  const body = await readJsonBody(req, res);
+  if (body === null) return;
 
   // body.path is like "./screenshots/.../home.png" — strip leading "./" or "/"
   const raw = String(body.path || '').replace(/^\.\//, '').replace(/^\//, '');
@@ -301,16 +335,8 @@ function resolveScreenshotPath(input) {
 }
 
 async function handleZip(req, res) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  let body;
-  try {
-    body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-  } catch {
-    res.writeHead(400, { 'content-type': 'text/plain' });
-    res.end('invalid JSON body');
-    return;
-  }
+  const body = await readJsonBody(req, res);
+  if (body === null) return;
 
   const parsed = zipRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -405,6 +431,9 @@ async function handleStaticScreenshot(pathname, res) {
   res.writeHead(200, {
     'content-type': mime,
     'cache-control': 'no-cache',
+    // Prevent the browser from MIME-sniffing image bytes as text/html — belt-and-
+    // braces given the file extension already determined content-type.
+    'x-content-type-options': 'nosniff',
   });
   res.end(data);
 }

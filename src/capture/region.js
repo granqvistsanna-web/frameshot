@@ -176,6 +176,44 @@ async function measureDocBox(page, loc) {
   };
 }
 
+// Wait one requestAnimationFrame roundtrip for paint to settle. Mirrors
+// frames.js's helper of the same name; duplicated locally to keep capture
+// modules independent (one-line eval, not worth a shared util).
+async function waitForPaint(page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
+}
+
+// Resolve a single anchor locator to a document-space box. Handles the full
+// dance: count check (zero matches → RegionError), pre-bbox visibility probe
+// (null bbox → RegionError, avoids the 30s scrollIntoViewIfNeeded timeout on
+// display:none), scroll into view, then measureDocBox.
+//
+// `role` is the label that appears in error messages ('selector' for selector
+// mode, 'from'/'to' for anchor mode) so the user can tell which anchor failed.
+// Pre-check and post-scroll re-check raise the same RegionError shape because
+// the page can mutate between the two reads — a single message captures both
+// the static-display-none case and the rare race.
+async function resolveAnchorBox(page, regionName, role, selector) {
+  const count = await page.locator(selector).count();
+  if (count === 0) {
+    const prefix = role === 'selector' ? `selector '${selector}'` : `'${role}' selector '${selector}'`;
+    throw new RegionError(`Region '${regionName}': ${prefix} matched no elements.`);
+  }
+  const loc = page.locator(selector).first();
+  const preBox = await loc.boundingBox();
+  if (preBox === null) {
+    const prefix = role === 'selector' ? `element '${selector}'` : `'${role}' anchor '${selector}'`;
+    throw new RegionError(`Region '${regionName}': ${prefix} has no bounding box (likely display:none).`);
+  }
+  await loc.scrollIntoViewIfNeeded();
+  const box = await measureDocBox(page, loc);
+  if (box === null) {
+    const prefix = role === 'selector' ? `element '${selector}'` : `'${role}' anchor '${selector}'`;
+    throw new RegionError(`Region '${regionName}': ${prefix} has no bounding box (likely display:none).`);
+  }
+  return box;
+}
+
 /**
  * Capture a single named region to a PNG file at outputPath. Branches on
  * regionConfig shape: SELECTOR mode when `selector` is defined, ANCHOR mode
@@ -220,118 +258,42 @@ async function measureDocBox(page, loc) {
  *   matches the silent-library posture of Phase 3+ (the top-level catch in
  *   src/cli.js formats it via formatError's default branch).
  */
-export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {}, format = 'png', quality = 85, backdrop, deviceScaleFactor = 1 } = {}) {
+export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {}, format = 'png', quality = 85, backdrop, deviceScaleFactor } = {}) {
+  // When a backdrop is requested, deviceScaleFactor is REQUIRED — defaulting
+  // silently to 1 would produce visibly-undersized padding/radius on retina
+  // captures with no error signal. The historical default (=1) is preserved
+  // for the non-backdrop path where DSR doesn't matter for region output.
+  if (backdrop && (typeof deviceScaleFactor !== 'number' || !(deviceScaleFactor >= 1))) {
+    throw new RegionError(
+      `Region '${regionConfig.name}': backdrop requires deviceScaleFactor to be a number ≥ 1 (got ${deviceScaleFactor}).`,
+    );
+  }
   onProgress({ type: 'step', label: `Capturing region '${regionConfig.name}'` });
 
-  let clip;
+  // ANCHOR MODE ORDER (Pitfall 3): when both anchors are present, scroll +
+  // measure ATOMICALLY per anchor inside resolveAnchorBox. The second scroll
+  // may reflow the page if lazy triggers fire; measuring the first AFTER the
+  // second scroll would be stale. measureDocBox converts each post-scroll bbox
+  // to DOCUMENT-SPACE at measurement time — without this, the union of two
+  // bboxes taken at DIFFERENT scroll positions is mathematically wrong (the
+  // bboxes live in different coordinate spaces).
+  const padding = regionConfig.padding ?? 0;
+  let rect;
   if (regionConfig.selector !== undefined) {
-    // ---------------- SELECTOR MODE ----------------
-    // Use a fresh page.locator(sel) for count (does NOT mutate the .first()
-    // tagged locator; counts ALL matches, not "1 if .first() exists").
-    const count = await page.locator(regionConfig.selector).count();
-    if (count === 0) {
-      throw new RegionError(
-        `Region '${regionConfig.name}': selector '${regionConfig.selector}' matched no elements.`,
-      );
-    }
-    const loc = page.locator(regionConfig.selector).first();
-
-    // Pre-check boundingBox BEFORE scrollIntoViewIfNeeded — boundingBox()
-    // returns null synchronously for display:none / detached elements (Pitfall
-    // 2). scrollIntoViewIfNeeded on a display:none element waits for
-    // actionability and TIMES OUT after 30s — translating an invisible-element
-    // case into a TimeoutError instead of the intended RegionError. The
-    // pre-check intercepts that path and produces the actionable RegionError
-    // the <behavior> contract requires. boundingBox() is cheap (single CDP
-    // round-trip, no auto-wait).
-    const preBox = await loc.boundingBox();
-    if (preBox === null) {
-      throw new RegionError(
-        `Region '${regionConfig.name}': element '${regionConfig.selector}' has no bounding box (likely display:none).`,
-      );
-    }
-
-    // Element is visible: scroll it into view, then measure in DOCUMENT-SPACE
-    // (post-scroll bbox + current scrollY → doc-relative coords via
-    // measureDocBox — Plan 04 fix for the viewport-relative-bbox concern Wave 2
-    // deferred. Without the conversion, the subsequent screenshot({clip}) call
-    // would receive a viewport-relative clip and silently capture the wrong
-    // rectangle once Playwright resolves it against the current scroll
-    // position).
-    await loc.scrollIntoViewIfNeeded();
-    const box = await measureDocBox(page, loc);
-    if (box === null) {
-      // Should be unreachable given the pre-check, but defensive — the page
-      // could have mutated between pre-check and post-scroll.
-      throw new RegionError(
-        `Region '${regionConfig.name}': element '${regionConfig.selector}' has no bounding box (likely display:none).`,
-      );
-    }
-    clip = await clampToDocument(page, padRect(box, regionConfig.padding ?? 0));
+    rect = await resolveAnchorBox(page, regionConfig.name, 'selector', regionConfig.selector);
   } else {
-    // ---------------- ANCHOR MODE ----------------
-    // Wave 1 schema guarantees both `from` and `to` are present when
-    // `selector` is undefined; no defensive check needed beyond per-anchor
-    // count.
-    const fromCount = await page.locator(regionConfig.from).count();
-    if (fromCount === 0) {
-      throw new RegionError(
-        `Region '${regionConfig.name}': 'from' selector '${regionConfig.from}' matched no elements.`,
-      );
-    }
-    const toCount = await page.locator(regionConfig.to).count();
-    if (toCount === 0) {
-      throw new RegionError(
-        `Region '${regionConfig.name}': 'to' selector '${regionConfig.to}' matched no elements.`,
-      );
-    }
-
-    // ANCHOR MODE ORDER (Pitfall 3): scroll → measureDocBox → scroll →
-    // measureDocBox ATOMICALLY per anchor. The second scroll may reflow the
-    // page if lazy triggers fire; measuring the first AFTER the second scroll
-    // would be stale. measureDocBox converts each post-scroll bbox to
-    // DOCUMENT-SPACE at measurement time (Plan 04 fix for the viewport-
-    // relative-bbox concern Wave 2 deferred) — without this, the union of two
-    // bboxes taken at DIFFERENT scroll positions is mathematically wrong (the
-    // bboxes live in different coordinate spaces).
-    // Same display:none pre-check pattern as selector mode (above) —
-    // boundingBox is the visibility probe that scrollIntoViewIfNeeded would
-    // otherwise time out on.
-    const fromLoc = page.locator(regionConfig.from).first();
-    const preBoxFrom = await fromLoc.boundingBox();
-    if (preBoxFrom === null) {
-      throw new RegionError(
-        `Region '${regionConfig.name}': 'from' anchor '${regionConfig.from}' has no bounding box (likely display:none).`,
-      );
-    }
-    await fromLoc.scrollIntoViewIfNeeded();
-    const boxFrom = await measureDocBox(page, fromLoc);
-
-    const toLoc = page.locator(regionConfig.to).first();
-    const preBoxTo = await toLoc.boundingBox();
-    if (preBoxTo === null) {
-      throw new RegionError(
-        `Region '${regionConfig.name}': 'to' anchor '${regionConfig.to}' has no bounding box (likely display:none).`,
-      );
-    }
-    await toLoc.scrollIntoViewIfNeeded();
-    const boxTo = await measureDocBox(page, toLoc);
-    if (boxFrom === null || boxTo === null) {
-      // Defensive — pre-check covered the common case; defends against the
-      // page mutating between pre-check and post-scroll.
-      throw new RegionError(
-        `Region '${regionConfig.name}': anchor element has no bounding box (likely display:none).`,
-      );
-    }
-    clip = await clampToDocument(page, padRect(unionRect(boxFrom, boxTo), regionConfig.padding ?? 0));
+    const boxFrom = await resolveAnchorBox(page, regionConfig.name, 'from', regionConfig.from);
+    const boxTo = await resolveAnchorBox(page, regionConfig.name, 'to', regionConfig.to);
+    rect = unionRect(boxFrom, boxTo);
   }
+  const clip = await clampToDocument(page, padRect(rect, padding));
 
   // Wait ONE rAF roundtrip for paint to settle after the last
-  // scrollIntoViewIfNeeded — frames.js:112 mirror. With fullPage: true +
+  // scrollIntoViewIfNeeded — frames.js mirror. With fullPage: true +
   // document-space clip (below), no additional scroll is needed: Playwright
   // renders the full-page composite and crops to the document-relative clip
   // rect, so the current scroll position is irrelevant to the captured pixels.
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+  await waitForPaint(page);
 
   // Ensure parent directory exists BEFORE the screenshot writes — mkdir on
   // dirname(outputPath), NOT outputPath (capture/index.js:25-30 carry-over).
@@ -365,10 +327,21 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
   // When the user has opted into a colored backdrop, wrap the raw region
   // capture in a padded canvas before the format-encode hop. Same helper the
   // full-page path uses, so the visual treatment is identical across region
-  // and full-page outputs.
-  const framed = backdrop
-    ? await applyBackdrop(raw, { ...backdrop, deviceScaleFactor })
-    : raw;
+  // and full-page outputs. Errors are re-thrown as RegionError so the SSE
+  // client sees the region name in the message — otherwise a sharp failure
+  // bubbles as a bare Error with no breadcrumb.
+  let framed = raw;
+  if (backdrop) {
+    onProgress({ type: 'step', label: `Applying backdrop to region '${regionConfig.name}'` });
+    try {
+      framed = await applyBackdrop(raw, { ...backdrop, deviceScaleFactor });
+    } catch (err) {
+      throw new RegionError(
+        `Region '${regionConfig.name}': backdrop apply failed: ${err.message}`,
+        { cause: err },
+      );
+    }
+  }
   const encoded = await encodeImage(framed, { format, quality });
   await writeFile(outputPath, encoded);
 }

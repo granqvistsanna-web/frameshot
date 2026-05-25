@@ -6,13 +6,41 @@
 //     work in zod 3; we use the named export form.
 import { z } from 'zod';
 
+// Filename-safe name shape. Every `name:` field on viewports/regions/pages
+// flows into the output template (see runCapture.js:176) — these names become
+// path components in screenshots/<date>/{page}-{viewport}-{region}-{time}.{ext}.
+// Without this regex two attacks open up:
+//   1. Path traversal: a name like '../../etc/passwd' could escape SCREENSHOT_ROOT
+//      once template substitution joins it into the output path.
+//   2. XSS via the gallery: server/ui.js:tileLabel interpolates viewport/region
+//      names into innerHTML, so '<img onerror=...>' would execute on render.
+// Matches the UI's slug sanitizer at server/ui.js:splitBaseUrl — same allowlist,
+// enforced on both ends.
+const safeNameSchema = z
+  .string()
+  .regex(/^[a-zA-Z0-9._-]+$/, "may only contain letters, numbers, '.', '_', '-'");
+
+// Find the first duplicate value in a list of entries when read via `key`.
+// Returns the duplicated value or null. Shared by viewports/pages/regions
+// name-uniqueness refinements so each schema reports just the first collision
+// (cleaner UX than flooding the user with N issues for a single typo).
+function findFirstDuplicate(entries, key) {
+  const seen = new Set();
+  for (const entry of entries) {
+    const value = entry[key];
+    if (seen.has(value)) return value;
+    seen.add(value);
+  }
+  return null;
+}
+
 // v0.1 singular shape — kept for the singular-alias input path (name is optional).
 // Do NOT delete: the root mutual-exclusivity refinement still uses this for the
 // `viewport:` field, and the normalize transform reads from it.
 const viewportSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
-  name: z.string().min(1).optional(),
+  name: safeNameSchema.optional(),
 });
 
 // v0.2 plural shape — `name` is REQUIRED per D-02 so the {viewport} placeholder
@@ -23,14 +51,26 @@ const viewportSchema = z.object({
 // height. Used by the UI's Pinterest ratio chips: pinHeight = round(width × ratio).
 // pinOffset (optional, v0.5): fraction in [0..1] of "available vertical room"
 // (pageHeight - pinHeight). 0 = top of page (legacy behavior, default when omitted),
-// 1 = flush bottom. Only honored alongside pinHeight; ignored for full-page entries.
-export const viewportEntrySchema = z.object({
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
-  name: z.string().min(1),
-  pinHeight: z.number().int().positive().optional(),
-  pinOffset: z.number().min(0).max(1).optional(),
-});
+// 1 = flush bottom. Requires pinHeight — rejected at schema layer if set alone
+// (without that guard captureFrames silently no-ops via the `maxHeight !== undefined`
+// branch and the user sees no effect).
+export const viewportEntrySchema = z
+  .object({
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    name: safeNameSchema,
+    pinHeight: z.number().int().positive().optional(),
+    pinOffset: z.number().min(0).max(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.pinOffset !== undefined && data.pinHeight === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['pinOffset'],
+        message: `viewport '${data.name}': pinOffset requires pinHeight (it has no meaning without a pin window to slide)`,
+      });
+    }
+  });
 
 // Array of 1+ viewport entries with unique names.
 // .superRefine gives fine-grained control over path + message so formatZodError's
@@ -39,17 +79,13 @@ export const viewportEntrySchema = z.object({
 // explicit `path: ['viewports']` here would render as the doubled
 // `viewports.viewports`. Mirrors the regionSchema pattern below.
 export const viewportsSchema = z.array(viewportEntrySchema).min(1).superRefine((arr, ctx) => {
-  const seen = new Set();
-  for (const entry of arr) {
-    if (seen.has(entry.name)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [],
-        message: `duplicate name '${entry.name}'`,
-      });
-      return; // report only the first duplicate (cleaner UX)
-    }
-    seen.add(entry.name);
+  const dup = findFirstDuplicate(arr, 'name');
+  if (dup !== null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [],
+      message: `duplicate name '${dup}'`,
+    });
   }
 });
 
@@ -57,7 +93,7 @@ const pageSchema = z.object({
   // Leading slash enforced — gives a clear error when user writes `home` instead of `/home`
   path: z.string().startsWith('/'),
   // name is REQUIRED (not optional) — 02-03's template resolver substitutes it into {page}
-  name: z.string().min(1),
+  name: safeNameSchema,
 });
 
 // v0.3 plural shape — mirrors viewportEntrySchema/viewportsSchema. `name` is
@@ -67,23 +103,19 @@ const pageSchema = z.object({
 // set of routes.
 export const pageEntrySchema = z.object({
   path: z.string().startsWith('/'),
-  name: z.string().min(1),
+  name: safeNameSchema,
 });
 
 // path: [] for the same reason as viewportsSchema above — avoids the doubled
 // `pages.pages` surface when the parent field is also called `pages`.
 export const pagesSchema = z.array(pageEntrySchema).min(1).superRefine((arr, ctx) => {
-  const seen = new Set();
-  for (const entry of arr) {
-    if (seen.has(entry.name)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [],
-        message: `duplicate name '${entry.name}'`,
-      });
-      return; // report only the first duplicate (cleaner UX, matches viewportsSchema)
-    }
-    seen.add(entry.name);
+  const dup = findFirstDuplicate(arr, 'name');
+  if (dup !== null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [],
+      message: `duplicate name '${dup}'`,
+    });
   }
 });
 
@@ -139,7 +171,7 @@ const prepareSchema = z
 // downstream `captureRegion` consumers never have to write `?? 0`.
 export const regionSchema = z
   .object({
-    name: z.string().min(1),
+    name: safeNameSchema,
     selector: z.string().min(1).optional(),
     from: z.string().min(1).optional(),
     to: z.string().min(1).optional(),
@@ -333,20 +365,13 @@ export const configSchema = baseConfigSchema
     // (a) Duplicate region-name check. Matches Phase 7's `duplicate name '<X>'`
     //     message shape so formatZodError's catch-all renders this as
     //     `regions: duplicate name 'hero'` (mirrors viewportsSchema).
-    const names = data.regions.map((r) => r.name);
-    if (new Set(names).size !== names.length) {
-      const seen = new Set();
-      for (const n of names) {
-        if (seen.has(n)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['regions'],
-            message: `duplicate name '${n}'`,
-          });
-          break; // report only the first duplicate (cleaner UX, matches viewportsSchema)
-        }
-        seen.add(n);
-      }
+    const dup = findFirstDuplicate(data.regions, 'name');
+    if (dup !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['regions'],
+        message: `duplicate name '${dup}'`,
+      });
     }
 
     // (b) Overwrite-prevention check: when any region is declared, the output
@@ -371,10 +396,13 @@ export const configSchema = baseConfigSchema
  */
 
 // POST /api/zip body. `paths` is the list of run-output paths to bundle.
-// Max 200 keeps a hostile/malformed request from trying to zip the whole disk;
-// real runs top out around N viewports × M regions, well under that.
+// Max 200 entries keeps a hostile/malformed request from trying to zip the
+// whole disk; real runs top out around N viewports × M regions, well under
+// that. Per-path max 2000 chars caps the JSON payload size at the field
+// level — a legitimate framershot path is under 200 chars, so 2000 is
+// generous headroom while still blocking degenerate inputs.
 export const zipRequestSchema = z.object({
-  paths: z.array(z.string().min(1)).min(1).max(200),
+  paths: z.array(z.string().min(1).max(2000)).min(1).max(200),
   filename: z.string().min(1).max(120).optional(),
 });
 

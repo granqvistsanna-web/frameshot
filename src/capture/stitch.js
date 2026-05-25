@@ -45,8 +45,14 @@ export async function encodeImage(buffer, { format, quality }) {
 }
 
 // Parse a 6-digit hex like "#FFE45C" into sharp's { r, g, b } shape.
-// Schema validates the format upstream, so this trusts the input.
+// Schema validates the format upstream, but we re-check here so a direct
+// caller (e.g., a future CLI YAML path that bypasses the server schema)
+// gets a clear typed error instead of sharp receiving NaN channels and
+// silently rendering phantom pixels.
 function hexToRgb(hex) {
+  if (typeof hex !== 'string' || !/^#?[0-9a-fA-F]{6}$/.test(hex)) {
+    throw new Error(`backdrop.color must be a 6-digit hex like #FFE45C, got: ${JSON.stringify(hex)}`);
+  }
   const h = hex.replace('#', '');
   return {
     r: parseInt(h.slice(0, 2), 16),
@@ -69,12 +75,24 @@ function hexToRgb(hex) {
  * @returns {Promise<Buffer>} — PNG buffer; caller hands off to encodeImage
  */
 export async function applyBackdrop(buffer, { color, padding, radius, deviceScaleFactor }) {
-  const dsr = deviceScaleFactor || 1;
-  const padPx = Math.round(padding * dsr);
-  const radPx = Math.round(radius * dsr);
+  // deviceScaleFactor is REQUIRED — defaulting silently to 1 produces
+  // undersized padding/radius on retina captures with no error signal. Better
+  // to fail loud than ship a visually-broken output.
+  if (typeof deviceScaleFactor !== 'number' || !(deviceScaleFactor >= 1)) {
+    throw new Error(`applyBackdrop: deviceScaleFactor must be a number ≥ 1 (got ${deviceScaleFactor})`);
+  }
+  const padPx = Math.round(padding * deviceScaleFactor);
   const meta = await sharp(buffer).metadata();
   const innerW = meta.width;
   const innerH = meta.height;
+
+  // Clamp radius to half the shorter image dimension. Without this, a small
+  // region capture (say 200px wide) combined with a max-radius config produces
+  // an unintended ellipse — the SVG mask is technically valid but the result
+  // is visually wrong with no warning. Clamping silently caps at a perfect
+  // half-circle, which is the visually-sensible upper bound.
+  const radPxRaw = Math.round(radius * deviceScaleFactor);
+  const radPx = Math.min(radPxRaw, Math.floor(Math.min(innerW, innerH) / 2));
 
   // Step 1 — optionally round the inner image's corners via an SVG alpha mask.
   // dest-in keeps the source pixels only where the mask is opaque, producing
@@ -128,10 +146,18 @@ export async function applyBackdrop(buffer, { color, padding, radius, deviceScal
  *   frameYOffsets: number[],
  *   deviceScaleFactor: number
  * }} geometry — the geometry payload from captureFrames.
- * @param {{ format?: 'png'|'jpeg'|'webp', quality?: number, backdrop?: { color, padding, radius } }} [options]
+ * @param {{
+ *   format?: 'png'|'jpeg'|'webp',
+ *   quality?: number,
+ *   backdrop?: { color, padding, radius },
+ *   onStepEvent?: (event: { label: string }) => void
+ * }} [options]
+ *   onStepEvent: optional callback invoked between composite and backdrop-apply
+ *   (and elsewhere if we add more long-running sharp hops). Lets the caller
+ *   emit human-readable progress for SSE clients; omitted = silent.
  * @returns {Promise<Buffer>} — encoded image buffer in the requested format.
  */
-export async function stitchFrames(frames, geometry, { format = 'png', quality = 85, backdrop } = {}) {
+export async function stitchFrames(frames, geometry, { format = 'png', quality = 85, backdrop, onStepEvent } = {}) {
   const { viewportWidth, totalHeight, frameYOffsets, deviceScaleFactor } = geometry;
 
   // Physical-pixel canvas dimensions.
@@ -171,6 +197,10 @@ export async function stitchFrames(frames, geometry, { format = 'png', quality =
     .png()
     .toBuffer();
   if (backdrop) {
+    // Emit BEFORE the (potentially-slow) sharp pipeline so an SSE client sees
+    // the step transition even if applyBackdrop throws — otherwise the failure
+    // looks like the frame loop crashed.
+    onStepEvent?.({ label: 'Applying backdrop' });
     composited = await applyBackdrop(composited, { ...backdrop, deviceScaleFactor });
   }
   return encodeImage(composited, { format, quality });
