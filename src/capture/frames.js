@@ -132,6 +132,49 @@ export async function captureFrames(page, options = {}) {
       await new Promise((r) => setTimeout(r, frameDelay));
     }
 
+    // (b3) Frame-0 only: force every fixed/sticky element back to a visible
+    //      state. scrollPrime walked the page top-to-bottom to trigger lazy
+    //      loads; any hide-on-scroll nav saw "scroll down" and applied an
+    //      inline hide (transform: translateY(-100%), opacity: 0, etc.).
+    //      Jumping back to scrollY=0 + dispatching a synthetic scroll event
+    //      reliably reaches handlers that listen on native scroll, but misses
+    //      Framer Motion's own scroll abstraction and direction-tracking
+    //      handlers. We override the hide here instead — it works regardless
+    //      of HOW the element was hidden. Only the translateY component of
+    //      transform is zeroed so centered/scaled fixed elements (which use
+    //      translateX(-50%) / scale()) are preserved. After frame 0, the
+    //      hideStickyAfterFirstFrame block below tears everything back down
+    //      with visibility:hidden so the nav doesn't tile in scrolled frames.
+    if (i === 0 && hideStickyAfterFirstFrame) {
+      await page.evaluate(() => {
+        for (const el of document.querySelectorAll('*')) {
+          const cs = getComputedStyle(el);
+          if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+
+          if (parseFloat(cs.opacity) < 1) {
+            el.style.setProperty('opacity', '1', 'important');
+          }
+          if (cs.visibility === 'hidden') {
+            el.style.setProperty('visibility', 'visible', 'important');
+          }
+          const t = cs.transform;
+          if (t && t !== 'none') {
+            try {
+              const m = new DOMMatrix(t);
+              if (Math.abs(m.m42) > 0.5) {
+                m.m42 = 0;
+                el.style.setProperty('transform', m.toString(), 'important');
+              }
+            } catch {
+              el.style.setProperty('transform', 'none', 'important');
+            }
+          }
+        }
+      });
+      // Let the reveal paint before the screenshot resolves.
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+    }
+
     // (c) Screenshot this viewport in physical pixels:
     //   - clip in CSS pixels (Playwright types.d.ts:24276-24296)
     //   - scale: 'device' → output = CSS × DSR physical pixels (CAP-02 retina)
