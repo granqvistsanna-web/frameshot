@@ -150,6 +150,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
           onProgress: (current, total) => {
             onProgress({ type: 'frame', viewport: vp.name, current, total });
           },
+          hideStickyAfterFirstFrame: config.prepare.hideStickyAfterFirstFrame,
         });
         results.push({ outputPath, hideSummary, viewportName: vp.name });
       } else {
@@ -182,6 +183,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             onProgress: (current, total) => {
               onProgress({ type: 'frame', viewport: vp.name, current, total });
             },
+            hideStickyAfterFirstFrame: config.prepare.hideStickyAfterFirstFrame,
           });
           results.push({ outputPath, hideSummary, viewportName: vp.name });
         }

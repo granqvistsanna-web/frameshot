@@ -19,7 +19,7 @@
 //   2. scrollPrime    — gated on prepareConfig.scrollPrime (schema.js:29)
 //   3. extraDelay     — unconditional call; function short-circuits on ms<=0
 
-import { hideSelectors } from './hide.js';
+import { hideSelectors, hideFramerBadge } from './hide.js';
 import { scrollPrime, extraDelay } from './scroll.js';
 export { installAnimationGuards } from './animations.js';
 
@@ -40,6 +40,13 @@ export { installAnimationGuards } from './animations.js';
 export async function runPreparePipeline(page, prepareConfig) {
   // PREP-03 — hide selectors. Empty list is a no-op (hide.js short-circuits).
   const hideSummary = await hideSelectors(page, prepareConfig.hide);
+
+  // Framer-specific: hide the "Made in Framer" badge before any frame is
+  // captured. Default-on per schema. Silent on no-match — absence on
+  // non-Framer sites is expected, not an error.
+  if (prepareConfig.hideFramerBadge) {
+    await hideFramerBadge(page);
+  }
 
   // PREP-04 — scroll prime. Gated by config; defaults to true.
   if (prepareConfig.scrollPrime) {

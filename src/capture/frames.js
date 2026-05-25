@@ -35,14 +35,19 @@
  * @param {import('playwright-chromium').Page} page — a Page already prepared by
  *   Phase 4 (animations frozen, IO triggers fired, hidden selectors removed,
  *   scroll-primed; scrollY=0 at entry).
- * @param {{ onProgress?: (current: number, total: number) => void }} [options={}]
- *   Optional options bag. Phase 6 owns this contract — see
+ * @param {{ onProgress?: (current: number, total: number) => void, hideStickyAfterFirstFrame?: boolean }} [options={}]
+ *   Optional options bag. Phase 6 owns the onProgress contract — see
  *   .planning/phases/06-terminal-ux/06-RESEARCH.md §Pattern 2.
  *   - onProgress: called once per frame AFTER the screenshot resolves with
  *     (current, total) where current is 1-indexed and total is frameYOffsets.length.
  *     Backward compatible: omitting options or onProgress silently no-ops via
  *     optional chaining. The library MUST NOT import ora/chalk — the callback IS
  *     the bridge; the library calls it, the CLI displays.
+ *   - hideStickyAfterFirstFrame: when true (default), AFTER frame 0 is captured
+ *     every computed-position fixed/sticky element is hidden via
+ *     visibility:hidden !important. Prevents sticky navs/banners from tiling
+ *     down the stitched image at each scroll step. visibility preserves layout
+ *     so the geometry-once invariant (Step 1) is unaffected.
  * @returns {Promise<{
  *   frames: Buffer[],
  *   geometry: {
@@ -70,7 +75,7 @@
  *   overlap region cleanly. Pattern 1 lines 327-332.
  */
 export async function captureFrames(page, options = {}) {
-  const { onProgress } = options;
+  const { onProgress, hideStickyAfterFirstFrame = true } = options;
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
   const { viewportWidth, viewportHeight, totalHeight, deviceScaleFactor } =
@@ -134,6 +139,22 @@ export async function captureFrames(page, options = {}) {
     // Phase 6 owns this contract; see 06-RESEARCH.md §Pattern 2.
     // Uses optional chaining — when onProgress is undefined this is a silent no-op.
     onProgress?.(i + 1, total);
+
+    // After frame 0 only: hide every computed-position fixed/sticky element so
+    // they don't tile down every subsequent frame. visibility:hidden preserves
+    // layout — scrollHeight stays put, so the geometry-once invariant (Step 1)
+    // still holds and frameYOffsets remain correct. Idempotent (only runs once,
+    // gated by i === 0) and gated by the caller flag (default ON).
+    if (i === 0 && hideStickyAfterFirstFrame && total > 1) {
+      await page.evaluate(() => {
+        for (const el of document.querySelectorAll('*')) {
+          const pos = getComputedStyle(el).position;
+          if (pos === 'fixed' || pos === 'sticky') {
+            el.style.setProperty('visibility', 'hidden', 'important');
+          }
+        }
+      });
+    }
   }
 
   // Step 4 — Return ordered buffers + geometry for the stitcher (05-02).

@@ -1,6 +1,8 @@
 // src/prepare/hide.js
 // Phase 4 wave 1: post-navigation element hiding for PREP-03. Exports:
 // hideSelectors(page, selectors) → { matched, missed }.
+// Also exports hideFramerBadge(page) → { matched } for the Framer-specific
+// badge sweep (see prepareSchema.hideFramerBadge in src/config/schema.js).
 //
 // IMPORTANT: This module has NO console output, NO process.exit, and NO chalk/ora.
 // It is pure library code. Errors from page.evaluate bubble; the caller
@@ -83,4 +85,36 @@ export async function hideSelectors(page, selectors) {
     }
     return { matched, missed };
   }, selectors);
+}
+
+/**
+ * Hide the "Made in Framer" badge using known selectors plus a defensive
+ * computed-style sweep (any position:fixed anchor pointing at framer.com).
+ * Uses `visibility: hidden !important` — same reasoning as hideSelectors:
+ * `display:none` would shrink scrollHeight and break the capture loop's
+ * frame math. Silent on no-match — the badge legitimately doesn't exist on
+ * non-Framer sites, and absence is not an error.
+ *
+ * @param {import('playwright-chromium').Page} page — post-navigation page
+ * @returns {Promise<{ matched: number }>} — node count hidden (informational)
+ */
+export async function hideFramerBadge(page) {
+  return page.evaluate(() => {
+    let matched = 0;
+    const hide = (node) => {
+      node.style.setProperty('visibility', 'hidden', 'important');
+      matched++;
+    };
+    // Known container id used by Framer's published site runtime.
+    const byId = document.getElementById('__framer-badge-container');
+    if (byId) hide(byId);
+    // Defensive sweep: any fixed-position anchor targeting framer.com is
+    // almost certainly the badge link. Avoids accidentally hiding inline
+    // framer.com links in page body content (those are not position:fixed).
+    for (const a of document.querySelectorAll('a[href*="framer.com"]')) {
+      if (a === byId) continue;
+      if (getComputedStyle(a).position === 'fixed') hide(a);
+    }
+    return { matched };
+  });
 }
