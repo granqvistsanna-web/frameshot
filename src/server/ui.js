@@ -1366,8 +1366,8 @@ function fillForm(saved) {
   els.pageName.value = saved.page.name;
 
   // Restore the viewport selection. Recent-runs entries may carry either the
-  // legacy single `viewport` field (pre-multi-viewport runs) or the new
-  // `viewports` array. Treat the legacy field as a one-item array so old
+  // legacy single viewport field (pre-multi-viewport runs) or the new
+  // viewports array. Treat the legacy field as a one-item array so old
   // stored runs replay cleanly.
   const savedViewports = saved.viewports
     ?? (saved.viewport ? [saved.viewport] : []);
@@ -1601,7 +1601,13 @@ els.form.addEventListener('submit', async (e) => {
   logReset();
   frameBarFill = null;
   setLed('running', 'capturing');
-  logLine('begin · ' + shortHost(input.baseUrl) + input.page.path);
+  const vpCount = input.viewports.length;
+  const parallel = vpCount > 1;
+  if (parallel) {
+    logLine('begin · ' + vpCount + ' viewports · up to ' + input.concurrency + ' in parallel');
+  } else {
+    logLine('begin · ' + shortHost(input.baseUrl) + input.page.path);
+  }
 
   let response;
   try {
@@ -1649,21 +1655,42 @@ els.form.addEventListener('submit', async (e) => {
         if (!line) continue;
         const event = JSON.parse(line.slice(6));
 
+        // Multi-viewport runs interleave events from N parallel workers, so
+        // every log line carries a viewport prefix in that mode. Single-
+        // viewport runs keep the cleaner unprefixed format. The active-line
+        // animation (used by logActive) tracks one capture at a time and
+        // would thrash across viewports, so multi-viewport mode falls back to
+        // discrete log lines + suppresses the frame bar (frame events from
+        // N workers can't share a single bar meaningfully).
+        const prefix = parallel && event.viewport ? '[' + event.viewport + '] ' : '';
+
         if (event.type === 'step') {
-          logActive(event.label.toLowerCase());
+          if (parallel) {
+            logLine(prefix + event.label.toLowerCase());
+          } else {
+            logActive(event.label.toLowerCase());
+          }
         } else if (event.type === 'frame') {
-          logActive('frame ' + String(event.current).padStart(2, '0') + ' / ' + String(event.total).padStart(2, '0'));
-          setFrameBar(event.current, event.total);
+          if (parallel) {
+            // Skip — frame events from N viewports flood the log and the
+            // shared frame bar is meaningless. Step events still mark progress.
+          } else {
+            logActive('frame ' + String(event.current).padStart(2, '0') + ' / ' + String(event.total).padStart(2, '0'));
+            setFrameBar(event.current, event.total);
+          }
         } else if (event.type === 'warning' && event.kind === 'hide-missed') {
           for (const sel of event.selectors) {
-            logLine('hide "' + sel + '" matched nothing · skipped', 'warn');
+            logLine(prefix + 'hide "' + sel + '" matched nothing · skipped', 'warn');
           }
         } else if (event.type === 'done') {
           succeeded = true;
           const active = els.status.querySelector('.log-line.active');
           if (active) active.classList.remove('active');
           const outputs = event.outputs || [];
-          for (const o of outputs) logLine('done · ' + o.outputPath, 'ok');
+          for (const o of outputs) {
+            const tag = parallel && o.viewportName ? '[' + o.viewportName + '] ' : '';
+            logLine('done · ' + tag + o.outputPath, 'ok');
+          }
           setLed('ok', 'ready');
           const last = outputs[outputs.length - 1];
           if (last) showResult(last.urlPath, last.outputPath);
