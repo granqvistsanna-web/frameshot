@@ -81,7 +81,7 @@ export function renderUi() {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: radial-gradient(circle at 30% 0%, rgba(255, 92, 27, 0.10), transparent 65%);
+    background: radial-gradient(circle at 50% -20%, rgba(255, 92, 27, 0.09), transparent 70%);
     z-index: 0;
   }
   .head > * { position: relative; z-index: 1; }
@@ -96,19 +96,20 @@ export function renderUi() {
     text-transform: uppercase;
     color: var(--fg-2);
     background: var(--surface-2);
-    padding: 4px 8px;
+    padding: 4px 10px 4px 9px;
     border: 1px solid var(--rule-2);
-    border-radius: 4px;
+    border-radius: 999px;
     font-feature-settings: 'tnum', 'zero';
   }
   .build-tag::before {
     content: '';
     display: inline-block;
     width: 5px; height: 5px;
-    background: var(--accent);
+    background: var(--ok);
     margin-right: 7px;
     transform: translateY(-1px);
     border-radius: 50%;
+    box-shadow: 0 0 6px rgba(111, 207, 151, 0.45);
   }
 
   .wordmark {
@@ -159,11 +160,7 @@ export function renderUi() {
     padding-right: 10px;
     margin-right: 4px;
   }
-  .section-label .rule {
-    flex: 1;
-    height: 1px;
-    background: var(--rule);
-  }
+  .section-label .rule { display: none; }
 
   /* ── FORM ────────────────────────────────────────────── */
   form { padding: 24px 28px 28px; }
@@ -446,34 +443,11 @@ export function renderUi() {
   .led.err { background: var(--err); box-shadow: 0 0 6px var(--err); }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
-  /* Bracketed frames — four corner registration marks via background gradients */
   .bracketed {
-    --bw: 1px;
-    --bl: 10px;
-    --bc: var(--rule-2);
-    --bp: 0;
     position: relative;
-    background-color: var(--surface);
-    background-image:
-      linear-gradient(var(--bc), var(--bc)),
-      linear-gradient(var(--bc), var(--bc)),
-      linear-gradient(var(--bc), var(--bc)),
-      linear-gradient(var(--bc), var(--bc)),
-      linear-gradient(var(--bc), var(--bc)),
-      linear-gradient(var(--bc), var(--bc)),
-      linear-gradient(var(--bc), var(--bc)),
-      linear-gradient(var(--bc), var(--bc));
-    background-size:
-      var(--bl) var(--bw),  var(--bw) var(--bl),
-      var(--bl) var(--bw),  var(--bw) var(--bl),
-      var(--bl) var(--bw),  var(--bw) var(--bl),
-      var(--bl) var(--bw),  var(--bw) var(--bl);
-    background-position:
-      var(--bp) var(--bp),                   var(--bp) var(--bp),
-      calc(100% - var(--bp)) var(--bp),      calc(100% - var(--bp)) var(--bp),
-      var(--bp) calc(100% - var(--bp)),      var(--bp) calc(100% - var(--bp)),
-      calc(100% - var(--bp)) calc(100% - var(--bp)), calc(100% - var(--bp)) calc(100% - var(--bp));
-    background-repeat: no-repeat;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
   }
 
   .log-frame {
@@ -676,6 +650,97 @@ export function renderUi() {
     letter-spacing: -0.005em;
   }
 
+  /* ── GALLERY (N>1 outputs) ───────────────────────────── */
+  .gallery-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .gallery-actions .summary {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--fg-3);
+    font-feature-settings: 'tnum';
+  }
+  .gallery-actions .summary .count { color: var(--fg-2); }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .gallery-tile {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: plate-in 380ms cubic-bezier(.2, .7, .2, 1) both;
+  }
+  .gallery-tile .tile-img {
+    background: #fff;
+    aspect-ratio: 4 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .gallery-tile .tile-img img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  .gallery-tile .tile-meta {
+    padding: 10px 12px 6px;
+    border-top: 1px solid var(--rule);
+  }
+  .gallery-tile .tile-label {
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--fg);
+    letter-spacing: -0.005em;
+  }
+  .gallery-tile .tile-label .tag {
+    color: var(--accent);
+    margin-left: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 400;
+  }
+  .gallery-tile .tile-path {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gallery-tile .tile-actions {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px 12px;
+  }
+  .gallery-tile .tile-actions .meta-btn {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 9px;
+    letter-spacing: 0.10em;
+    justify-content: center;
+    gap: 4px;
+  }
+
   /* ── RIGHT RAIL ──────────────────────────────────────── */
   .right-rail .rail-head {
     padding: 22px 22px 14px;
@@ -719,7 +784,7 @@ export function renderUi() {
     position: absolute;
     right: 22px;
     top: 16px;
-    color: var(--accent);
+    color: var(--fg-3);
     font-family: var(--sans);
     font-style: normal;
     font-weight: 500;
@@ -727,9 +792,10 @@ export function renderUi() {
     line-height: 1;
     opacity: 0;
     transform: translateX(-4px);
-    transition: opacity 180ms ease-out, transform 180ms ease-out;
+    transition: opacity 180ms ease-out, transform 180ms ease-out, color 180ms ease-out;
     pointer-events: none;
   }
+  .runs li:hover .recall-glyph { color: var(--fg-2); }
   .runs li .idx {
     font-family: var(--mono);
     font-size: 9px;
@@ -981,9 +1047,9 @@ export function renderUi() {
   .concurrency-badge {
     font-family: var(--mono);
     font-size: 12px;
-    color: var(--accent);
-    background: var(--accent-soft);
-    border: 1px solid var(--accent);
+    color: var(--fg);
+    background: var(--surface-3);
+    border: 1px solid var(--rule-2);
     border-radius: 6px;
     padding: 3px 9px;
     min-width: 28px;
@@ -1157,6 +1223,11 @@ export function renderUi() {
         </div>
       </div>
       <div class="bracketed preview-frame empty" id="result">no exposure yet</div>
+      <div id="gallery-actions" class="gallery-actions" hidden>
+        <div class="summary">Run output · <span class="count" id="gallery-count">0</span> files</div>
+        <button class="meta-btn primary" id="download-all" type="button"><span class="arrow">↓</span> Download all · zip</button>
+      </div>
+      <div id="result-gallery" class="gallery-grid" hidden></div>
     </div>
 
   </main>
@@ -1219,6 +1290,10 @@ const els = {
   resultOpen: $('result-open'),
   resultDownload: $('result-download'),
   resultReveal: $('result-reveal'),
+  gallery: $('result-gallery'),
+  galleryActions: $('gallery-actions'),
+  galleryCount: $('gallery-count'),
+  downloadAll: $('download-all'),
   runs: $('runs'),
   railCount: $('rail-count'),
   clearRuns: $('clear-runs'),
@@ -1227,7 +1302,8 @@ const els = {
 };
 
 const platform = navigator.userAgentData?.platform ?? navigator.platform ?? '';
-if (!/mac/i.test(platform)) els.resultReveal.hidden = true;
+const IS_MAC = /mac/i.test(platform);
+if (!IS_MAC) els.resultReveal.hidden = true;
 
 // Two chip groups — devices set the rendering width/height; ratios are
 // multipliers that turn each device into an additional pin-shaped capture.
@@ -1646,20 +1722,107 @@ function deriveDownloadName(outputPath) {
 }
 
 let lastOutputPath = null;
+// Persisted across the run so the "Download all" button can post the full list
+// to /api/zip without re-reading the (now-cleared) log.
+let currentOutputs = [];
 
-function showResult(urlPath, outputPath) {
-  lastOutputPath = outputPath;
+// Tile label: prefer "viewport · region" when both exist; fall back to whichever
+// is present. The full-page-with-regions entry only has viewportName, so it
+// renders as just the viewport name — distinguishable from the region tiles
+// because regions add the " · <name>" suffix.
+function tileLabel(o) {
+  if (o.viewportName && o.regionName) {
+    return o.viewportName + ' <span class="tag">' + o.regionName + '</span>';
+  }
+  return o.viewportName || o.regionName || 'capture';
+}
+
+function showHero(output) {
+  lastOutputPath = output.outputPath;
   els.result.classList.remove('empty');
   els.result.innerHTML = '';
   els.resultMeta.hidden = false;
-  els.resultPath.textContent = outputPath;
-  els.resultOpen.href = urlPath;
-  els.resultDownload.href = urlPath;
-  els.resultDownload.setAttribute('download', deriveDownloadName(outputPath));
+  els.resultPath.textContent = output.outputPath;
+  els.resultOpen.href = output.urlPath;
+  els.resultDownload.href = output.urlPath;
+  els.resultDownload.setAttribute('download', deriveDownloadName(output.outputPath));
   const img = new Image();
-  img.src = urlPath + '?t=' + Date.now();
+  img.src = output.urlPath + '?t=' + Date.now();
   img.alt = 'capture';
   els.result.appendChild(img);
+}
+
+function showGallery(outputs) {
+  // Hide the single-hero meta + image; gallery owns the panel.
+  els.resultMeta.hidden = true;
+  els.result.classList.add('empty');
+  els.result.hidden = true;
+  els.gallery.hidden = false;
+  els.galleryActions.hidden = false;
+  els.galleryCount.textContent = outputs.length;
+  els.gallery.innerHTML = '';
+  const bust = '?t=' + Date.now();
+  for (const o of outputs) {
+    const tile = document.createElement('div');
+    tile.className = 'gallery-tile';
+    const revealHtml = IS_MAC
+      ? '<button class="meta-btn tile-reveal" type="button">Reveal</button>'
+      : '';
+    tile.innerHTML =
+      '<div class="tile-img"><img alt="capture"></div>' +
+      '<div class="tile-meta">' +
+        '<div class="tile-label">' + tileLabel(o) + '</div>' +
+        '<div class="tile-path" title=""></div>' +
+      '</div>' +
+      '<div class="tile-actions">' +
+        '<a class="meta-btn primary tile-download" download><span class="arrow">↓</span></a>' +
+        revealHtml +
+        '<a class="meta-btn tile-open" target="_blank" rel="noopener">↗</a>' +
+      '</div>';
+    // Set attributes via DOM (not innerHTML) for the user-controlled paths so
+    // we don't need to HTML-escape them — outputPath comes from the server but
+    // belt-and-braces is cheaper than thinking through every edge case.
+    tile.querySelector('img').src = o.urlPath + bust;
+    const pathEl = tile.querySelector('.tile-path');
+    pathEl.textContent = o.outputPath;
+    pathEl.title = o.outputPath;
+    const dl = tile.querySelector('.tile-download');
+    dl.href = o.urlPath;
+    dl.setAttribute('download', deriveDownloadName(o.outputPath));
+    tile.querySelector('.tile-open').href = o.urlPath;
+    if (IS_MAC) {
+      tile.querySelector('.tile-reveal').addEventListener('click', async () => {
+        try {
+          const r = await fetch('/api/reveal', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ path: o.outputPath }),
+          });
+          if (!r.ok) logLine('reveal · ' + (await r.text()), 'warn');
+        } catch (err) {
+          logLine('reveal · ' + err.message, 'warn');
+        }
+      });
+    }
+    els.gallery.appendChild(tile);
+  }
+}
+
+function hideGallery() {
+  els.gallery.hidden = true;
+  els.galleryActions.hidden = true;
+  els.gallery.innerHTML = '';
+  els.result.hidden = false;
+}
+
+function showResults(outputs) {
+  currentOutputs = outputs;
+  if (outputs.length <= 1) {
+    hideGallery();
+    if (outputs.length === 1) showHero(outputs[0]);
+    return;
+  }
+  showGallery(outputs);
 }
 
 let copiedFlash = null;
@@ -1681,6 +1844,44 @@ els.resultPath.addEventListener('click', async () => {
     }, 1400);
   } catch {
     // clipboard may be blocked — path is still visible on screen
+  }
+});
+
+els.downloadAll.addEventListener('click', async () => {
+  if (currentOutputs.length === 0) return;
+  const btn = els.downloadAll;
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Bundling…';
+  try {
+    const res = await fetch('/api/zip', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ paths: currentOutputs.map((o) => o.outputPath) }),
+    });
+    if (!res.ok) {
+      logLine('zip · ' + (await res.text()), 'err');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    // Filename: prefer the server's Content-Disposition (it knows the run's
+    // exact timestamp); fall back to a UI-side stamp if absent.
+    const cd = res.headers.get('content-disposition') || '';
+    const match = cd.match(/filename="([^"]+)"/);
+    const fallback = 'framershot-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.zip';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? match[1] : fallback;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    logLine('zip · ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   }
 });
 
@@ -1711,6 +1912,11 @@ els.form.addEventListener('submit', async (e) => {
   setSubmitting(true);
   logReset();
   frameBarFill = null;
+  // Clear any prior run's gallery so tiles from the last capture don't linger
+  // while the new run streams in. The single-hero preview (els.result) is left
+  // alone — it'll be overwritten by showResults() when the new outputs land.
+  hideGallery();
+  currentOutputs = [];
   setLed('running', 'capturing');
   const vpCount = input.viewports.length;
   const parallel = vpCount > 1;
@@ -1804,8 +2010,7 @@ els.form.addEventListener('submit', async (e) => {
             logLine('done · ' + tag + o.outputPath, 'ok');
           }
           setLed('ok', 'ready');
-          const last = outputs[outputs.length - 1];
-          if (last) showResult(last.urlPath, last.outputPath);
+          showResults(outputs);
         } else if (event.type === 'error') {
           logLine(event.message, 'err');
           setLed('err', 'error');
