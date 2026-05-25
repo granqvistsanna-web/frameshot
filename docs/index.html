@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>framershot — clean retina screenshots of Framer sites</title>
+<meta name="description" content="Local CLI for clean, retina-quality screenshots of Framer sites. Node + Playwright. Browser UI or YAML config.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23171513'/%3E%3Crect x='3' y='3' width='10' height='10' fill='%23f4f0e8'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f4f0e8;
+    --ink: #171513;
+    --muted: #6b655c;
+    --rule: #d9d2c4;
+    --accent: #b0411e;
+    --code-bg: #ebe6d9;
+    --code-ink: #1f1c18;
+    --pre-bg: #171513;
+    --pre-ink: #ebe6d9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131210;
+      --ink: #ebe6d9;
+      --muted: #8a847a;
+      --rule: #2a2722;
+      --accent: #e8794d;
+      --code-bg: #221f1b;
+      --code-ink: #ebe6d9;
+      --pre-bg: #0a0908;
+      --pre-ink: #d9d2c4;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Inter", "Helvetica Neue", sans-serif;
+    font-size: 16.5px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 80px 28px 120px; }
+
+  header { margin-bottom: 64px; }
+  .mark {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin: 0 0 24px;
+  }
+  h1 {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin: 0 0 18px;
+    font-weight: 500;
+  }
+  .lede {
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink);
+    margin: 0 0 28px;
+    max-width: 580px;
+  }
+  .meta {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .meta a { color: var(--muted); border-bottom: 1px solid var(--rule); }
+  .meta a:hover { color: var(--accent); border-color: var(--accent); }
+
+  h2 {
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 56px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 500;
+  }
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 10px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+  a:hover { opacity: 0.75; }
+
+  code {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--pre-bg);
+    color: var(--pre-ink);
+    padding: 18px 20px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.6;
+    margin: 0 0 18px;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+
+  ul { padding-left: 20px; margin: 0 0 16px; }
+  li { margin: 6px 0; }
+  li code { font-size: 0.86em; }
+
+  .callout {
+    border-left: 2px solid var(--accent);
+    padding: 4px 0 4px 16px;
+    margin: 18px 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .callout strong { color: var(--ink); font-weight: 600; }
+
+  footer {
+    margin-top: 96px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  footer a { color: var(--muted); border-color: var(--rule); }
+  footer a:hover { color: var(--accent); border-color: var(--accent); }
+
+  .kbd {
+    display: inline-block;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    padding: 1px 6px;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="mark">v0.2 · node ≥ 20 · mit</p>
+  <h1>framershot</h1>
+  <p class="lede">A local CLI for clean, retina-quality screenshots of Framer sites. Disables animations, hides sticky bars, primes lazy content, then captures full-page or pinned regions at 2×.</p>
+  <p class="meta">
+    <a href="https://github.com/granqvistsanna-web/frameshot">github →</a>
+    <span>node ≥ 20</span>
+    <span>playwright chromium</span>
+  </p>
+</header>
+
+<div class="callout">
+  <strong>Heads-up.</strong> This page is documentation. framershot itself runs locally — it needs Node and a real browser, so it can&rsquo;t execute inside GitHub Pages.
+</div>
+
+<h2>Install</h2>
+<pre><code>git clone https://github.com/granqvistsanna-web/frameshot.git
+cd frameshot
+npm install</code></pre>
+
+<h2>Two ways to use it</h2>
+
+<h3>1. Browser UI</h3>
+<p>Paste a Framer URL, hit capture. Good for one-offs.</p>
+<pre><code>node index.js               <span style="opacity:.55"># opens UI on :5173</span>
+node index.js serve -p 8080 <span style="opacity:.55"># custom port, no auto-open</span></code></pre>
+
+<h3>2. CLI with a YAML config</h3>
+<p>Repeatable, scriptable. Output paths are printed one per line to stdout, so you can <code>grep</code> or pipe.</p>
+<pre><code>node index.js capture config.yaml
+node index.js capture config.yaml --only hero
+node index.js capture config.yaml --smoke</code></pre>
+
+<h2>Minimal config</h2>
+<pre><code>name: my-site
+baseUrl: https://example.framer.website
+output: ./screenshots/{date}/{viewport}/{page}.png
+deviceScaleFactor: 2
+viewport:
+  width: 1440
+  height: 900
+  name: desktop
+page:
+  path: /
+  name: home
+prepare:
+  animations: true     <span style="opacity:.55"># framer-friendly</span>
+  scrollPrime: true    <span style="opacity:.55"># load lazy content</span>
+  extraDelay: 500
+  hide:
+    - 'nav.sticky'
+    - '#consent-banner'</code></pre>
+<p>Template placeholders: <code>{date}</code>, <code>{viewport}</code>, <code>{page}</code>, <code>{region}</code>.</p>
+
+<h2>Multi-viewport</h2>
+<p>Use plural <code>viewports:</code> — each <code>name</code> must be unique so <code>{viewport}</code> can&rsquo;t collide:</p>
+<pre><code>viewports:
+  - { name: desktop, width: 1440, height: 900 }
+  - { name: mobile,  width: 375,  height: 667 }</code></pre>
+<p><code>viewport:</code> (singular) and <code>viewports:</code> (plural) are mutually exclusive.</p>
+
+<h2>Region capture</h2>
+<p>Capture a piece of the page instead of the whole thing. Two modes:</p>
+<ul>
+  <li><strong>Selector</strong> — one element: <code>selector: '[data-test="hero"]'</code></li>
+  <li><strong>Anchor</strong> — span from one element to another: <code>from:</code> + <code>to:</code></li>
+</ul>
+<pre><code>regions:
+  - name: hero
+    selector: '[data-test="hero"]'
+    padding: 20
+  - name: cards
+    from: '#cards-start'
+    to:   '#cards-end'
+    padding: 10</code></pre>
+<p>When <code>regions:</code> is declared, <code>output</code> must contain <code>{region}</code> — validation rejects configs that would overwrite themselves. <code>--only &lt;name&gt;</code> captures just that region and skips the full-page shot.</p>
+
+<h2>Try it now</h2>
+<pre><code>node index.js capture samples/deltaventure.yaml
+<span style="opacity:.55"># → ./screenshots/&lt;today&gt;/desktop/home.png  (~12 MB retina)</span></code></pre>
+<p>Other fixtures in <code>samples/</code>: <code>sample.yaml</code> (annotated), <code>smoke.yaml</code>, <code>smoke-multi.yaml</code>, <code>smoke-regions.yaml</code>. The smoke fixtures pair with <code>node samples/serve-smoke.js &amp;</code>.</p>
+
+<h2>Errors you might hit</h2>
+<ul>
+  <li><code>baseUrl must use http or https</code> — strip <code>javascript:</code>/<code>file:</code>/<code>data:</code> schemes.</li>
+  <li><code>page.path must start with /</code> — write <code>/</code>, not <code>home</code>.</li>
+  <li><code>template must contain {region} when regions are declared</code> — add <code>{region}</code> to <code>output</code>.</li>
+  <li><code>viewports: duplicate name '&lt;x&gt;'</code> — viewport names must be unique.</li>
+  <li>Selector warnings are non-fatal — the run continues.</li>
+</ul>
+
+<footer>
+  <span>framershot · local-only by design</span>
+  <span><a href="https://github.com/granqvistsanna-web/frameshot">source</a> · <a href="https://github.com/granqvistsanna-web/frameshot/issues">issues</a></span>
+</footer>
+
+</div>
+</body>
+</html>
