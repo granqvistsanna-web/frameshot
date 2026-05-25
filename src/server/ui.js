@@ -1229,18 +1229,23 @@ const els = {
 const platform = navigator.userAgentData?.platform ?? navigator.platform ?? '';
 if (!/mac/i.test(platform)) els.resultReveal.hidden = true;
 
-// Collect every preset checkbox once — used by readForm, fillForm, and the
-// concurrency-cap helper. Querying live keeps things simple; the chip grid is
-// static markup so the list never changes after first render.
-const vpCheckboxes = () => [
-  ...els.vpDevice.querySelectorAll('input[type=checkbox]'),
-  ...els.vpPin.querySelectorAll('input[type=checkbox]'),
-];
+// Two chip groups — devices set the rendering width/height; ratios are
+// multipliers that turn each device into an additional pin-shaped capture.
+// Each is queried live (static markup, so the lists never change after render).
+const deviceCheckboxes = () => [...els.vpDevice.querySelectorAll('input[type=checkbox]')];
+const ratioCheckboxes  = () => [...els.vpPin.querySelectorAll('input[type=checkbox]')];
+const allVpCheckboxes  = () => [...deviceCheckboxes(), ...ratioCheckboxes()];
 
+// Total captures = devices × (1 full-page + N pin ratios), where the +1 drops
+// when pinsOnly is on AND at least one ratio is checked (otherwise the toggle
+// is moot — there'd be nothing to capture). Custom viewport, when toggled on,
+// counts as one more device — it's paired with every checked ratio too.
 function selectedViewportCount() {
-  let n = vpCheckboxes().filter((cb) => cb.checked).length;
-  if (els.customViewportToggle.checked) n += 1;
-  return n;
+  const devices = deviceCheckboxes().filter((cb) => cb.checked).length
+    + (els.customViewportToggle.checked ? 1 : 0);
+  const ratios = ratioCheckboxes().filter((cb) => cb.checked).length;
+  const fullPagePer = (els.pinsOnlyToggle.checked && ratios > 0) ? 0 : 1;
+  return devices * (fullPagePer + ratios);
 }
 
 // Concurrency slider can't exceed the number of selected viewports — past that
@@ -1259,9 +1264,10 @@ els.customViewportToggle.addEventListener('change', () => {
   clampConcurrencyToViewports();
 });
 
-for (const cb of vpCheckboxes()) {
+for (const cb of allVpCheckboxes()) {
   cb.addEventListener('change', clampConcurrencyToViewports);
 }
+els.pinsOnlyToggle.addEventListener('change', clampConcurrencyToViewports);
 
 els.concurrency.addEventListener('input', () => {
   els.concurrencyValue.textContent = els.concurrency.value;
@@ -1370,18 +1376,41 @@ const stamp = () => {
 };
 
 function readForm() {
-  // Build the viewports[] array from checked preset chips + (optionally) the
-  // custom viewport. Always send plural; if exactly one is selected the
-  // server's schema collapses that to the same downstream shape.
-  const viewports = vpCheckboxes()
+  // Build the viewports[] array as a matrix of devices × (full-page + checked
+  // pin ratios). Each device contributes its own full-page entry UNLESS the
+  // pins-only toggle is on AND at least one ratio is checked (in which case
+  // the full-page entry is skipped — the user explicitly opted out). For every
+  // checked ratio chip, the device ALSO contributes a pin entry with
+  // pinHeight = round(width × ratio) — the schema knob runCapture honors to
+  // clamp the scroll-stitch and produce a ratio-shaped image at the device's
+  // natural rendering width (so Framer layouts stay correct).
+  // Always send plural; if exactly one is selected the server's schema
+  // collapses that to the same downstream shape.
+  const devices = deviceCheckboxes()
     .filter((cb) => cb.checked)
     .map((cb) => PRESETS[cb.dataset.preset]);
   if (els.customViewportToggle.checked) {
-    viewports.push({
+    devices.push({
       name: els.vpName.value.trim() || 'custom',
       width: Number(els.vpWidth.value),
       height: Number(els.vpHeight.value),
     });
+  }
+  const ratios = ratioCheckboxes()
+    .filter((cb) => cb.checked)
+    .map((cb) => ({ slug: cb.dataset.slug, ratio: Number(cb.dataset.ratio) }));
+  const skipFullPage = els.pinsOnlyToggle.checked && ratios.length > 0;
+  const viewports = [];
+  for (const dev of devices) {
+    if (!skipFullPage) viewports.push(dev);
+    for (const r of ratios) {
+      viewports.push({
+        name: dev.name + '-' + r.slug,
+        width: dev.width,
+        height: dev.height,
+        pinHeight: Math.round(dev.width * r.ratio),
+      });
+    }
   }
   const hideLines = els.hide.value.split('\\n').map((s) => s.trim()).filter(Boolean);
   const regions = readRegions();
@@ -1410,29 +1439,60 @@ function fillForm(saved) {
   els.pageName.value = saved.page.name;
 
   // Restore the viewport selection. Recent-runs entries may carry either the
-  // legacy single viewport field (pre-multi-viewport runs) or the new
-  // viewports array. Treat the legacy field as a one-item array so old
-  // stored runs replay cleanly.
+  // legacy single viewport field (pre-multi-viewport runs), the v0.3 flat
+  // viewports array, or the v0.4 matrix where every device width is also
+  // emitted as one entry per checked pin ratio (pin entries carry pinHeight).
+  // Treat the legacy field as a one-item array so old stored runs replay cleanly.
   const savedViewports = saved.viewports
     ?? (saved.viewport ? [saved.viewport] : []);
-  for (const cb of vpCheckboxes()) cb.checked = false;
+  for (const cb of allVpCheckboxes()) cb.checked = false;
+  els.pinsOnlyToggle.checked = false;
   els.customViewportToggle.checked = false;
   els.customViewport.hidden = true;
+  // Pass 1 — reconstruct ratio-chip selections from any pin entries by
+  // matching the saved name's suffix against the slug each chip stores.
   for (const vp of savedViewports) {
+    if (vp.pinHeight === undefined) continue;
+    for (const cb of ratioCheckboxes()) {
+      if (vp.name.endsWith('-' + cb.dataset.slug)) cb.checked = true;
+    }
+  }
+  // Derive pins-only: the run is pins-only iff every saved entry is a pin
+  // entry (i.e. every entry has pinHeight set) AND at least one pin entry
+  // exists. Avoids false positives on legacy/full-page-only runs.
+  const hasPin = savedViewports.some((vp) => vp.pinHeight !== undefined);
+  const allPin = savedViewports.every((vp) => vp.pinHeight !== undefined);
+  els.pinsOnlyToggle.checked = hasPin && allPin;
+  // Pass 2 — restore device-chip selections from the unique device roots
+  // (pin entries strip the trailing -slug to recover the underlying device).
+  // The Set collapses duplicates so desktop + desktop-2x3 toggle the desktop
+  // chip exactly once.
+  const deviceRoots = new Map(); // rootName → { name, width, height }
+  for (const vp of savedViewports) {
+    let rootName = vp.name;
+    if (vp.pinHeight !== undefined) {
+      const slug = ratioCheckboxes().map((cb) => cb.dataset.slug)
+        .find((s) => vp.name.endsWith('-' + s));
+      if (slug) rootName = vp.name.slice(0, -('-' + slug).length);
+    }
+    if (!deviceRoots.has(rootName)) {
+      deviceRoots.set(rootName, { name: rootName, width: vp.width, height: vp.height });
+    }
+  }
+  for (const dev of deviceRoots.values()) {
     const matched = Object.entries(PRESETS).find(([, p]) =>
-      p.width === vp.width && p.height === vp.height && p.name === vp.name);
+      p.width === dev.width && p.height === dev.height && p.name === dev.name);
     if (matched) {
-      const cb = [...els.vpDevice.querySelectorAll('input'), ...els.vpPin.querySelectorAll('input')]
-        .find((el) => el.dataset.preset === matched[0]);
+      const cb = deviceCheckboxes().find((el) => el.dataset.preset === matched[0]);
       if (cb) cb.checked = true;
     } else {
-      // First (and only) non-preset entry becomes the custom row. Multiple
+      // First (and only) non-preset device becomes the custom row. Multiple
       // custom viewports per run aren't supported in the UI yet — last wins.
       els.customViewportToggle.checked = true;
       els.customViewport.hidden = false;
-      els.vpName.value = vp.name;
-      els.vpWidth.value = vp.width;
-      els.vpHeight.value = vp.height;
+      els.vpName.value = dev.name;
+      els.vpWidth.value = dev.width;
+      els.vpHeight.value = dev.height;
     }
   }
   if (typeof saved.concurrency === 'number') {
