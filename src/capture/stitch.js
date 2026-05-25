@@ -46,7 +46,24 @@ import sharp from 'sharp';
  * @returns {Promise<Buffer>} — a PNG buffer of dimensions
  *   `viewportWidth · DSR × totalHeight · DSR` physical pixels.
  */
-export async function stitchFrames(frames, geometry) {
+/**
+ * Encode a raw image Buffer (typically PNG from page.screenshot or sharp) into
+ * the requested output format. PNG passes through losslessly; jpeg/webp apply
+ * quality-keyed compression. mozjpeg is enabled for JPEG (small, modern, no
+ * runtime cost) and effort:4 for WebP (balanced — sharp's default is 4).
+ *
+ * @param {Buffer} buffer — source image bytes
+ * @param {{ format: 'png'|'jpeg'|'webp', quality: number }} options
+ * @returns {Promise<Buffer>}
+ */
+export async function encodeImage(buffer, { format, quality }) {
+  const pipeline = sharp(buffer);
+  if (format === 'jpeg') return pipeline.jpeg({ quality, mozjpeg: true }).toBuffer();
+  if (format === 'webp') return pipeline.webp({ quality }).toBuffer();
+  return pipeline.png().toBuffer();
+}
+
+export async function stitchFrames(frames, geometry, { format = 'png', quality = 85 } = {}) {
   const { viewportWidth, totalHeight, frameYOffsets, deviceScaleFactor } = geometry;
 
   // Physical-pixel canvas dimensions.
@@ -70,7 +87,11 @@ export async function stitchFrames(frames, geometry) {
   // shows, but transparency is the safest default in case of any
   // rounding-induced gap (the overlap strategy already precludes them,
   // belt-and-braces).
-  return sharp({
+  // Composite the frames first, then dispatch to the format-specific encoder.
+  // .png() vs .jpeg({quality, mozjpeg}) vs .webp({quality}) all live in
+  // encodeImage; we hand off the intermediate composited PNG buffer so the
+  // sharp pipeline tree stays linear and easy to reason about.
+  const composited = await sharp({
     create: {
       width: canvasWidth,
       height: canvasHeight,
@@ -81,4 +102,5 @@ export async function stitchFrames(frames, geometry) {
     .composite(overlays)
     .png()
     .toBuffer();
+  return encodeImage(composited, { format, quality });
 }

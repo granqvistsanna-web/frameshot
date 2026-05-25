@@ -126,14 +126,24 @@ async function handleCapture(req, res) {
     ? './screenshots/{date}/{page}-{region}-{viewport}-{time}.png'
     : './screenshots/{date}/{page}-{viewport}-{time}.png';
 
+  // Accept both shapes: the new UI sends `viewports: [...]` (plural); legacy
+  // clients still send `viewport: {...}` (singular). The schema's mutual-
+  // exclusivity gate would reject "both" or "neither", so we forward exactly
+  // one — preferring plural when present.
+  const hasViewports = Array.isArray(body.viewports) && body.viewports.length > 0;
   const candidate = {
     name: body.name || 'ui-capture',
     baseUrl: body.baseUrl,
     output,
     deviceScaleFactor: body.deviceScaleFactor ?? 2,
-    viewport: body.viewport,
+    ...(hasViewports ? { viewports: body.viewports } : { viewport: body.viewport }),
     page: body.page,
     prepare: body.prepare ?? {},
+    // Only spread format/quality/concurrency when present so schema defaults
+    // (png/85/1) apply for older clients that don't send them.
+    ...(body.format !== undefined ? { format: body.format } : {}),
+    ...(body.quality !== undefined ? { quality: body.quality } : {}),
+    ...(body.concurrency !== undefined ? { concurrency: body.concurrency } : {}),
     ...(hasRegions ? { regions: body.regions } : {}),
   };
 

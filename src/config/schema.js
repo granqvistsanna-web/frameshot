@@ -26,13 +26,16 @@ export const viewportEntrySchema = z.object({
 // Array of 1+ viewport entries with unique names.
 // .superRefine gives fine-grained control over path + message so formatZodError's
 // catch-all renders it as `viewports: duplicate name '<dup>'` (per D-02).
+// path: [] (empty) — the parent field is also called `viewports`, so an
+// explicit `path: ['viewports']` here would render as the doubled
+// `viewports.viewports`. Mirrors the regionSchema pattern below.
 export const viewportsSchema = z.array(viewportEntrySchema).min(1).superRefine((arr, ctx) => {
   const seen = new Set();
   for (const entry of arr) {
     if (seen.has(entry.name)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['viewports'],
+        path: [],
         message: `duplicate name '${entry.name}'`,
       });
       return; // report only the first duplicate (cleaner UX)
@@ -46,6 +49,33 @@ const pageSchema = z.object({
   path: z.string().startsWith('/'),
   // name is REQUIRED (not optional) — 02-03's template resolver substitutes it into {page}
   name: z.string().min(1),
+});
+
+// v0.3 plural shape — mirrors viewportEntrySchema/viewportsSchema. `name` is
+// REQUIRED so the {page} placeholder in output templates can never silently
+// produce identical paths for two pages. Used by `framershot discover` to emit
+// runnable multipage configs from a sitemap, and by anyone hand-listing a small
+// set of routes.
+export const pageEntrySchema = z.object({
+  path: z.string().startsWith('/'),
+  name: z.string().min(1),
+});
+
+// path: [] for the same reason as viewportsSchema above — avoids the doubled
+// `pages.pages` surface when the parent field is also called `pages`.
+export const pagesSchema = z.array(pageEntrySchema).min(1).superRefine((arr, ctx) => {
+  const seen = new Set();
+  for (const entry of arr) {
+    if (seen.has(entry.name)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: `duplicate name '${entry.name}'`,
+      });
+      return; // report only the first duplicate (cleaner UX, matches viewportsSchema)
+    }
+    seen.add(entry.name);
+  }
 });
 
 const prepareSchema = z
@@ -176,7 +206,11 @@ const baseConfigSchema = z.object({
   viewport: viewportSchema.optional(),
   // v0.2 plural form — optional at the field level; mutual exclusivity enforced below.
   viewports: viewportsSchema.optional(),
-  page: pageSchema,
+  // v0.1/v0.2 singular alias — optional at the field level; mutual exclusivity
+  // with `pages:` enforced below. Mirrors the viewport/viewports pattern.
+  page: pageSchema.optional(),
+  // v0.3 plural form — optional at the field level; mutual exclusivity enforced below.
+  pages: pagesSchema.optional(),
   prepare: prepareSchema,
   // Phase 8 (REGION-01/02): optional array of region entries. NO `.default([])`
   // — back-compat requires `undefined` when the block is omitted so downstream
@@ -185,6 +219,11 @@ const baseConfigSchema = z.object({
   // root-level cross-field checks (duplicate names + {region}-in-output) live
   // on the chained .superRefine below.
   regions: z.array(regionSchema).optional(),
+  // v0.3: parallel viewport workers. Default 1 = sequential (preserves Phase 7
+  // semantics exactly). Max 8 — past that, Chromium memory pressure dominates
+  // on typical laptops (~400 MB per browser × 8 = 3.2 GB) and you start losing
+  // to the OS more than you gain to parallelism. CLI `--concurrency N` overrides.
+  concurrency: z.number().int().min(1).max(8).default(1),
 });
 
 // Full configSchema: mutual-exclusivity refinement → normalize transform.
@@ -207,6 +246,25 @@ export const configSchema = baseConfigSchema
         message: "provide exactly one (got 'neither')",
       });
     }
+
+    // v0.3 (DISC-01): mirror the viewport/viewports mutual-exclusivity gate for
+    // the new singular-or-plural page form. Same shape so formatZodError
+    // renders both consistently.
+    const hasPage = data.page !== undefined;
+    const hasPages = data.pages !== undefined;
+    if (hasPage && hasPages) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['page / pages'],
+        message: "provide exactly one (got 'both')",
+      });
+    } else if (!hasPage && !hasPages) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['page / pages'],
+        message: "provide exactly one (got 'neither')",
+      });
+    }
   })
   .transform((data) => {
     // Normalize singular → plural.  If `viewport:` was supplied, convert it to
@@ -214,15 +272,17 @@ export const configSchema = baseConfigSchema
     // the v0.1 fallback in runCapture.js:36 and cli.js:46).
     // The returned object omits `viewport` so downstream consumers see ONLY
     // `config.viewports` — zero branching outside this boundary.
-    const { viewport, viewports, ...rest } = data;
-    if (viewport !== undefined) {
-      return {
-        ...rest,
-        viewports: [{ width: viewport.width, height: viewport.height, name: viewport.name ?? 'default' }],
-      };
-    }
-    // viewports[] was supplied — pass through as-is.
-    return { ...rest, viewports };
+    const { viewport, viewports, page, pages, ...rest } = data;
+    const normalizedViewports = viewport !== undefined
+      ? [{ width: viewport.width, height: viewport.height, name: viewport.name ?? 'default' }]
+      : viewports;
+    // v0.3 (DISC-01): same posture for page → pages. Singular `page:` becomes
+    // a one-element `pages:[{path, name}]`. Downstream consumers (runCapture,
+    // server) read config.pages[] exclusively.
+    const normalizedPages = page !== undefined
+      ? [{ path: page.path, name: page.name }]
+      : pages;
+    return { ...rest, viewports: normalizedViewports, pages: normalizedPages };
   })
   // Phase 8 (REGION-01/02/03): root-level cross-field refinement runs AFTER
   // Phase 7's normalize transform. Zod 3 allows .superRefine to chain after
@@ -230,6 +290,19 @@ export const configSchema = baseConfigSchema
   // already plural-normalized; data.regions passes through untransformed since
   // regionSchema's per-entry transforms only fill the padding default).
   .superRefine((data, ctx) => {
+    // v0.3 (DISC-01): {page}-overwrite-prevention check. When multiple pages
+    // are declared, the output template MUST contain {page} so per-page paths
+    // are distinct. Single-page configs are exempt — same posture as
+    // viewports-uniqueness (only enforced when length > 1 implicitly, since
+    // a single name can't collide with itself).
+    if (data.pages.length > 1 && !data.output.includes('{page}')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['output'],
+        message: 'template must contain {page} when multiple pages are declared (to avoid overwrites)',
+      });
+    }
+
     if (data.regions === undefined) return; // back-compat: no regions block → no checks
 
     // (a) Duplicate region-name check. Matches Phase 7's `duplicate name '<X>'`

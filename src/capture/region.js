@@ -78,8 +78,9 @@
 //   - rAF roundtrip between scroll and screenshot for paint to settle (single
 //     await, no fixed timeout).
 
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { encodeImage } from './stitch.js';
 
 /**
  * Named Error subclass for region-capture failures: selector matched nothing,
@@ -219,7 +220,7 @@ async function measureDocBox(page, loc) {
  *   matches the silent-library posture of Phase 3+ (the top-level catch in
  *   src/cli.js formats it via formatError's default branch).
  */
-export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {} } = {}) {
+export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {}, format = 'png', quality = 85 } = {}) {
   onProgress({ type: 'step', label: `Capturing region '${regionConfig.name}'` });
 
   let clip;
@@ -348,12 +349,19 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
   // - type png → explicit self-documenting.
   // The omit-background option MUST NOT appear (the page's own background is
   // wanted).
-  await page.screenshot({
-    path: outputPath,
+  // Capture as a lossless PNG buffer first, then hand off to encodeImage so the
+  // format/quality knob applies uniformly to region and full-page outputs. We
+  // could pass `type: 'jpeg', quality` directly to Playwright (no sharp hop)
+  // but Playwright has no native WebP encoder; routing every format through
+  // sharp keeps the pipeline branchless and the encoded bytes consistent
+  // between full-page and region captures.
+  const raw = await page.screenshot({
     clip,
     fullPage: true,
     scale: 'device',
     animations: 'disabled',
     type: 'png',
   });
+  const encoded = await encodeImage(raw, { format, quality });
+  await writeFile(outputPath, encoded);
 }

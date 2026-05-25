@@ -247,6 +247,43 @@ export function renderUi() {
     text-transform: uppercase;
   }
 
+  /* Range slider — matches the dotted/ink palette */
+  input[type=range].range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 28px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  input[type=range].range::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--rule-strong);
+    border-radius: 0;
+  }
+  input[type=range].range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -5px;
+    background: var(--safe);
+    border: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--safe-glow);
+    transition: transform 120ms;
+  }
+  input[type=range].range:hover::-webkit-slider-thumb { transform: scale(1.15); }
+  input[type=range].range::-moz-range-track { height: 2px; background: var(--rule-strong); border: 0; }
+  input[type=range].range::-moz-range-thumb {
+    width: 12px; height: 12px;
+    background: var(--safe); border: 0; border-radius: 50%;
+    box-shadow: 0 0 8px var(--safe-glow);
+  }
+
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .row-3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 14px; }
 
@@ -821,6 +858,92 @@ export function renderUi() {
   }
   .region-add:hover { color: var(--safe); border-color: var(--safe); background: var(--safe-glow); }
 
+  /* ── VIEWPORT CHIPS ─────────────────────────────────── */
+  .vp-chips {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px 8px;
+  }
+  .vp-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 11px;
+    border: 1px solid var(--rule);
+    background: var(--paper-3);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--ink-2);
+    transition: color 160ms, border-color 160ms, background 160ms;
+    user-select: none;
+  }
+  .vp-chip:hover { color: var(--ink); border-color: var(--rule-strong); }
+  .vp-chip input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border: 1px solid var(--rule-strong);
+    background: transparent;
+    margin: 0;
+    cursor: pointer;
+    position: relative;
+    flex: none;
+  }
+  .vp-chip input:checked {
+    background: var(--safe);
+    border-color: var(--safe);
+    box-shadow: 0 0 6px var(--safe-glow);
+  }
+  .vp-chip input:checked::after {
+    content: '';
+    position: absolute;
+    top: 1px; left: 4px;
+    width: 3px; height: 6px;
+    border: solid var(--paper);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+  }
+  .vp-chip:has(input:checked) {
+    color: var(--ink);
+    border-color: var(--safe);
+    background: var(--safe-glow);
+  }
+  .vp-chip-meta {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+  }
+  .vp-chip:has(input:checked) .vp-chip-meta { color: var(--ink-2); }
+  .vp-section-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--ink-3);
+    margin: 14px 0 7px;
+  }
+  .vp-section-label:first-child { margin-top: 0; }
+
+  /* Concurrency control — slider + numeric badge */
+  .concurrency-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 14px;
+  }
+  .concurrency-badge {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--safe);
+    background: var(--safe-glow);
+    border: 1px solid var(--safe);
+    padding: 3px 9px;
+    min-width: 28px;
+    text-align: center;
+  }
+
   /* Tasteful scrollbar in the runs rail */
   .runs::-webkit-scrollbar { width: 8px; }
   .runs::-webkit-scrollbar-track { background: transparent; }
@@ -863,24 +986,24 @@ export function renderUi() {
       </div>
 
       <div class="group">
-        <div class="section-label"><span class="n">02</span> Viewport <span class="rule"></span></div>
+        <div class="section-label"><span class="n">02</span> Viewports <span class="rule"></span></div>
         <div class="field">
-          <label class="field-label" for="viewportPreset">Preset</label>
-          <select id="viewportPreset">
-            <optgroup label="Device">
-              <option value="desktop">Desktop · 1440 × 900</option>
-              <option value="laptop">Laptop · 1280 × 800</option>
-              <option value="tablet">Tablet · 768 × 1024</option>
-              <option value="mobile">Mobile · 375 × 667</option>
-            </optgroup>
-            <optgroup label="Pinterest">
-              <option value="pinStandard">Standard pin · 1000 × 1500</option>
-              <option value="pinSquare">Square pin · 1000 × 1000</option>
-              <option value="pinLong">Long pin · 1000 × 2100</option>
-              <option value="pinIdea">Idea / video · 1080 × 1920</option>
-            </optgroup>
-            <option value="custom">Custom…</option>
-          </select>
+          <div class="vp-section-label">Device</div>
+          <div class="vp-chips" id="vpDevice">
+            <label class="vp-chip"><input type="checkbox" data-preset="desktop" checked><span>Desktop</span><span class="vp-chip-meta">1440×900</span></label>
+            <label class="vp-chip"><input type="checkbox" data-preset="laptop"><span>Laptop</span><span class="vp-chip-meta">1280×800</span></label>
+            <label class="vp-chip"><input type="checkbox" data-preset="tablet"><span>Tablet</span><span class="vp-chip-meta">768×1024</span></label>
+            <label class="vp-chip"><input type="checkbox" data-preset="mobile"><span>Mobile</span><span class="vp-chip-meta">375×667</span></label>
+          </div>
+          <div class="vp-section-label">Pinterest</div>
+          <div class="vp-chips" id="vpPin">
+            <label class="vp-chip"><input type="checkbox" data-preset="pinStandard"><span>Standard pin</span><span class="vp-chip-meta">1000×1500</span></label>
+            <label class="vp-chip"><input type="checkbox" data-preset="pinSquare"><span>Square pin</span><span class="vp-chip-meta">1000×1000</span></label>
+            <label class="vp-chip"><input type="checkbox" data-preset="pinLong"><span>Long pin</span><span class="vp-chip-meta">1000×2100</span></label>
+            <label class="vp-chip"><input type="checkbox" data-preset="pinIdea"><span>Idea / video</span><span class="vp-chip-meta">1080×1920</span></label>
+          </div>
+          <div class="vp-section-label">Custom</div>
+          <label class="vp-chip" style="grid-template-columns:none;"><input type="checkbox" id="customViewportToggle"><span>Add a custom viewport</span></label>
         </div>
         <div class="field" id="customViewport" hidden>
           <div class="row-3">
@@ -890,9 +1013,34 @@ export function renderUi() {
           </div>
         </div>
         <div class="field">
+          <label class="field-label" for="concurrency">Concurrency</label>
+          <div class="concurrency-row">
+            <input id="concurrency" type="range" min="1" max="8" value="1" class="range">
+            <div class="concurrency-badge"><span id="concurrencyValue">1</span>×</div>
+          </div>
+          <span class="help">browsers in parallel · capped to viewport count · each ≈ 400 MB</span>
+        </div>
+        <div class="field">
           <label class="field-label" for="dsr">Density · ×</label>
           <input id="dsr" type="number" min="1" max="3" step="0.5" value="2">
           <span class="help">retina = 2 · range 1 – 3</span>
+        </div>
+        <div class="field">
+          <div class="row-2">
+            <div>
+              <label class="field-label" for="format">Format</label>
+              <select id="format">
+                <option value="png">PNG · lossless</option>
+                <option value="webp" selected>WebP · 10× smaller</option>
+                <option value="jpeg">JPEG</option>
+              </select>
+            </div>
+            <div id="qualityField">
+              <label class="field-label" for="quality">Quality · <span id="qualityValue">85</span></label>
+              <input id="quality" type="range" min="1" max="100" value="85" class="range">
+            </div>
+          </div>
+          <span class="help">retina PNGs are 10–15 MB · WebP @ 85 ≈ 8× smaller, visually identical for screenshots</span>
         </div>
       </div>
 
@@ -999,10 +1147,18 @@ const els = {
   baseUrl: $('baseUrl'),
   pagePath: $('pagePath'),
   pageName: $('pageName'),
-  viewportPreset: $('viewportPreset'),
+  vpDevice: $('vpDevice'),
+  vpPin: $('vpPin'),
   customViewport: $('customViewport'),
+  customViewportToggle: $('customViewportToggle'),
   vpName: $('vpName'), vpWidth: $('vpWidth'), vpHeight: $('vpHeight'),
+  concurrency: $('concurrency'),
+  concurrencyValue: $('concurrencyValue'),
   dsr: $('dsr'),
+  format: $('format'),
+  quality: $('quality'),
+  qualityValue: $('qualityValue'),
+  qualityField: $('qualityField'),
   hide: $('hide'),
   animations: $('animations'),
   scrollPrime: $('scrollPrime'),
@@ -1029,9 +1185,55 @@ const els = {
 const platform = navigator.userAgentData?.platform ?? navigator.platform ?? '';
 if (!/mac/i.test(platform)) els.resultReveal.hidden = true;
 
-els.viewportPreset.addEventListener('change', () => {
-  els.customViewport.hidden = els.viewportPreset.value !== 'custom';
+// Collect every preset checkbox once — used by readForm, fillForm, and the
+// concurrency-cap helper. Querying live keeps things simple; the chip grid is
+// static markup so the list never changes after first render.
+const vpCheckboxes = () => [
+  ...els.vpDevice.querySelectorAll('input[type=checkbox]'),
+  ...els.vpPin.querySelectorAll('input[type=checkbox]'),
+];
+
+function selectedViewportCount() {
+  let n = vpCheckboxes().filter((cb) => cb.checked).length;
+  if (els.customViewportToggle.checked) n += 1;
+  return n;
+}
+
+// Concurrency slider can't exceed the number of selected viewports — past that
+// it's wasted UI capacity (worker pool caps internally too, but the value the
+// user sees should reflect what'll actually run).
+function clampConcurrencyToViewports() {
+  const cap = Math.max(1, selectedViewportCount());
+  if (Number(els.concurrency.value) > cap) {
+    els.concurrency.value = cap;
+    els.concurrencyValue.textContent = cap;
+  }
+}
+
+els.customViewportToggle.addEventListener('change', () => {
+  els.customViewport.hidden = !els.customViewportToggle.checked;
+  clampConcurrencyToViewports();
 });
+
+for (const cb of vpCheckboxes()) {
+  cb.addEventListener('change', clampConcurrencyToViewports);
+}
+
+els.concurrency.addEventListener('input', () => {
+  els.concurrencyValue.textContent = els.concurrency.value;
+});
+
+// Quality control only applies to lossy codecs — PNG has no quality knob, so
+// hide the slider when png is picked. Keep the stored value intact so a flip
+// back to webp/jpeg restores the last setting without resetting to 85.
+function syncQualityVisibility() {
+  els.qualityField.hidden = els.format.value === 'png';
+}
+els.format.addEventListener('change', syncQualityVisibility);
+els.quality.addEventListener('input', () => {
+  els.qualityValue.textContent = els.quality.value;
+});
+syncQualityVisibility();
 
 // ── Regions ────────────────────────────────────────────────
 function buildRegionRow(initial = {}) {
@@ -1124,17 +1326,29 @@ const stamp = () => {
 };
 
 function readForm() {
-  const preset = els.viewportPreset.value;
-  const viewport = preset === 'custom'
-    ? { name: els.vpName.value || 'custom', width: Number(els.vpWidth.value), height: Number(els.vpHeight.value) }
-    : PRESETS[preset];
+  // Build the viewports[] array from checked preset chips + (optionally) the
+  // custom viewport. Always send plural; if exactly one is selected the
+  // server's schema collapses that to the same downstream shape.
+  const viewports = vpCheckboxes()
+    .filter((cb) => cb.checked)
+    .map((cb) => PRESETS[cb.dataset.preset]);
+  if (els.customViewportToggle.checked) {
+    viewports.push({
+      name: els.vpName.value.trim() || 'custom',
+      width: Number(els.vpWidth.value),
+      height: Number(els.vpHeight.value),
+    });
+  }
   const hideLines = els.hide.value.split('\\n').map((s) => s.trim()).filter(Boolean);
   const regions = readRegions();
   return {
     baseUrl: els.baseUrl.value.trim(),
     page: { path: els.pagePath.value.trim() || '/', name: els.pageName.value.trim() || 'home' },
-    viewport,
+    viewports,
+    concurrency: Number(els.concurrency.value) || 1,
     deviceScaleFactor: Number(els.dsr.value),
+    format: els.format.value,
+    quality: Number(els.quality.value) || 85,
     prepare: {
       animations: els.animations.checked,
       scrollPrime: els.scrollPrime.checked,
@@ -1150,19 +1364,48 @@ function fillForm(saved) {
   els.baseUrl.value = saved.baseUrl;
   els.pagePath.value = saved.page.path;
   els.pageName.value = saved.page.name;
-  const matched = Object.entries(PRESETS).find(([, p]) =>
-    p.width === saved.viewport.width && p.height === saved.viewport.height && p.name === saved.viewport.name);
-  if (matched) {
-    els.viewportPreset.value = matched[0];
-    els.customViewport.hidden = true;
-  } else {
-    els.viewportPreset.value = 'custom';
-    els.customViewport.hidden = false;
-    els.vpName.value = saved.viewport.name;
-    els.vpWidth.value = saved.viewport.width;
-    els.vpHeight.value = saved.viewport.height;
+
+  // Restore the viewport selection. Recent-runs entries may carry either the
+  // legacy single `viewport` field (pre-multi-viewport runs) or the new
+  // `viewports` array. Treat the legacy field as a one-item array so old
+  // stored runs replay cleanly.
+  const savedViewports = saved.viewports
+    ?? (saved.viewport ? [saved.viewport] : []);
+  for (const cb of vpCheckboxes()) cb.checked = false;
+  els.customViewportToggle.checked = false;
+  els.customViewport.hidden = true;
+  for (const vp of savedViewports) {
+    const matched = Object.entries(PRESETS).find(([, p]) =>
+      p.width === vp.width && p.height === vp.height && p.name === vp.name);
+    if (matched) {
+      const cb = [...els.vpDevice.querySelectorAll('input'), ...els.vpPin.querySelectorAll('input')]
+        .find((el) => el.dataset.preset === matched[0]);
+      if (cb) cb.checked = true;
+    } else {
+      // First (and only) non-preset entry becomes the custom row. Multiple
+      // custom viewports per run aren't supported in the UI yet — last wins.
+      els.customViewportToggle.checked = true;
+      els.customViewport.hidden = false;
+      els.vpName.value = vp.name;
+      els.vpWidth.value = vp.width;
+      els.vpHeight.value = vp.height;
+    }
   }
+  if (typeof saved.concurrency === 'number') {
+    els.concurrency.value = saved.concurrency;
+    els.concurrencyValue.textContent = saved.concurrency;
+  }
+  clampConcurrencyToViewports();
+
   els.dsr.value = saved.deviceScaleFactor;
+  if (saved.format) {
+    els.format.value = saved.format;
+    syncQualityVisibility();
+  }
+  if (typeof saved.quality === 'number') {
+    els.quality.value = saved.quality;
+    els.qualityValue.textContent = saved.quality;
+  }
   els.hide.value = (saved.prepare?.hide ?? []).join('\\n');
   els.animations.checked = saved.prepare?.animations ?? true;
   els.scrollPrime.checked = saved.prepare?.scrollPrime ?? true;

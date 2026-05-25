@@ -10,6 +10,21 @@ import { BrowserError } from '../browser/launcher.js';
 import { RegionError } from '../capture/region.js';
 
 /**
+ * Named Error subclass for CLI-input failures (invalid flag value, bad port,
+ * malformed --viewport, etc.). Routed through formatError's Guard 6 so the
+ * user gets a clean `Error: <message>` surface without a Node stack trace —
+ * same shape as ConfigError/BrowserError/RegionError. Live in src/cli/ since
+ * these errors only originate from CLI flag parsing.
+ */
+export class CliError extends Error {
+  constructor(message, { cause } = {}) {
+    super(message);
+    this.name = 'CliError';
+    if (cause) this.cause = cause;
+  }
+}
+
+/**
  * Create a spinner configured for framershot's capture flow.
  *
  * - Writes to stderr (ora default; set explicitly for self-documentation) so
@@ -132,6 +147,13 @@ export function formatError(err) {
   // Guard 5: bare TimeoutError (escaped from a non-navigator layer, e.g. Phase 5 screenshot timeout).
   if (err.name === 'TimeoutError') {
     return `${chalk.red('Error:')} Operation timed out — ${err.message}`;
+  }
+
+  // Guard 6: CliError — flag-value validation failure (invalid --port, bad
+  // --viewport WxH, non-numeric --poll). Message already names the flag and
+  // received value; same surface as Guards 2/4 — clean prefix, no stack.
+  if (err instanceof CliError) {
+    return `${chalk.red('Error:')} ${err.message}`;
   }
 
   // Default: unexpected/programming error. Print headline + dim stack body.

@@ -9,6 +9,11 @@
 //   node index.js capture samples/smoke.yaml --smoke
 //   kill %1
 //
+// Watch-mode smoke:
+//   node samples/serve-smoke.js --tick 2000 &     # bump content every 2s
+//   node index.js watch samples/smoke.yaml --poll 1 --debounce 500
+//   kill %1
+//
 // The page declares no custom font rules — its document.fonts collection is
 // empty, so document.fonts.ready resolves on the next microtask. This matches
 // the planner's hermetic-fixture intent: prove the geometry math (CAP-01 +
@@ -17,6 +22,25 @@
 import http from 'node:http';
 
 const PORT = 7357;
+
+// --tick <ms>: when set, increment an internal counter every <ms> milliseconds
+// and embed it in the served HTML so the hash changes on each tick. Lets
+// watch-mode be smoke-tested deterministically without a Framer republish.
+// Without the flag the counter stays at 0 and every response is byte-identical,
+// matching the existing capture/--smoke fixture contract.
+const tickArgIdx = process.argv.indexOf('--tick');
+const tickMs = tickArgIdx !== -1 ? Number.parseInt(process.argv[tickArgIdx + 1], 10) : 0;
+let tickCounter = 0;
+let tickTimer = null;
+if (Number.isFinite(tickMs) && tickMs > 0) {
+  tickTimer = setInterval(() => { tickCounter += 1; }, tickMs);
+  tickTimer.unref?.();
+}
+
+function renderHtml() {
+  return HTML.replace('__TICK__', String(tickCounter));
+}
+
 const HTML = `<!doctype html>
 <html>
 <head>
@@ -110,22 +134,24 @@ const HTML = `<!doctype html>
     Anchor: to (bottom of region)
   </div>
 
-  <footer style="padding: 1rem; color: #aaa;">end of phase-04 fixture</footer>
+  <footer style="padding: 1rem; color: #aaa;">end of phase-04 fixture · tick __TICK__</footer>
 </body>
 </html>`;
 
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  res.end(HTML);
+  res.end(renderHtml());
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`smoke fixture: http://127.0.0.1:${PORT}/`);
+  const tickNote = tickTimer ? ` (ticking every ${tickMs}ms)` : '';
+  console.log(`smoke fixture: http://127.0.0.1:${PORT}/${tickNote}`);
 });
 
 // Clean shutdown on signal so the verifier can kill us cleanly.
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
   process.on(sig, () => {
+    if (tickTimer) clearInterval(tickTimer);
     server.close(() => process.exit(0));
   });
 }

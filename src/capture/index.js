@@ -57,13 +57,13 @@ import { stitchFrames } from './stitch.js';
  * @returns {Promise<void>}
  */
 export async function captureFullPage(page, outputPath, options = {}) {
-  const { onProgress, hideStickyAfterFirstFrame, frameDelay } = options;
+  const { onProgress, hideStickyAfterFirstFrame, frameDelay, format = 'png', quality = 85 } = options;
 
   // Step 1 — OUT-01: scroll + per-viewport screenshots → ordered PNG Buffers + geometry.
   const { frames, geometry } = await captureFrames(page, { onProgress, hideStickyAfterFirstFrame, frameDelay });
 
-  // Step 2 — OUT-02: sharp composite → one full-page PNG Buffer.
-  const pngBuffer = await stitchFrames(frames, geometry);
+  // Step 2 — OUT-02: sharp composite → encoded image Buffer (png/jpeg/webp).
+  const pngBuffer = await stitchFrames(frames, geometry, { format, quality });
 
   // Step 3 — OUT-03: mkdir parent + writeFile. Same fs/promises pattern
   // cli.js:43-45 uses for the smoke screenshot's parent dir. mkdir on

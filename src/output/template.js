@@ -29,6 +29,27 @@ function slugify(value) {
   return slug || 'untitled';
 }
 
+// Format → file extension. Centralized so schema additions and codec changes
+// stay in lockstep with what we write to disk.
+const FORMAT_EXT = {
+  png: '.png',
+  jpeg: '.jpg',
+  webp: '.webp',
+};
+
+/**
+ * Rewrite the trailing image extension on a resolved output path to match
+ * `format`. Users keep `.png` in their output template (the v0.1 default) and
+ * flip `format: webp` without editing every entry; this helper does the swap
+ * at the resolveTemplate boundary. Non-image extensions and missing extensions
+ * are left intact so unusual templates don't get clobbered.
+ */
+export function swapExtension(outputPath, format) {
+  const desired = FORMAT_EXT[format];
+  if (!desired) return outputPath;
+  return outputPath.replace(/\.(png|jpe?g|webp)$/i, desired);
+}
+
 export function resolveTemplate(template, { date, time, viewport, page, region }) {
   // {date} and {time} are NOT slugified — pre-formatted hyphenated forms are
   // path-safe and locale-invariant. {time} is optional; when absent, the
