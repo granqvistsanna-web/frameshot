@@ -94,9 +94,23 @@ export function renderUi() {
     position: absolute;
     top: 26px; right: 28px;
     font-size: 9px;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.24em;
     text-transform: uppercase;
     color: var(--ink-3);
+    padding: 4px 8px 4px 9px;
+    border: 1px solid var(--rule);
+    border-radius: 1px;
+    font-feature-settings: 'tnum', 'zero';
+  }
+  .build-tag::before {
+    content: '';
+    display: inline-block;
+    width: 5px; height: 5px;
+    background: var(--safe);
+    margin-right: 8px;
+    transform: translateY(-1px);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--safe-glow);
   }
   .wordmark {
     font-family: var(--display);
@@ -134,13 +148,16 @@ export function renderUi() {
     font-size: 9.5px;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.24em;
     color: var(--ink-2);
     margin: 0 0 14px;
   }
   .section-label .n {
     color: var(--ink-3);
-    font-feature-settings: 'tnum';
+    font-feature-settings: 'tnum', 'zero';
+    border-right: 1px solid var(--rule);
+    padding-right: 10px;
+    margin-right: 4px;
   }
   .section-label .rule {
     flex: 1;
@@ -164,9 +181,10 @@ export function renderUi() {
     display: block;
     font-size: 9.5px;
     text-transform: uppercase;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.20em;
     color: var(--ink-2);
     margin-bottom: 6px;
+    font-feature-settings: 'tnum';
   }
 
   input[type=text], input[type=number], select, textarea {
@@ -179,16 +197,24 @@ export function renderUi() {
     padding: 6px 0 7px;
     font-family: var(--mono);
     font-size: 13px;
-    font-feature-settings: 'tnum', 'zero';
-    transition: border-color 220ms, color 220ms;
+    font-feature-settings: 'tnum', 'zero', 'ss01';
+    transition: border-color 220ms, color 220ms, box-shadow 220ms;
+  }
+  input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) {
+    border-bottom-color: var(--ink-3);
   }
   input:focus, select:focus, textarea:focus {
     outline: none;
     border-bottom-color: var(--safe);
+    box-shadow: 0 1px 0 0 var(--safe);
   }
   input::placeholder, textarea::placeholder {
     color: var(--ink-3);
+    font-family: var(--display);
+    font-variation-settings: "opsz" 14, "SOFT" 60, "WONK" 0;
     font-style: italic;
+    font-size: 14px;
+    letter-spacing: 0;
   }
 
   textarea {
@@ -273,11 +299,35 @@ export function renderUi() {
     cursor: pointer;
     transition: background 180ms, box-shadow 220ms, transform 80ms;
   }
+  button.primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    position: relative;
+  }
   button.primary .kbd {
-    opacity: 0.55;
-    margin-left: 10px;
-    font-weight: 400;
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: rgba(12, 10, 8, 0.18);
+    border: 1px solid rgba(12, 10, 8, 0.28);
+    border-radius: 3px;
+    font-weight: 500;
+    font-size: 10px;
     letter-spacing: 0;
+    opacity: 0.85;
+    transition: background 180ms, border-color 180ms;
+  }
+  button.primary:hover:not(:disabled) .kbd {
+    background: rgba(12, 10, 8, 0.30);
+    border-color: rgba(12, 10, 8, 0.42);
   }
   button.primary:hover:not(:disabled) {
     background: var(--safe-hot);
@@ -675,9 +725,93 @@ export function renderUi() {
   .group:nth-of-type(1) { animation-delay: 140ms; }
   .group:nth-of-type(2) { animation-delay: 200ms; }
   .group:nth-of-type(3) { animation-delay: 260ms; }
-  .submit-row           { animation-delay: 320ms; }
+  .group:nth-of-type(4) { animation-delay: 320ms; }
+  .submit-row           { animation-delay: 380ms; }
   .preview > *:nth-child(1) { animation-delay: 200ms; }
   .preview > *:nth-child(2) { animation-delay: 320ms; }
+
+  /* ── REGIONS ─────────────────────────────────────────── */
+  .regions-list:not(:empty) { margin-bottom: 12px; }
+  .region-row {
+    padding: 12px 14px 14px;
+    margin-bottom: 10px;
+    border: 1px solid var(--rule);
+    background: var(--paper-3);
+    position: relative;
+    animation: enter 380ms cubic-bezier(.2, .65, .2, 1) both;
+  }
+  .region-row:last-child { margin-bottom: 0; }
+  .region-row-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .region-row-head .region-name {
+    flex: 1;
+    font-size: 12.5px;
+    padding-top: 0;
+    padding-bottom: 5px;
+  }
+  .region-del {
+    flex: none;
+    background: transparent;
+    border: 1px solid var(--rule-strong);
+    color: var(--ink-3);
+    width: 22px; height: 22px;
+    padding: 0;
+    font-size: 14px;
+    font-family: var(--mono);
+    line-height: 1;
+    cursor: pointer;
+    transition: color 180ms, border-color 180ms;
+  }
+  .region-del:hover { color: var(--err); border-color: var(--err); }
+  .region-mode-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .region-tab {
+    background: transparent;
+    color: var(--ink-3);
+    border: 0;
+    border-bottom: 1px solid transparent;
+    padding: 5px 12px 7px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.20em;
+    cursor: pointer;
+    margin-bottom: -1px;
+    transition: color 180ms, border-color 180ms;
+  }
+  .region-tab:hover { color: var(--ink-2); }
+  .region-tab.active { color: var(--safe); border-bottom-color: var(--safe); }
+  .region-mode { margin-bottom: 10px; }
+  .region-mode-anchor .row-2 { gap: 12px; }
+  .region-padding-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .region-padding-row .field-label { margin: 0; flex-shrink: 0; }
+  .region-padding-row .region-padding { width: 80px; flex: none; }
+  .region-add {
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px dashed var(--rule-strong);
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    cursor: pointer;
+    width: 100%;
+    transition: color 180ms, border-color 180ms, background 180ms;
+  }
+  .region-add:hover { color: var(--safe); border-color: var(--safe); background: var(--safe-glow); }
 
   /* Tasteful scrollbar in the runs rail */
   .runs::-webkit-scrollbar { width: 8px; }
@@ -763,6 +897,13 @@ export function renderUi() {
         </div>
       </div>
 
+      <div class="group">
+        <div class="section-label"><span class="n">04</span> Regions <span class="rule"></span></div>
+        <div id="regions-list" class="regions-list"></div>
+        <button type="button" id="add-region" class="region-add">+ Add region</button>
+        <span class="help">leave empty for full-page only · adding regions also captures the full page as <code>full.png</code></span>
+      </div>
+
       <div class="submit-row">
         <button type="submit" class="primary" id="submit-btn"><span id="submit-label">Capture</span><span class="kbd">↵</span></button>
       </div>
@@ -774,7 +915,7 @@ export function renderUi() {
 
     <div class="log-shell">
       <div class="status-head">
-        <div class="section-label"><span class="n">04</span> Exposure log <span class="rule"></span></div>
+        <div class="section-label"><span class="n">05</span> Exposure log <span class="rule"></span></div>
         <span class="led-wrap"><span class="led" id="led"></span><span id="led-text">idle</span></span>
       </div>
       <div class="bracketed log-frame" id="status">
@@ -783,7 +924,7 @@ export function renderUi() {
     </div>
 
     <div class="preview-shell">
-      <div class="section-label"><span class="n">05</span> Plate <span class="rule"></span></div>
+      <div class="section-label"><span class="n">06</span> Plate <span class="rule"></span></div>
       <div class="preview-meta" id="result-meta" hidden>
         <div class="where">
           <span class="label">Saved to · click to copy path</span>
@@ -837,6 +978,8 @@ const els = {
   animations: $('animations'),
   scrollPrime: $('scrollPrime'),
   extraDelay: $('extraDelay'),
+  regionsList: $('regions-list'),
+  addRegion: $('add-region'),
   submit: $('submit-btn'),
   submitLabel: $('submit-label'),
   status: $('status'),
@@ -857,6 +1000,90 @@ els.viewportPreset.addEventListener('change', () => {
   els.customViewport.hidden = els.viewportPreset.value !== 'custom';
 });
 
+// ── Regions ────────────────────────────────────────────────
+function buildRegionRow(initial = {}) {
+  const row = document.createElement('div');
+  row.className = 'region-row';
+  row.innerHTML = \`
+    <div class="region-row-head">
+      <input type="text" class="region-name" placeholder="region name">
+      <button type="button" class="region-del" title="remove region">×</button>
+    </div>
+    <div class="region-mode-tabs">
+      <button type="button" class="region-tab active" data-mode="selector">CSS selector</button>
+      <button type="button" class="region-tab" data-mode="anchor">From → To</button>
+    </div>
+    <div class="region-mode region-mode-selector">
+      <input type="text" class="region-selector" placeholder="#hero, .pricing">
+    </div>
+    <div class="region-mode region-mode-anchor" hidden>
+      <div class="row-2">
+        <input type="text" class="region-from" placeholder="from · #hero">
+        <input type="text" class="region-to" placeholder="to · #cta">
+      </div>
+    </div>
+    <div class="region-padding-row">
+      <label class="field-label">Padding · px</label>
+      <input type="number" class="region-padding" min="0" value="0">
+    </div>
+  \`;
+
+  row.querySelector('.region-del').addEventListener('click', () => row.remove());
+
+  const tabs = row.querySelectorAll('.region-tab');
+  const modes = {
+    selector: row.querySelector('.region-mode-selector'),
+    anchor: row.querySelector('.region-mode-anchor'),
+  };
+  const activateTab = (mode) => {
+    tabs.forEach((tt) => tt.classList.toggle('active', tt.dataset.mode === mode));
+    modes.selector.hidden = mode !== 'selector';
+    modes.anchor.hidden = mode !== 'anchor';
+  };
+  tabs.forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.mode)));
+
+  if (initial.name) row.querySelector('.region-name').value = initial.name;
+  if (initial.from || initial.to) {
+    activateTab('anchor');
+    if (initial.from) row.querySelector('.region-from').value = initial.from;
+    if (initial.to)   row.querySelector('.region-to').value   = initial.to;
+  } else if (initial.selector) {
+    row.querySelector('.region-selector').value = initial.selector;
+  }
+  if (typeof initial.padding === 'number') {
+    row.querySelector('.region-padding').value = initial.padding;
+  }
+  return row;
+}
+
+function addRegionRow(initial) {
+  els.regionsList.appendChild(buildRegionRow(initial));
+}
+function clearRegions() { els.regionsList.innerHTML = ''; }
+
+function readRegions() {
+  const out = [];
+  els.regionsList.querySelectorAll('.region-row').forEach((row) => {
+    const name = row.querySelector('.region-name').value.trim();
+    if (!name) return;
+    const mode = row.querySelector('.region-tab.active').dataset.mode;
+    const padding = Number(row.querySelector('.region-padding').value) || 0;
+    if (mode === 'selector') {
+      const selector = row.querySelector('.region-selector').value.trim();
+      if (!selector) return;
+      out.push({ name, selector, padding });
+    } else {
+      const from = row.querySelector('.region-from').value.trim();
+      const to   = row.querySelector('.region-to').value.trim();
+      if (!from || !to) return;
+      out.push({ name, from, to, padding });
+    }
+  });
+  return out;
+}
+
+els.addRegion.addEventListener('click', () => addRegionRow());
+
 const pad = (n) => String(n).padStart(2, '0');
 const stamp = () => {
   const d = new Date();
@@ -869,6 +1096,7 @@ function readForm() {
     ? { name: els.vpName.value || 'custom', width: Number(els.vpWidth.value), height: Number(els.vpHeight.value) }
     : PRESETS[preset];
   const hideLines = els.hide.value.split('\\n').map((s) => s.trim()).filter(Boolean);
+  const regions = readRegions();
   return {
     baseUrl: els.baseUrl.value.trim(),
     page: { path: els.pagePath.value.trim() || '/', name: els.pageName.value.trim() || 'home' },
@@ -880,6 +1108,7 @@ function readForm() {
       hide: hideLines,
       extraDelay: Number(els.extraDelay.value) || 0,
     },
+    ...(regions.length > 0 ? { regions } : {}),
   };
 }
 
@@ -904,6 +1133,8 @@ function fillForm(saved) {
   els.animations.checked = saved.prepare?.animations ?? true;
   els.scrollPrime.checked = saved.prepare?.scrollPrime ?? true;
   els.extraDelay.value = saved.prepare?.extraDelay ?? 0;
+  clearRegions();
+  (saved.regions ?? []).forEach((r) => addRegionRow(r));
 }
 
 function loadRuns() {
@@ -1018,17 +1249,61 @@ function setFrameBar(current, total) {
   frameBarFill.style.width = pct + '%';
 }
 
+function deriveDownloadName(outputPath) {
+  // ./screenshots/<date>/<time>/<viewport>/<slug>.png → <slug>-<viewport>-<date>.png
+  const parts = outputPath.replace(/^\\.\\//, '').split('/');
+  if (parts.length >= 5 && parts[0] === 'screenshots') {
+    const date = parts[1], viewport = parts[3], file = parts[4];
+    const slug = file.replace(/\\.png$/, '');
+    return slug + '-' + viewport + '-' + date + '.png';
+  }
+  return parts[parts.length - 1] || 'capture.png';
+}
+
+let lastOutputPath = null;
+
 function showResult(urlPath, outputPath) {
+  lastOutputPath = outputPath;
   els.result.classList.remove('empty');
   els.result.innerHTML = '';
   els.resultMeta.hidden = false;
   els.resultPath.textContent = outputPath;
   els.resultOpen.href = urlPath;
+  els.resultDownload.href = urlPath;
+  els.resultDownload.setAttribute('download', deriveDownloadName(outputPath));
   const img = new Image();
   img.src = urlPath + '?t=' + Date.now();
   img.alt = 'capture';
   els.result.appendChild(img);
 }
+
+els.resultPath.addEventListener('click', async () => {
+  if (!lastOutputPath) return;
+  try {
+    await navigator.clipboard.writeText(lastOutputPath);
+    const flash = document.createElement('span');
+    flash.className = 'copied';
+    flash.textContent = 'copied';
+    els.resultPath.appendChild(flash);
+    setTimeout(() => flash.remove(), 1400);
+  } catch {
+    // clipboard may be blocked — path is still visible on screen
+  }
+});
+
+els.resultReveal.addEventListener('click', async () => {
+  if (!lastOutputPath) return;
+  try {
+    const r = await fetch('/api/reveal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: lastOutputPath }),
+    });
+    if (!r.ok) logLine('reveal · ' + (await r.text()), 'warn');
+  } catch (err) {
+    logLine('reveal · ' + err.message, 'warn');
+  }
+});
 
 function setSubmitting(on) {
   els.submit.disabled = on;

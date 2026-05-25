@@ -44,7 +44,7 @@ import { stitchFrames } from './stitch.js';
  * @param {string} outputPath — absolute or relative resolved path (Phase 2's
  *   `resolveTemplate` already substituted {date}, {viewport}, {page}). Parent
  *   directories will be created with `{ recursive: true }` if missing.
- * @param {{ onProgress?: (current: number, total: number) => void }} [options={}]
+ * @param {{ onProgress?: (current: number, total: number) => void, hideStickyAfterFirstFrame?: boolean }} [options={}]
  *   Optional options bag. Phase 6 owns this contract — see
  *   .planning/phases/06-terminal-ux/06-RESEARCH.md §Pattern 2.
  *   - onProgress: optional callback invoked by captureFrames once per captured
@@ -53,13 +53,14 @@ import { stitchFrames } from './stitch.js';
  *     import ora or chalk; the callback is the bridge. Backward compatible:
  *     omitting options is identical to passing { onProgress: undefined } which
  *     silently no-ops via optional chaining (onProgress?.()).
+ *   - hideStickyAfterFirstFrame: forwarded to captureFrames. Default true.
  * @returns {Promise<void>}
  */
 export async function captureFullPage(page, outputPath, options = {}) {
-  const { onProgress } = options;
+  const { onProgress, hideStickyAfterFirstFrame } = options;
 
   // Step 1 — OUT-01: scroll + per-viewport screenshots → ordered PNG Buffers + geometry.
-  const { frames, geometry } = await captureFrames(page, { onProgress });
+  const { frames, geometry } = await captureFrames(page, { onProgress, hideStickyAfterFirstFrame });
 
   // Step 2 — OUT-02: sharp composite → one full-page PNG Buffer.
   const pngBuffer = await stitchFrames(frames, geometry);

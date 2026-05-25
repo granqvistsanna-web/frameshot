@@ -124,7 +124,11 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
   resolveRegions(config.regions, only);
 
   for (const vp of config.viewports) {
-    const outputPath = resolveTemplate(config.output, { date, time, viewport: vp.name, page });
+    // Pass region: 'full' so the full-page output substitutes {region} → 'full'
+    // when the template contains it (regions-declared case). When the template
+    // omits {region} (no regions), this is a no-op — resolveTemplate only
+    // substitutes placeholders that appear in the template.
+    const outputPath = resolveTemplate(config.output, { date, time, viewport: vp.name, page, region: 'full' });
 
     onProgress({ type: 'step', viewport: vp.name, label: 'Launching Chromium' });
     const { browser, context } = await launchBrowser(config, vp);
@@ -155,6 +159,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
           onProgress: (current, total) => {
             onProgress({ type: 'frame', viewport: vp.name, current, total });
           },
+          hideStickyAfterFirstFrame: config.prepare.hideSticky,
         });
         results.push({ outputPath, hideSummary, viewportName: vp.name });
       } else {
@@ -188,6 +193,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             onProgress: (current, total) => {
               onProgress({ type: 'frame', viewport: vp.name, current, total });
             },
+            hideStickyAfterFirstFrame: config.prepare.hideSticky,
           });
           results.push({ outputPath, hideSummary, viewportName: vp.name });
         }

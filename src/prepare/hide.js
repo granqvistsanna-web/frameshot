@@ -125,33 +125,3 @@ export async function hideFramerBadge(page) {
     return { matched };
   });
 }
-
-/**
- * Hide every computed position:fixed/sticky element on the page. Sticky navs,
- * pinned sidebars, cookie banners, chat widgets — anything that would tile
- * across the stitched full-page image because it follows the viewport during
- * scroll-capture. Uses `visibility: hidden !important` (NOT `display: none`)
- * so layout is preserved and `document.documentElement.scrollHeight` stays
- * stable — the capture loop reads scrollHeight once at frame 0 and relies on
- * it being constant across the loop.
- *
- * Runs AFTER scrollPrime so any Framer/JS-runtime element that mounts on
- * first scroll is caught. Silent on no-match — many pages have no pinned
- * elements at all.
- *
- * @param {import('playwright-chromium').Page} page — post-navigation page
- * @returns {Promise<{ matched: number }>} — node count hidden (informational)
- */
-export async function hideStickyAndFixed(page) {
-  return page.evaluate(() => {
-    let matched = 0;
-    for (const el of document.querySelectorAll('*')) {
-      const pos = getComputedStyle(el).position;
-      if (pos === 'fixed' || pos === 'sticky') {
-        el.style.setProperty('visibility', 'hidden', 'important');
-        matched++;
-      }
-    }
-    return { matched };
-  });
-}

@@ -19,7 +19,7 @@
 //   2. scrollPrime    — gated on prepareConfig.scrollPrime (schema.js:29)
 //   3. extraDelay     — unconditional call; function short-circuits on ms<=0
 
-import { hideSelectors, hideFramerBadge, hideStickyAndFixed } from './hide.js';
+import { hideSelectors, hideFramerBadge } from './hide.js';
 import { scrollPrime, extraDelay } from './scroll.js';
 export { installAnimationGuards } from './animations.js';
 
@@ -49,16 +49,17 @@ export async function runPreparePipeline(page, prepareConfig) {
   // PREP-05 — extra delay. Defaults to 0; the helper short-circuits on <=0.
   await extraDelay(page, prepareConfig.extraDelay);
 
-  // The badge + sticky/fixed sweeps run LAST — after scrollPrime and any
-  // extraDelay — so they catch elements that Framer's runtime mounts in
-  // response to the first scroll (the badge in particular is sometimes
-  // late-injected). visibility:hidden preserves layout so scrollHeight stays
-  // stable for the capture loop's geometry-once invariant.
+  // The badge sweep runs LAST — after scrollPrime and any extraDelay — so
+  // it catches the badge even when Framer's runtime mounts it in response
+  // to the first scroll. visibility:hidden preserves layout so scrollHeight
+  // stays stable for the capture loop's geometry-once invariant.
+  //
+  // Sticky/fixed sweep is intentionally NOT here — it runs inside
+  // captureFrames AFTER frame 0, so navs/banners stay visible in the very
+  // first viewport-sized shot at the top of the page and only disappear
+  // for subsequent scrolled frames (where they would otherwise tile).
   if (prepareConfig.hideFramerBadge) {
     await hideFramerBadge(page);
-  }
-  if (prepareConfig.hideSticky) {
-    await hideStickyAndFixed(page);
   }
 
   return { hideSummary };
