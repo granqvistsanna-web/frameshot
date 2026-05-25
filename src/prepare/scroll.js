@@ -55,9 +55,17 @@ export async function scrollPrime(page) {
   }
 
   // Final reset to top — Phase 5's capture loop assumes scrollY=0 at start.
+  // Also fire a synthetic `scroll` event so hide-on-scroll nav handlers
+  // (which often debounce / throttle and may not have fired their "back at
+  // top, show the nav" branch yet) get one more chance to observe scrollY=0
+  // before we capture frame 0.
   await page.evaluate(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
+    window.dispatchEvent(new Event('scroll'));
   });
+  // Give debounced scroll handlers time to fire. Matches INTER_STEP_WAIT_MS;
+  // anything debounced under 200ms will settle before captureFrames runs.
+  await page.waitForTimeout(INTER_STEP_WAIT_MS);
 }
 
 /**
