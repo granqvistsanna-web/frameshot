@@ -50,19 +50,15 @@ export function swapExtension(outputPath, format) {
   return outputPath.replace(/\.(png|jpe?g|webp)$/i, desired);
 }
 
-export function resolveTemplate(template, { date, time, viewport, page, region }) {
+export function resolveTemplate(template, { date, time, viewport, page }) {
   // {date} and {time} are NOT slugified — pre-formatted hyphenated forms are
   // path-safe and locale-invariant. {time} is optional; when absent, the
   // placeholder stays literal so the typo surfaces visibly.
   // {viewport} and {page} ARE slugified — handles spaces, unicode, etc.
-  // {region} is slugified when present; left literal when region arg is undefined (full-page run).
   // The template itself is NOT slugified — '/' path separators must survive.
   return template
     .replaceAll('{date}', date)
     .replaceAll('{time}', time ?? '{time}')
     .replaceAll('{viewport}', slugify(viewport))
-    .replaceAll('{page}', slugify(page))
-    // {region} literal-fallback posture mirrors template.js:6-7 (unknown
-    // placeholders stay literal so typos surface in the output path).
-    .replaceAll('{region}', region ? slugify(region) : '{region}');
+    .replaceAll('{page}', slugify(page));
 }

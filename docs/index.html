@@ -163,7 +163,7 @@
 <header>
   <p class="mark">v0.2 · node ≥ 20 · mit</p>
   <h1>framershot</h1>
-  <p class="lede">A local CLI for clean, retina-quality screenshots of Framer sites. Disables animations, hides sticky bars, primes lazy content, then captures full-page or pinned regions at 2×.</p>
+  <p class="lede">A local CLI for clean, retina-quality screenshots of Framer sites. Disables animations, hides sticky bars, primes lazy content, then captures full-page at 2×.</p>
   <p class="meta">
     <a href="https://github.com/granqvistsanna-web/frameshot">github →</a>
     <span>node ≥ 20</span>
@@ -190,7 +190,6 @@ node index.js serve -p 8080 <span style="opacity:.55"># custom port, no auto-ope
 <h3>2. CLI with a YAML config</h3>
 <p>Repeatable, scriptable. Output paths are printed one per line to stdout, so you can <code>grep</code> or pipe.</p>
 <pre><code>node index.js capture config.yaml
-node index.js capture config.yaml --only hero
 node index.js capture config.yaml --smoke</code></pre>
 
 <h2>Minimal config</h2>
@@ -212,7 +211,7 @@ prepare:
   hide:
     - 'nav.sticky'
     - '#consent-banner'</code></pre>
-<p>Template placeholders: <code>{date}</code>, <code>{viewport}</code>, <code>{page}</code>, <code>{region}</code>.</p>
+<p>Template placeholders: <code>{date}</code>, <code>{viewport}</code>, <code>{page}</code>, <code>{time}</code>.</p>
 
 <h2>Multi-viewport</h2>
 <p>Use plural <code>viewports:</code> — each <code>name</code> must be unique so <code>{viewport}</code> can&rsquo;t collide:</p>
@@ -221,32 +220,15 @@ prepare:
   - { name: mobile,  width: 375,  height: 667 }</code></pre>
 <p><code>viewport:</code> (singular) and <code>viewports:</code> (plural) are mutually exclusive.</p>
 
-<h2>Region capture</h2>
-<p>Capture a piece of the page instead of the whole thing. Two modes:</p>
-<ul>
-  <li><strong>Selector</strong> — one element: <code>selector: '[data-test="hero"]'</code></li>
-  <li><strong>Anchor</strong> — span from one element to another: <code>from:</code> + <code>to:</code></li>
-</ul>
-<pre><code>regions:
-  - name: hero
-    selector: '[data-test="hero"]'
-    padding: 20
-  - name: cards
-    from: '#cards-start'
-    to:   '#cards-end'
-    padding: 10</code></pre>
-<p>When <code>regions:</code> is declared, <code>output</code> must contain <code>{region}</code> — validation rejects configs that would overwrite themselves. <code>--only &lt;name&gt;</code> captures just that region and skips the full-page shot.</p>
-
 <h2>Try it now</h2>
 <pre><code>node index.js capture samples/deltaventure.yaml
 <span style="opacity:.55"># → ./screenshots/&lt;today&gt;/desktop/home.png  (~12 MB retina)</span></code></pre>
-<p>Other fixtures in <code>samples/</code>: <code>sample.yaml</code> (annotated), <code>smoke.yaml</code>, <code>smoke-multi.yaml</code>, <code>smoke-regions.yaml</code>. The smoke fixtures pair with <code>node samples/serve-smoke.js &amp;</code>.</p>
+<p>Other fixtures in <code>samples/</code>: <code>sample.yaml</code> (annotated), <code>smoke.yaml</code>, <code>smoke-multi.yaml</code>. The smoke fixtures pair with <code>node samples/serve-smoke.js &amp;</code>.</p>
 
 <h2>Errors you might hit</h2>
 <ul>
   <li><code>baseUrl must use http or https</code> — strip <code>javascript:</code>/<code>file:</code>/<code>data:</code> schemes.</li>
   <li><code>page.path must start with /</code> — write <code>/</code>, not <code>home</code>.</li>
-  <li><code>template must contain {region} when regions are declared</code> — add <code>{region}</code> to <code>output</code>.</li>
   <li><code>viewports: duplicate name '&lt;x&gt;'</code> — viewport names must be unique.</li>
   <li>Selector warnings are non-fatal — the run continues.</li>
 </ul>

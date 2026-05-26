@@ -6,9 +6,9 @@
 //     work in zod 3; we use the named export form.
 import { z } from 'zod';
 
-// Filename-safe name shape. Every `name:` field on viewports/regions/pages
-// flows into the output template (see runCapture.js:176) — these names become
-// path components in screenshots/<date>/{page}-{viewport}-{region}-{time}.{ext}.
+// Filename-safe name shape. Every `name:` field on viewports/pages flows into
+// the output template (see runCapture.js) — these names become path components
+// in screenshots/<date>/{page}-{viewport}-{time}.{ext}.
 // The regex guards two attack surfaces:
 //   1. Path traversal: a name like '../../etc/passwd' could escape SCREENSHOT_ROOT
 //      once template substitution joins it into the output path.
@@ -22,8 +22,8 @@ const safeNameSchema = z
   .regex(/^[a-zA-Z0-9._-]+$/, "may only contain letters, numbers, '.', '_', '-'");
 
 // Find the first duplicate value in a list of entries when read via `key`.
-// Returns the duplicated value or null. Shared by viewports/pages/regions
-// name-uniqueness refinements so each schema reports just the first collision
+// Returns the duplicated value or null. Shared by viewports/pages name-
+// uniqueness refinements so each schema reports just the first collision
 // (cleaner UX than flooding the user with N issues for a single typo).
 function findFirstDuplicate(entries, key) {
   const seen = new Set();
@@ -78,7 +78,7 @@ export const viewportEntrySchema = z
 // catch-all renders it as `viewports: duplicate name '<dup>'` (per D-02).
 // path: [] (empty) — the parent field is also called `viewports`, so an
 // explicit `path: ['viewports']` here would render as the doubled
-// `viewports.viewports`. Mirrors the regionSchema pattern below.
+// `viewports.viewports`.
 export const viewportsSchema = z.array(viewportEntrySchema).min(1).superRefine((arr, ctx) => {
   const dup = findFirstDuplicate(arr, 'name');
   if (dup !== null) {
@@ -151,71 +151,6 @@ const prepareSchema = z
   // Entire `prepare` block is optional in YAML — .default({}) lets minimal configs omit it
   .default({});
 
-// Phase 8 (REGION-01/02): single region entry shape with selector-XOR-(from+to)
-// gate. Both modes share the same outer `z.object` so a `regions: [...]` array
-// can mix selector entries and anchor entries; the per-entry `.superRefine`
-// enforces "exactly one mode chosen" per RESEARCH §Pattern 1/2 + §Pitfall — a
-// `z.union([selectorSchema, anchorSchema])` alternative was rejected because
-// union errors degrade to "Invalid input — expected one of these shapes"
-// (RESEARCH.md:109) which loses the per-region naming the planner wants in
-// formatZodError output.
-//
-// Path token choice for the per-entry custom issues below:
-//   `path: []` (empty) — formatZodError renders as `<root>: region 'X': ...`.
-// Chosen over `path: ['<name>']` because the message body already names the
-// region, so an empty path avoids the doubled-name surface
-// (`hero: region 'hero': ...`). Both options satisfy the <behavior> bullets.
-//
-// `padding` is a non-negative integer defaulting to 0 (RESEARCH §Pattern 3 —
-// asymmetric `{top, right, bottom, left}` deferred per planning_context Open
-// Question #2 lock). The default lives on the field via `.default(0)` so
-// downstream `captureRegion` consumers never have to write `?? 0`.
-export const regionSchema = z
-  .object({
-    name: safeNameSchema,
-    selector: z.string().min(1).optional(),
-    from: z.string().min(1).optional(),
-    to: z.string().min(1).optional(),
-    padding: z.number().int().min(0).default(0),
-  })
-  .superRefine((data, ctx) => {
-    // 'full' is reserved: runCapture.js:131 substitutes region='full' into the
-    // output template for the full-page capture, so a region named 'full' would
-    // silently overwrite it. Case-insensitive — APFS/HFS+ default to case-insensitive.
-    if (data.name.toLowerCase() === 'full') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [],
-        message: `region '${data.name}': name 'full' is reserved for full-page output`,
-      });
-    }
-    const hasSelector = data.selector !== undefined;
-    const hasFrom = data.from !== undefined;
-    const hasTo = data.to !== undefined;
-    const hasAnchor = hasFrom && hasTo;
-    const halfAnchor = hasFrom !== hasTo; // exactly one of from/to set
-    if (hasSelector && (hasAnchor || halfAnchor)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [],
-        message: `region '${data.name}': use 'selector' OR 'from'+'to', not both`,
-      });
-    } else if (!hasSelector && !hasAnchor && !halfAnchor) {
-      // neither selector nor either anchor half
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [],
-        message: `region '${data.name}': must declare 'selector' OR both 'from' and 'to'`,
-      });
-    } else if (halfAnchor) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [],
-        message: `region '${data.name}': 'from' and 'to' must both be set`,
-      });
-    }
-  });
-
 // Root base schema: both viewport keys are .optional() at the field level so zod
 // parses the raw object without rejecting unknown combinations.  The mutual-exclusivity
 // invariant is enforced by the .superRefine below.
@@ -267,13 +202,6 @@ const baseConfigSchema = z.object({
   // v0.3 plural form — optional at the field level; mutual exclusivity enforced below.
   pages: pagesSchema.optional(),
   prepare: prepareSchema,
-  // Phase 8 (REGION-01/02): optional array of region entries. NO `.default([])`
-  // — back-compat requires `undefined` when the block is omitted so downstream
-  // can distinguish "no regions: block declared" from "explicit empty block".
-  // Per-entry shape + selector-XOR-(from+to) gate live on regionSchema above;
-  // root-level cross-field checks (duplicate names + {region}-in-output) live
-  // on the chained .superRefine below.
-  regions: z.array(regionSchema).optional(),
   // v0.3: parallel viewport workers. Default 1 = sequential (preserves Phase 7
   // semantics exactly). Max 8 — past that, Chromium memory pressure dominates
   // on typical laptops (~400 MB per browser × 8 = 3.2 GB) and you start losing
@@ -342,11 +270,6 @@ export const configSchema = baseConfigSchema
       : pages;
     return { ...rest, viewports: normalizedViewports, pages: normalizedPages };
   })
-  // Phase 8 (REGION-01/02/03): root-level cross-field refinement runs AFTER
-  // Phase 7's normalize transform. Zod 3 allows .superRefine to chain after
-  // .transform — the refinement sees the transformed value (data.viewports is
-  // already plural-normalized; data.regions passes through untransformed since
-  // regionSchema's per-entry transforms only fill the padding default).
   .superRefine((data, ctx) => {
     // v0.3 (DISC-01): {page}-overwrite-prevention check. When multiple pages
     // are declared, the output template MUST contain {page} so per-page paths
@@ -358,32 +281,6 @@ export const configSchema = baseConfigSchema
         code: z.ZodIssueCode.custom,
         path: ['output'],
         message: 'template must contain {page} when multiple pages are declared (to avoid overwrites)',
-      });
-    }
-
-    if (data.regions === undefined) return; // back-compat: no regions block → no checks
-
-    // (a) Duplicate region-name check. Matches Phase 7's `duplicate name '<X>'`
-    //     message shape so formatZodError's catch-all renders this as
-    //     `regions: duplicate name 'hero'` (mirrors viewportsSchema).
-    const dup = findFirstDuplicate(data.regions, 'name');
-    if (dup !== null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['regions'],
-        message: `duplicate name '${dup}'`,
-      });
-    }
-
-    // (b) Overwrite-prevention check: when any region is declared, the output
-    //     template MUST contain {region} so per-region paths are distinct.
-    //     Mirrors the {viewport}-uniqueness invariant Phase 7 D-02 established
-    //     (uniqueness enforced at validation time, not at runtime).
-    if (data.regions.length > 0 && !data.output.includes('{region}')) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['output'],
-        message: 'template must contain {region} when regions are declared (to avoid overwrites)',
       });
     }
   });
@@ -398,7 +295,7 @@ export const configSchema = baseConfigSchema
 
 // POST /api/zip body. `paths` is the list of run-output paths to bundle.
 // Max 200 entries keeps a hostile/malformed request from trying to zip the
-// whole disk; real runs top out around N viewports × M regions, well under
+// whole disk; real runs top out around N viewports × M pages, well under
 // that. Per-path max 2000 chars caps the JSON payload size at the field
 // level — a legitimate framershot path is under 200 chars, so 2000 is
 // generous headroom while still blocking degenerate inputs.

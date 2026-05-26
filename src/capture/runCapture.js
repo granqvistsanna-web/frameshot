@@ -17,23 +17,6 @@
 // Errors bubble. Callers convert to user-facing messages (formatError for CLI,
 // SSE error frame for server).
 //
-// Phase 8 (REGION-01/02/03): the per-viewport loop body now branches between
-// full-page capture (v0.1+Phase 7 path) and region capture (v0.2 new path).
-// Branching rule (Open Q#1 lock A — "capture everything declared"):
-//   - When config.regions is undefined AND only is undefined: full-page only
-//     (Phase 7 back-compat — exactly N captures for N viewports).
-//   - When config.regions is declared AND only is undefined: BOTH per-region
-//     captures AND full-page capture per viewport. Result count per viewport
-//     = regions.length + 1.
-//   - When only !== undefined: only the matched region runs per viewport;
-//     full-page is skipped. Result count per viewport = 1.
-//   - When only !== undefined AND no region matches the name: RegionError
-//     thrown BEFORE any browser launch (fail-fast upfront validation).
-// Per-region onProgress events from captureRegion are wrapped to inject
-// viewport: vp.name scoping, mirroring Phase 7's per-viewport scoping pattern.
-// Results array entries gain an optional regionName field on region-capture
-// entries; full-page entries omit it (or set undefined).
-//
 // v0.3 concurrency: viewports run in parallel up to config.concurrency (CLI
 // `--concurrency N` overrides). Each viewport remains its own browser+context,
 // so the parallel unit-of-work is "one viewport". Pages within a viewport stay
@@ -42,55 +25,15 @@
 // At >1, the in-flight viewports finish (no cancellation; closing a context
 // mid-capture is more dangerous than letting it complete), the queue is
 // drained, and the first error is rethrown. Results order is no longer
-// strictly viewport-declaration order at >1 — within a viewport, page+region
-// order is preserved. Callers that depend on result ordering should sort by
-// (viewportName, pageName, regionName) themselves.
+// strictly viewport-declaration order at >1 — within a viewport, page order
+// is preserved. Callers that depend on result ordering should sort by
+// (viewportName, pageName) themselves.
 
 import { launchBrowser } from '../browser/launcher.js';
 import { navigateToPage } from '../browser/navigator.js';
 import { installAnimationGuards, runPreparePipeline } from '../prepare/index.js';
 import { captureFullPage } from './index.js';
-import { captureRegion, RegionError } from './region.js';
 import { resolveTemplate, swapExtension } from '../output/template.js';
-
-/**
- * Resolve the list of regions to capture for the current run.
- *
- * - When `only === undefined`: returns `regions ?? []` — every declared region
- *   (or an empty array when no regions: block exists in the config).
- * - When `only` is set: returns a single-element array containing the matched
- *   region. Throws RegionError if no declared region matches the name —
- *   including the case where `regions` itself is undefined or empty.
- *
- * Does NOT mutate `regions`. The same input regions array can be passed
- * across multiple viewport iterations without filter contamination
- * (RESEARCH §"Anti-Patterns to Avoid": "Mutating the config object to filter
- * regions when --only is used").
- *
- * Lives in runCapture.js (not region.js) because the --only-filter validation
- * is purely an orchestration-layer concern — region.js owns per-region
- * capture mechanics, runCapture.js owns the CLI/server-flag plumbing.
- *
- * @param {Array<object>|undefined} regions — config.regions from a validated config
- * @param {string|undefined} only — the CLI --only flag value (Plan 04 wires it)
- * @returns {Array<object>} — empty array (no filter, no regions), single-element
- *   array (--only match), or full regions array (no filter, regions declared)
- * @throws {RegionError} — when `only` is set but no declared region matches the
- *   name. The message lists the declared region names so the user can fix the
- *   flag value without re-reading the config.
- */
-function resolveRegions(regions, only) {
-  if (only === undefined) {
-    return regions ?? [];
-  }
-  const declared = regions ?? [];
-  const match = declared.find((r) => r.name === only);
-  if (!match) {
-    const names = declared.map((r) => `'${r.name}'`).join(', ') || '<no regions declared>';
-    throw new RegionError(`Unknown --only region '${only}'. Declared regions: ${names}.`);
-  }
-  return [match];
-}
 
 /**
  * Run the full capture pipeline against a validated config object, iterating
@@ -104,42 +47,25 @@ function resolveRegions(regions, only) {
  *   Receives step events per viewport: { type: 'step', viewport: string, label: string }
  *   | { type: 'frame', viewport: string, current: number, total: number }
  *   | { type: 'warning', viewport: string, kind: 'hide-missed', selectors: string[] }
- *   For region captures (Phase 8): { type: 'step', viewport, label: "Capturing region '<name>'" }
  *   Every event carries a viewport field set to the viewport's name.
- * @param {string} [opts.only] — Phase 8: when set, only the named region runs
- *   per viewport (skips full-page and other regions; Plan 04 wires the
- *   --only=<region-name> CLI flag to this option). When unset, all declared
- *   regions PLUS full-page run per viewport (Open Q#1 lock A — "capture
- *   everything declared"). When unset AND config.regions is undefined, only
- *   full-page runs (v0.1/Phase 7 back-compat — exactly N captures for N viewports).
- * @returns {Promise<Array<{ outputPath: string, hideSummary: { matched: number, missed: string[] }, viewportName: string, regionName?: string }>>}
- *   Region-capture entries carry regionName; full-page entries omit it
- *   (or set undefined). One entry per capture, in execution order:
- *   for each viewport, regions[0..N-1] (when declared and not filtered out
- *   by --only) followed by full-page (when --only is unset).
+ * @returns {Promise<Array<{ outputPath: string, hideSummary: { matched: number, missed: string[] }, viewportName: string }>>}
+ *   One entry per capture, in execution order.
  */
-export async function runCapture(config, { onProgress = () => {}, only } = {}) {
-  // Single timestamp shared across all viewports/pages/regions in this run so
-  // every artifact lands under the same {date}/{time} folder — captures
-  // taken seconds apart never collide, captures within one run stay grouped.
+export async function runCapture(config, { onProgress = () => {} } = {}) {
+  // Single timestamp shared across all viewports/pages in this run so every
+  // artifact lands under the same {date}/{time} folder — captures taken
+  // seconds apart never collide, captures within one run stay grouped.
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
   const time = now.toISOString().slice(11, 19).replaceAll(':', '-');
   const results = [];
-
-  // Fail-fast upfront --only validation — called for its throw side-effect so an
-  // unknown flag value never wastes a browser process. Return value discarded;
-  // per-iteration target resolution inside the loop recomputes (cheap, and stays
-  // correct if a future caller mutates config.regions between iterations — which
-  // they should not, but defensive cohesion is free here).
-  resolveRegions(config.regions, only);
 
   // Format/quality knob — added in v0.3 so retina marketing-page captures can
   // ship as WebP/JPEG instead of 10–15 MB PNGs. The output template still ends
   // in `.png` (v0.1 default + the server's hardcoded template); swapExtension
   // rewrites the extension once per resolved path so callers never have to
   // think about format-vs-template skew.
-  const { format, quality, backdrop, deviceScaleFactor } = config;
+  const { format, quality, backdrop } = config;
 
   // v0.3 (DISC-01): viewport is the OUTER loop, page is the INNER loop. One
   // browser+context per viewport — pages are reused tabs in the same context,
@@ -167,12 +93,8 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
         // Per-page event scope adds `page: pg.name` so CLI/server UX can label
         // multi-page runs without parsing the label string.
         const scope = { viewport: vp.name, page: pg.name };
-        // Pass region: 'full' so the full-page output substitutes {region} → 'full'
-        // when the template contains it (regions-declared case). When the template
-        // omits {region} (no regions), this is a no-op — resolveTemplate only
-        // substitutes placeholders that appear in the template.
         const outputPath = swapExtension(
-          resolveTemplate(config.output, { date, time, viewport: vp.name, page: pg.name, region: 'full' }),
+          resolveTemplate(config.output, { date, time, viewport: vp.name, page: pg.name }),
           format,
         );
 
@@ -186,15 +108,9 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             onProgress({ type: 'warning', ...scope, kind: 'hide-missed', selectors: hideSummary.missed });
           }
 
-          // Phase 8 region branch — replaces Phase 7's single captureFullPage call.
-          // The targets array contains zero items (no regions, no --only), one
-          // item (--only match), or N items (all declared regions, --only unset).
-          const targets = resolveRegions(config.regions, only);
-
-          // Full-page options bag shared by both call sites below. vp.pinHeight
-          // (v0.4) clamps the scroll-stitch to a CSS-pixel height — undefined
-          // means full-page. vp.pinOffset (v0.5) slides the pin window down the
-          // page when pinHeight is set.
+          // vp.pinHeight (v0.4) clamps the scroll-stitch to a CSS-pixel height —
+          // undefined means full-page. vp.pinOffset (v0.5) slides the pin window
+          // down the page when pinHeight is set.
           // `kind` tags full-page outputs as either 'fullPage' or 'pin' so the UI
           // can pick the right backdrop for the pin-offset preview without
           // re-deriving it from a slug-suffix heuristic (which would misfire
@@ -202,14 +118,7 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
           const fullPageKind = vp.pinHeight !== undefined ? 'pin' : 'fullPage';
           const fullPageOpts = {
             onProgress: (current, total) => onProgress({ type: 'frame', ...scope, current, total }),
-            // onStepEvent surfaces in-pipeline steps (e.g., "Applying backdrop")
-            // so the SSE client sees the transition between frame capture and
-            // post-process — otherwise a sharp failure looks like the frame
-            // loop crashed.
             onStepEvent: (e) => onProgress({ type: 'step', ...scope, label: e.label }),
-            // onMeta carries structured pin-math + reflow-drift events for
-            // support diagnostics. Surfaced as 'debug' SSE events; the UI
-            // ignores them but they're visible in devtools network tab.
             onMeta: (e) => onProgress({ type: 'debug', ...scope, ...e }),
             hideStickyAfterFirstFrame: config.prepare.hideSticky,
             frameDelay: config.prepare.frameDelay,
@@ -220,70 +129,15 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             backdrop,
           };
 
-          // Wrap per-page work in a try/catch that attaches viewport+page+region
-          // scope to thrown errors. Under concurrency > 1 the server's lastStep
-          // cache can capture cross-viewport state when workers interleave SSE
-          // events, so the error itself must carry its own breadcrumb. Cheap
-          // to add — assigns two fields on a thrown Error and rethrows.
+          // Wrap per-page work in a try/catch that attaches viewport+page scope
+          // to thrown errors. Under concurrency > 1 the server's lastStep cache
+          // can capture cross-viewport state when workers interleave SSE
+          // events, so the error itself must carry its own breadcrumb.
           try {
-            if (targets.length === 0) {
-              // Full-page only — back-compat path (no regions declared, no --only).
-              // "estimating" sentinel: until captureFrames computes frame count we
-              // can't show "0/N", and "0/?" looked like a hang. The first real
-              // frame event overwrites this line.
-              onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
-              await captureFullPage(navigatedPage, outputPath, fullPageOpts);
-              localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
-            } else {
-              // Region path — one image per region. Per-region onProgress events
-              // are wrapped to inject viewport + page scope.
-              for (const region of targets) {
-                const regionPath = swapExtension(
-                  resolveTemplate(config.output, {
-                    date,
-                    time,
-                    viewport: vp.name,
-                    page: pg.name,
-                    region: region.name,
-                  }),
-                  format,
-                );
-                try {
-                  await captureRegion(navigatedPage, region, regionPath, {
-                    onProgress: (event) => onProgress({ ...event, ...scope }),
-                    format,
-                    quality,
-                    backdrop,
-                    deviceScaleFactor,
-                  });
-                } catch (err) {
-                  err.regionName = region.name;
-                  throw err;
-                }
-                localResults.push({
-                  outputPath: regionPath,
-                  hideSummary,
-                  viewportName: vp.name,
-                  pageName: pg.name,
-                  regionName: region.name,
-                  kind: 'region',
-                });
-              }
-              // Open Q#1 lock A: when regions are declared AND --only is unset,
-              // ALSO capture the full page for this viewport+page combination.
-              // vp.pinHeight is honored here too so a pin viewport + declared
-              // regions still produces a ratio-shaped image instead of full-page.
-              if (only === undefined && config.regions !== undefined) {
-                onProgress({ type: 'step', ...scope, label: 'Capturing full page' });
-                await captureFullPage(navigatedPage, outputPath, fullPageOpts);
-                localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
-              }
-            }
+            onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
+            await captureFullPage(navigatedPage, outputPath, fullPageOpts);
+            localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
           } catch (err) {
-            // Attach scope so the server's error event can report which
-            // viewport+page failed even under heavy concurrency. Don't
-            // overwrite an existing field — RegionError messages already name
-            // the region, and an inner catch may have tagged regionName.
             if (err.viewportName === undefined) err.viewportName = vp.name;
             if (err.pageName === undefined) err.pageName = pg.name;
             throw err;

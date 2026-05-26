@@ -183,14 +183,8 @@ async function handleCapture(req, res) {
   // Build a config object from form input. We force a deterministic output
   // template so the server knows where the file will land and can serve it
   // back to the browser. Flat layout — one folder per date, self-describing
-  // filename. With regions declared the schema (config/schema.js §root-
-  // superRefine) requires {region} in the template; runCapture substitutes
-  // {region} → 'full' for the full-page sibling so it lands alongside the
-  // per-region files with a readable name.
-  const hasRegions = Array.isArray(body.regions) && body.regions.length > 0;
-  const output = hasRegions
-    ? './screenshots/{date}/{page}-{region}-{viewport}-{time}.png'
-    : './screenshots/{date}/{page}-{viewport}-{time}.png';
+  // filename.
+  const output = './screenshots/{date}/{page}-{viewport}-{time}.png';
 
   // Accept both shapes: the new UI sends `viewports: [...]` (plural); legacy
   // clients still send `viewport: {...}` (singular). The schema's mutual-
@@ -211,7 +205,6 @@ async function handleCapture(req, res) {
     ...(body.quality !== undefined ? { quality: body.quality } : {}),
     ...(body.concurrency !== undefined ? { concurrency: body.concurrency } : {}),
     ...(body.backdrop !== undefined ? { backdrop: body.backdrop } : {}),
-    ...(hasRegions ? { regions: body.regions } : {}),
   };
 
   const parsed = configSchema.safeParse(candidate);
@@ -272,8 +265,8 @@ async function handleCapture(req, res) {
 
   // Cache the most recent `step` event so a thrown error can be reported with
   // its surrounding context (viewport / page / step label). Without this, the
-  // SSE error event collapsed every failure to a bare message — "Region 'hero':
-  // backdrop apply failed" was missing which viewport/page it happened on.
+  // SSE error event collapses every failure to a bare message and the user
+  // loses which viewport/page it happened on.
   let lastStep = null;
   try {
     const results = await runCapture(parsed.data, {
@@ -284,16 +277,15 @@ async function handleCapture(req, res) {
     });
     send({
       type: 'done',
-      outputs: results.map(({ outputPath, viewportName, regionName, kind }) => ({
+      outputs: results.map(({ outputPath, viewportName, kind }) => ({
         outputPath,
         urlPath: outputPathToUrl(outputPath),
         viewportName,
-        // `kind` is 'fullPage' | 'pin' | 'region' — the UI uses it to pick a
-        // backdrop image for the pin-offset preview without resorting to slug-
-        // suffix matching on viewportName (which would misfire on custom
-        // viewport names that happen to end with a chip slug).
+        // `kind` is 'fullPage' | 'pin' — the UI uses it to pick a backdrop
+        // image for the pin-offset preview without resorting to slug-suffix
+        // matching on viewportName (which would misfire on custom viewport
+        // names that happen to end with a chip slug).
         ...(kind ? { kind } : {}),
-        ...(regionName ? { regionName } : {}),
       })),
     });
   } catch (err) {
@@ -304,16 +296,13 @@ async function handleCapture(req, res) {
       return;
     }
     // Prefer the error's own attached scope (runCapture tags thrown errors
-    // with viewportName/pageName/regionName at the per-page try/catch) over
-    // lastStep — under concurrency > 1 the most recent step event can come
-    // from a different worker than the one that failed. Fall back to lastStep
-    // when the error wasn't tagged (e.g., upfront --only validation throws
-    // before any per-page work runs).
-    const errScope = (err && (err.viewportName || err.pageName || err.regionName))
+    // with viewportName/pageName at the per-page try/catch) over lastStep —
+    // under concurrency > 1 the most recent step event can come from a
+    // different worker than the one that failed.
+    const errScope = (err && (err.viewportName || err.pageName))
       ? {
           viewport: err.viewportName,
           page: err.pageName,
-          ...(err.regionName ? { region: err.regionName } : {}),
         }
       : null;
     const context = errScope

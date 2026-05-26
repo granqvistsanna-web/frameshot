@@ -28,7 +28,6 @@ Paste a Framer URL, hit capture. Good for one-offs.
 
 ```bash
 node index.js capture <config.yaml>
-node index.js capture <config.yaml> --only <region-name>
 node index.js capture <config.yaml> --smoke   # one viewport-sized shot, fast smoke
 ```
 
@@ -77,7 +76,7 @@ prepare:
     - '#consent-banner'
 ```
 
-Output template placeholders: `{date}`, `{viewport}`, `{page}`, `{region}` (the last is required when `regions:` is declared).
+Output template placeholders: `{date}`, `{viewport}`, `{page}`, `{time}`.
 
 ## Multi-viewport
 
@@ -135,32 +134,6 @@ derives a kebab-case `name` from each path (`/blog/post-1` → `blog-post-1`). I
 the sitemap is missing or empty you get a clear error rather than an empty
 config.
 
-## Region capture
-
-Capture sub-sections of a page. Two modes:
-
-- **Selector** — single element: `selector: '[data-test="hero"]'`
-- **Anchor** — span from one element to another: `from: '...'` + `to: '...'`
-
-```yaml
-regions:
-  - name: hero
-    selector: '[data-test="hero"]'
-    padding: 20
-  - name: cards
-    from: '#cards-start'
-    to:   '#cards-end'
-    padding: 10
-```
-
-When `regions:` is declared, `output` MUST contain `{region}` (validation rejects configs that would overwrite themselves). Per-region capture also produces a full-page shot unless you pass `--only`:
-
-```bash
-node index.js capture config.yaml --only hero   # just the hero region
-```
-
-`--smoke` and `--only` are mutually exclusive.
-
 ## Test it now
 
 ```bash
@@ -172,7 +145,7 @@ Other ready-made fixtures in [samples/](samples/):
 
 - [sample.yaml](samples/sample.yaml) — annotated minimal config
 - [deltaventure.yaml](samples/deltaventure.yaml) — real Framer site
-- [smoke.yaml](samples/smoke.yaml), [smoke-multi.yaml](samples/smoke-multi.yaml), [smoke-regions.yaml](samples/smoke-regions.yaml) — hermetic tests; pair with `node samples/serve-smoke.js &`
+- [smoke.yaml](samples/smoke.yaml), [smoke-multi.yaml](samples/smoke-multi.yaml) — hermetic tests; pair with `node samples/serve-smoke.js &`
 
 ## Output
 
@@ -182,6 +155,5 @@ Default location: `./screenshots/{date}/{viewport}/{page}.png` (configurable). F
 
 - `baseUrl must use http or https` — strip `javascript:`/`file:`/`data:` schemes.
 - `page.path must start with /` — write `/` not `home`.
-- `template must contain {region} when regions are declared` — add `{region}` to `output`.
 - `viewports: duplicate name '<x>'` — viewport names must be unique.
 - Selector warnings (e.g. `.does-not-exist not matched`) — printed but non-fatal; the run continues.

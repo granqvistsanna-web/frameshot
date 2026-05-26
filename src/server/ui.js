@@ -819,90 +819,6 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .preview > *:nth-child(1) { animation-delay: 200ms; }
   .preview > *:nth-child(2) { animation-delay: 320ms; }
 
-  /* ── REGIONS ─────────────────────────────────────────── */
-  .regions-list:not(:empty) { margin-bottom: 12px; }
-  .region-row {
-    padding: 12px 14px 14px;
-    margin-bottom: 10px;
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    background: var(--surface-2);
-    position: relative;
-    animation: enter 380ms cubic-bezier(.2, .65, .2, 1) both;
-  }
-  .region-row:last-child { margin-bottom: 0; }
-  .region-row-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .region-row-head .region-name {
-    flex: 1;
-    font-size: 12.5px;
-    padding-top: 0;
-    padding-bottom: 5px;
-  }
-  .region-del {
-    flex: none;
-    background: transparent;
-    border: 1px solid var(--rule-2);
-    border-radius: 4px;
-    color: var(--fg-3);
-    width: 22px; height: 22px;
-    padding: 0;
-    font-size: 14px;
-    font-family: var(--mono);
-    line-height: 1;
-    cursor: pointer;
-    transition: color 150ms ease-out, border-color 150ms ease-out;
-  }
-  .region-del:hover { color: var(--err); border-color: var(--err); }
-  .region-mode-tabs {
-    display: flex;
-    gap: 0;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .region-tab {
-    background: transparent;
-    color: var(--fg-3);
-    border: 0;
-    border-bottom: 1px solid transparent;
-    padding: 5px 12px 7px;
-    font-family: var(--sans);
-    font-size: 11.5px;
-    font-weight: 500;
-    cursor: pointer;
-    margin-bottom: -1px;
-    transition: color 150ms ease-out, border-color 150ms ease-out;
-  }
-  .region-tab:hover { color: var(--fg-2); }
-  .region-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
-  .region-mode { margin-bottom: 10px; }
-  .region-mode-anchor .row-2 { gap: 12px; }
-  .region-padding-row {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-  }
-  .region-padding-row .field-label { margin: 0; flex-shrink: 0; }
-  .region-padding-row .region-padding { width: 80px; flex: none; }
-  .region-add {
-    background: transparent;
-    color: var(--fg-2);
-    border: 1px dashed var(--rule-2);
-    border-radius: 6px;
-    padding: 9px 14px;
-    font-family: var(--sans);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    width: 100%;
-    transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
-  }
-  .region-add:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-
   /* ── VIEWPORT CHIPS ─────────────────────────────────── */
   .vp-chips {
     display: grid;
@@ -1457,13 +1373,6 @@ export function renderUi({ version = '0.0.0' } = {}) {
         </div>
       </div>
 
-      <div class="group">
-        <div class="section-label">Regions</div>
-        <div id="regions-list" class="regions-list"></div>
-        <button type="button" id="add-region" class="region-add">+ Add region</button>
-        <span class="help">leave empty for full-page only · adding regions also captures the full page as <code>full.png</code></span>
-      </div>
-
       <div class="submit-row">
         <button type="submit" class="primary" id="submit-btn"><span id="submit-label">Capture</span><span class="kbd">↵</span></button>
       </div>
@@ -1598,8 +1507,6 @@ const els = {
   backdropSwatches: $('backdropSwatches'),
   backdropPadding: $('backdropPadding'),
   backdropRadius: $('backdropRadius'),
-  regionsList: $('regions-list'),
-  addRegion: $('add-region'),
   submit: $('submit-btn'),
   submitLabel: $('submit-label'),
   status: $('status'),
@@ -1803,11 +1710,11 @@ function updatePinPreviewPositions() {
 }
 
 // Try to use a full-page output as the silhouette backdrop. The server tags
-// each output with kind ∈ {'fullPage', 'pin', 'region'}; we pick the first
-// 'fullPage' entry. Older server builds without the kind field fall back to
-// the legacy slug-suffix heuristic so replaying a saved run from before this
-// change still works. Loads the image off-DOM to read naturalWidth/Height so
-// the silhouette can render at the actual page aspect.
+// each output with kind ∈ {'fullPage', 'pin'}; we pick the first 'fullPage'
+// entry. Older server builds without the kind field fall back to the legacy
+// slug-suffix heuristic so replaying a saved run from before this change
+// still works. Loads the image off-DOM to read naturalWidth/Height so the
+// silhouette can render at the actual page aspect.
 function trySetBackdrop(outputs) {
   if (!outputs || outputs.length === 0) return;
   let fullPage = outputs.find((o) => o.kind === 'fullPage');
@@ -1817,7 +1724,7 @@ function trySetBackdrop(outputs) {
     // heuristic can misfire on custom viewport names ending in a chip slug —
     // bounded to pre-kind outputs only, so impact is finite.
     fullPage = outputs.find((o) => {
-      if (o.regionName || o.kind) return false;
+      if (o.kind) return false;
       if (!o.viewportName) return false;
       return splitPinName(o.viewportName).slug === null;
     });
@@ -1984,90 +1891,6 @@ els.quality.addEventListener('input', () => {
 });
 syncQualityVisibility();
 
-// ── Regions ────────────────────────────────────────────────
-function buildRegionRow(initial = {}) {
-  const row = document.createElement('div');
-  row.className = 'region-row';
-  row.innerHTML = \`
-    <div class="region-row-head">
-      <input type="text" class="region-name" placeholder="region name">
-      <button type="button" class="region-del" title="remove region">×</button>
-    </div>
-    <div class="region-mode-tabs">
-      <button type="button" class="region-tab active" data-mode="selector">CSS selector</button>
-      <button type="button" class="region-tab" data-mode="anchor">From → To</button>
-    </div>
-    <div class="region-mode region-mode-selector">
-      <input type="text" class="region-selector" placeholder="#hero, .pricing">
-    </div>
-    <div class="region-mode region-mode-anchor" hidden>
-      <div class="row-2">
-        <input type="text" class="region-from" placeholder="from · #hero">
-        <input type="text" class="region-to" placeholder="to · #cta">
-      </div>
-    </div>
-    <div class="region-padding-row">
-      <label class="field-label">Padding · px</label>
-      <input type="number" class="region-padding" min="0" value="0">
-    </div>
-  \`;
-
-  row.querySelector('.region-del').addEventListener('click', () => row.remove());
-
-  const tabs = row.querySelectorAll('.region-tab');
-  const modes = {
-    selector: row.querySelector('.region-mode-selector'),
-    anchor: row.querySelector('.region-mode-anchor'),
-  };
-  const activateTab = (mode) => {
-    tabs.forEach((tt) => tt.classList.toggle('active', tt.dataset.mode === mode));
-    modes.selector.hidden = mode !== 'selector';
-    modes.anchor.hidden = mode !== 'anchor';
-  };
-  tabs.forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.mode)));
-
-  if (initial.name) row.querySelector('.region-name').value = initial.name;
-  if (initial.from || initial.to) {
-    activateTab('anchor');
-    if (initial.from) row.querySelector('.region-from').value = initial.from;
-    if (initial.to)   row.querySelector('.region-to').value   = initial.to;
-  } else if (initial.selector) {
-    row.querySelector('.region-selector').value = initial.selector;
-  }
-  if (typeof initial.padding === 'number') {
-    row.querySelector('.region-padding').value = initial.padding;
-  }
-  return row;
-}
-
-function addRegionRow(initial) {
-  els.regionsList.appendChild(buildRegionRow(initial));
-}
-function clearRegions() { els.regionsList.innerHTML = ''; }
-
-function readRegions() {
-  const out = [];
-  els.regionsList.querySelectorAll('.region-row').forEach((row) => {
-    const name = row.querySelector('.region-name').value.trim();
-    if (!name) return;
-    const mode = row.querySelector('.region-tab.active').dataset.mode;
-    const padding = Number(row.querySelector('.region-padding').value) || 0;
-    if (mode === 'selector') {
-      const selector = row.querySelector('.region-selector').value.trim();
-      if (!selector) return;
-      out.push({ name, selector, padding });
-    } else {
-      const from = row.querySelector('.region-from').value.trim();
-      const to   = row.querySelector('.region-to').value.trim();
-      if (!from || !to) return;
-      out.push({ name, from, to, padding });
-    }
-  });
-  return out;
-}
-
-els.addRegion.addEventListener('click', () => addRegionRow());
-
 // ── Backdrop ──────────────────────────────────────────────
 // Color picker + hex text field stay in sync via two event paths. The hex
 // field accepts both #RRGGBB and RRGGBB shorthand — we normalize before
@@ -2153,7 +1976,6 @@ function readForm() {
     }
   }
   const hideLines = els.hide.value.split('\\n').map((s) => s.trim()).filter(Boolean);
-  const regions = readRegions();
   // Backdrop is opt-in — when the toggle is off we send no field, so the
   // schema's optional() leaves config.backdrop === undefined and the capture
   // pipeline skips the post-process step entirely.
@@ -2181,7 +2003,6 @@ function readForm() {
       extraDelay: Number(els.extraDelay.value) || 0,
       frameDelay: Number(els.frameDelay.value) || 0,
     },
-    ...(regions.length > 0 ? { regions } : {}),
     ...(backdrop ? { backdrop } : {}),
   };
 }
@@ -2291,8 +2112,6 @@ function fillForm(saved) {
   els.hideFramerBadge.checked = saved.prepare?.hideFramerBadge ?? true;
   els.extraDelay.value = saved.prepare?.extraDelay ?? 0;
   els.frameDelay.value = saved.prepare?.frameDelay ?? 0;
-  clearRegions();
-  (saved.regions ?? []).forEach((r) => addRegionRow(r));
   // Backdrop restore — when the saved run carries one, populate the fields
   // and reveal the options group; otherwise reset to the off state so an
   // older backdrop-less run doesn't leave a stale toggle from the previous fill.
@@ -2497,20 +2316,11 @@ let lastOutputPath = null;
 // to /api/zip without re-reading the (now-cleared) log.
 let currentOutputs = [];
 
-// Populate a tile-label DOM node with viewport (+ optional region tag). Built
-// with createElement/textContent rather than returning an HTML string because
-// viewportName/regionName originate in user-supplied config — concatenating
-// them into innerHTML at the call site would execute any embedded markup.
+// Populate a tile-label DOM node with the viewport name. Built with
+// textContent so any embedded markup in viewportName (user-supplied config)
+// renders as text rather than HTML.
 function setTileLabel(labelEl, o) {
-  if (o.viewportName && o.regionName) {
-    labelEl.textContent = o.viewportName + ' ';
-    const tag = document.createElement('span');
-    tag.className = 'tag';
-    tag.textContent = o.regionName;
-    labelEl.appendChild(tag);
-  } else {
-    labelEl.textContent = o.viewportName || o.regionName || 'capture';
-  }
+  labelEl.textContent = o.viewportName || 'capture';
 }
 
 function showHero(output) {
@@ -2824,9 +2634,9 @@ els.form.addEventListener('submit', async (e) => {
           showResults(outputs, { hadBackdrop: input.backdrop !== undefined });
         } else if (event.type === 'error') {
           // Surface the server's lastStep context when present — turns a bare
-          // "Region 'hero': backdrop apply failed" into "[iPad/blog] step:
-          // 'Capturing region hero' · Region 'hero': backdrop apply failed",
-          // which is the single line the user can paste into a bug report.
+          // "Navigation failed" into "[iPad/blog] step: 'Navigating to …' ·
+          // Navigation failed", which is the single line the user can paste
+          // into a bug report.
           const ctx = event.context;
           const ctxTag = ctx && (ctx.viewport || ctx.page || ctx.step)
             ? '[' + [ctx.viewport, ctx.page].filter(Boolean).join('/') + ']'
