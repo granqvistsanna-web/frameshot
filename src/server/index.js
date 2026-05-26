@@ -268,15 +268,27 @@ async function handleCapture(req, res) {
       })),
     });
   } catch (err) {
+    // Prefer the error's own attached scope (runCapture tags thrown errors
+    // with viewportName/pageName/regionName at the per-page try/catch) over
+    // lastStep — under concurrency > 1 the most recent step event can come
+    // from a different worker than the one that failed. Fall back to lastStep
+    // when the error wasn't tagged (e.g., upfront --only validation throws
+    // before any per-page work runs).
+    const errScope = (err && (err.viewportName || err.pageName || err.regionName))
+      ? {
+          viewport: err.viewportName,
+          page: err.pageName,
+          ...(err.regionName ? { region: err.regionName } : {}),
+        }
+      : null;
+    const context = errScope
+      ?? (lastStep
+        ? { viewport: lastStep.viewport, page: lastStep.page, step: lastStep.label }
+        : null);
     send({
       type: 'error',
       message: errorToMessage(err),
-      // Attach the last-known step scope so the UI can highlight which row
-      // failed — viewport + page + label gives the user a single line they
-      // can paste into a bug report.
-      ...(lastStep
-        ? { context: { viewport: lastStep.viewport, page: lastStep.page, step: lastStep.label } }
-        : {}),
+      ...(context ? { context } : {}),
     });
   } finally {
     res.end();
