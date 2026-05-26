@@ -2165,16 +2165,24 @@ function fillForm(saved) {
   // Pass 1 — reconstruct ratio-chip selections from any pin entries by
   // matching the saved name's suffix against the slug each chip stores.
   // While we're iterating, also snap the pin-offset slider to the first
-  // non-zero pinOffset we find (all pin entries in a single run share the
-  // same offset, so picking the first is sufficient).
+  // pinOffset we find (all pin entries in a single run share the same
+  // offset, so picking the first is sufficient). Explicit boolean flag
+  // rather than "first non-zero" — readForm currently strips pinOffset:0
+  // from the wire, but if that ever changes, a saved 0 must restore as 0
+  // (not be skipped as "still searching"). The flag keeps the contract
+  // independent of the wire shape.
   let restoredOffset = 0;
+  let offsetRestored = false;
   for (const vp of savedViewports) {
     if (vp.pinHeight === undefined) continue;
-    for (const cb of ratioCheckboxes()) {
-      if (vp.name.endsWith('-' + cb.dataset.slug)) cb.checked = true;
+    const { slug } = splitPinName(vp.name);
+    if (slug) {
+      const cb = ratioCheckboxes().find((c) => c.dataset.slug === slug);
+      if (cb) cb.checked = true;
     }
-    if (typeof vp.pinOffset === 'number' && restoredOffset === 0) {
+    if (typeof vp.pinOffset === 'number' && !offsetRestored) {
       restoredOffset = vp.pinOffset;
+      offsetRestored = true;
     }
   }
   els.pinOffset.value = String(Math.round(restoredOffset * 100));
@@ -2186,17 +2194,12 @@ function fillForm(saved) {
   const allPin = savedViewports.every((vp) => vp.pinHeight !== undefined);
   els.pinsOnlyToggle.checked = hasPin && allPin;
   // Pass 2 — restore device-chip selections from the unique device roots
-  // (pin entries strip the trailing -slug to recover the underlying device).
-  // The Set collapses duplicates so desktop + desktop-2x3 toggle the desktop
+  // (splitPinName strips the trailing -slug to recover the underlying device).
+  // The Map collapses duplicates so desktop + desktop-2x3 toggle the desktop
   // chip exactly once.
   const deviceRoots = new Map(); // rootName → { name, width, height }
   for (const vp of savedViewports) {
-    let rootName = vp.name;
-    if (vp.pinHeight !== undefined) {
-      const slug = ratioCheckboxes().map((cb) => cb.dataset.slug)
-        .find((s) => vp.name.endsWith('-' + s));
-      if (slug) rootName = vp.name.slice(0, -('-' + slug).length);
-    }
+    const rootName = vp.pinHeight !== undefined ? splitPinName(vp.name).root : vp.name;
     if (!deviceRoots.has(rootName)) {
       deviceRoots.set(rootName, { name: rootName, width: vp.width, height: vp.height });
     }
@@ -2286,11 +2289,10 @@ function shortHost(url) {
 function summarizeRunViewports(vps) {
   if (vps.length === 0) return '';
   if (vps.length === 1) return vps[0].name + ' ' + vps[0].width + '×' + vps[0].height;
-  // Count unique device roots and unique pin ratios (slug suffix after the
-  // last '-'). Falls back to "N viewports" if no pin entries were emitted.
-  // Also pick up a per-run pinOffset if any pin entry carries one (all pin
-  // entries in a run share the same value, so first-found is sufficient).
-  const ratioSlugs = ratioCheckboxes().map((cb) => cb.dataset.slug);
+  // Count unique device roots and unique pin ratios (splitPinName parses the
+  // suffix). Falls back to "N viewports" if no pin entries were emitted. Also
+  // pick up a per-run pinOffset if any pin entry carries one (all pin entries
+  // in a run share the same value, so first-found is sufficient).
   const deviceRoots = new Set();
   const pinSlugs = new Set();
   let hasPin = false;
@@ -2301,10 +2303,10 @@ function summarizeRunViewports(vps) {
       if (typeof vp.pinOffset === 'number' && offsetPct === 0) {
         offsetPct = Math.round(vp.pinOffset * 100);
       }
-      const slug = ratioSlugs.find((s) => vp.name.endsWith('-' + s));
+      const { root, slug } = splitPinName(vp.name);
       if (slug) {
         pinSlugs.add(slug);
-        deviceRoots.add(vp.name.slice(0, -('-' + slug).length));
+        deviceRoots.add(root);
       } else {
         deviceRoots.add(vp.name);
       }

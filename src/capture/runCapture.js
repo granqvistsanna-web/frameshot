@@ -207,6 +207,10 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             // post-process — otherwise a sharp failure looks like the frame
             // loop crashed.
             onStepEvent: (e) => onProgress({ type: 'step', ...scope, label: e.label }),
+            // onMeta carries structured pin-math + reflow-drift events for
+            // support diagnostics. Surfaced as 'debug' SSE events; the UI
+            // ignores them but they're visible in devtools network tab.
+            onMeta: (e) => onProgress({ type: 'debug', ...scope, ...e }),
             hideStickyAfterFirstFrame: config.prepare.hideSticky,
             frameDelay: config.prepare.frameDelay,
             maxHeight: vp.pinHeight,
@@ -216,52 +220,73 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
             backdrop,
           };
 
-          if (targets.length === 0) {
-            // Full-page only — back-compat path (no regions declared, no --only).
-            // "estimating" sentinel: until captureFrames computes frame count we
-            // can't show "0/N", and "0/?" looked like a hang. The first real
-            // frame event overwrites this line.
-            onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
-            await captureFullPage(navigatedPage, outputPath, fullPageOpts);
-            localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
-          } else {
-            // Region path — one image per region. Per-region onProgress events
-            // are wrapped to inject viewport + page scope.
-            for (const region of targets) {
-              const regionPath = swapExtension(
-                resolveTemplate(config.output, {
-                  date,
-                  time,
-                  viewport: vp.name,
-                  page: pg.name,
-                  region: region.name,
-                }),
-                format,
-              );
-              await captureRegion(navigatedPage, region, regionPath, {
-                onProgress: (event) => onProgress({ ...event, ...scope }),
-                format,
-                quality,
-                backdrop,
-              });
-              localResults.push({
-                outputPath: regionPath,
-                hideSummary,
-                viewportName: vp.name,
-                pageName: pg.name,
-                regionName: region.name,
-                kind: 'region',
-              });
-            }
-            // Open Q#1 lock A: when regions are declared AND --only is unset,
-            // ALSO capture the full page for this viewport+page combination.
-            // vp.pinHeight is honored here too so a pin viewport + declared
-            // regions still produces a ratio-shaped image instead of full-page.
-            if (only === undefined && config.regions !== undefined) {
-              onProgress({ type: 'step', ...scope, label: 'Capturing full page' });
+          // Wrap per-page work in a try/catch that attaches viewport+page+region
+          // scope to thrown errors. Under concurrency > 1 the server's lastStep
+          // cache can capture cross-viewport state when workers interleave SSE
+          // events, so the error itself must carry its own breadcrumb. Cheap
+          // to add — assigns two fields on a thrown Error and rethrows.
+          try {
+            if (targets.length === 0) {
+              // Full-page only — back-compat path (no regions declared, no --only).
+              // "estimating" sentinel: until captureFrames computes frame count we
+              // can't show "0/N", and "0/?" looked like a hang. The first real
+              // frame event overwrites this line.
+              onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
               await captureFullPage(navigatedPage, outputPath, fullPageOpts);
               localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
+            } else {
+              // Region path — one image per region. Per-region onProgress events
+              // are wrapped to inject viewport + page scope.
+              for (const region of targets) {
+                const regionPath = swapExtension(
+                  resolveTemplate(config.output, {
+                    date,
+                    time,
+                    viewport: vp.name,
+                    page: pg.name,
+                    region: region.name,
+                  }),
+                  format,
+                );
+                try {
+                  await captureRegion(navigatedPage, region, regionPath, {
+                    onProgress: (event) => onProgress({ ...event, ...scope }),
+                    format,
+                    quality,
+                    backdrop,
+                    deviceScaleFactor,
+                  });
+                } catch (err) {
+                  err.regionName = region.name;
+                  throw err;
+                }
+                localResults.push({
+                  outputPath: regionPath,
+                  hideSummary,
+                  viewportName: vp.name,
+                  pageName: pg.name,
+                  regionName: region.name,
+                  kind: 'region',
+                });
+              }
+              // Open Q#1 lock A: when regions are declared AND --only is unset,
+              // ALSO capture the full page for this viewport+page combination.
+              // vp.pinHeight is honored here too so a pin viewport + declared
+              // regions still produces a ratio-shaped image instead of full-page.
+              if (only === undefined && config.regions !== undefined) {
+                onProgress({ type: 'step', ...scope, label: 'Capturing full page' });
+                await captureFullPage(navigatedPage, outputPath, fullPageOpts);
+                localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
+              }
             }
+          } catch (err) {
+            // Attach scope so the server's error event can report which
+            // viewport+page failed even under heavy concurrency. Don't
+            // overwrite an existing field — RegionError messages already name
+            // the region, and an inner catch may have tagged regionName.
+            if (err.viewportName === undefined) err.viewportName = vp.name;
+            if (err.pageName === undefined) err.pageName = pg.name;
+            throw err;
           }
         } finally {
           // Close the page tab between iterations so a long sitemap run does
