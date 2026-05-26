@@ -8,14 +8,14 @@
 //
 // Pixel dimensions:
 //   - Inputs (frames[]) are physical pixels (page.screenshot scale='device').
-//   - Canvas is sized in physical pixels: viewportWidth·DSR × totalHeight·DSR.
+//   - Canvas is sized in physical pixels: viewportWidth·DSR × captureHeight·DSR.
 //   - Each composite offset multiplies the CSS-pixel y by DSR.
 //   - All pixel coordinates wrapped in Math.round — defends against fractional
 //     DSR (1.25, 1.5) producing non-integer values sharp rejects (Pitfall 8).
 //
 // Last-frame correctness:
-//   - When (totalHeight % viewportHeight !== 0), the final captured frame's
-//     y offset is (totalHeight - viewportHeight) — it OVERLAPS the prior frame.
+//   - When (captureHeight % viewportHeight !== 0), the final captured frame's
+//     y offset is (captureHeight - viewportHeight) — it OVERLAPS the prior frame.
 //   - sharp.composite applies overlays in ORDER (sharp 0.33 docs + index.d.ts:312).
 //     Later items draw ON TOP, so the last frame's pixels overwrite the prior
 //     frame's overlap region cleanly. No manual clipping needed. This is
@@ -33,15 +33,20 @@ import sharp from 'sharp';
  * quality-keyed compression. mozjpeg is enabled for JPEG (small, modern, no
  * runtime cost) and effort:4 for WebP (balanced — sharp's default is 4).
  *
+ * Unknown formats throw — defaulting to PNG would silently produce a file whose
+ * bytes don't match its extension (swapExtension already rewrote the path based
+ * on the requested format), confusing the user and any downstream tool.
+ *
  * @param {Buffer} buffer — source image bytes
  * @param {{ format: 'png'|'jpeg'|'webp', quality: number }} options
  * @returns {Promise<Buffer>}
  */
 export async function encodeImage(buffer, { format, quality }) {
   const pipeline = sharp(buffer);
+  if (format === 'png') return pipeline.png().toBuffer();
   if (format === 'jpeg') return pipeline.jpeg({ quality, mozjpeg: true }).toBuffer();
   if (format === 'webp') return pipeline.webp({ quality }).toBuffer();
-  return pipeline.png().toBuffer();
+  throw new Error(`encodeImage: unknown format '${format}' (expected png|jpeg|webp)`);
 }
 
 // Parse a 6-digit hex like "#FFE45C" into sharp's { r, g, b } shape.
@@ -142,7 +147,7 @@ export async function applyBackdrop(buffer, { color, padding, radius, deviceScal
  * @param {{
  *   viewportWidth: number,
  *   viewportHeight: number,
- *   totalHeight: number,
+ *   captureHeight: number,
  *   frameYOffsets: number[],
  *   deviceScaleFactor: number
  * }} geometry — the geometry payload from captureFrames.
@@ -158,11 +163,11 @@ export async function applyBackdrop(buffer, { color, padding, radius, deviceScal
  * @returns {Promise<Buffer>} — encoded image buffer in the requested format.
  */
 export async function stitchFrames(frames, geometry, { format = 'png', quality = 85, backdrop, onStepEvent } = {}) {
-  const { viewportWidth, totalHeight, frameYOffsets, deviceScaleFactor } = geometry;
+  const { viewportWidth, captureHeight, frameYOffsets, deviceScaleFactor } = geometry;
 
   // Physical-pixel canvas dimensions.
   const canvasWidth = Math.round(viewportWidth * deviceScaleFactor);
-  const canvasHeight = Math.round(totalHeight * deviceScaleFactor);
+  const canvasHeight = Math.round(captureHeight * deviceScaleFactor);
 
   // Build the composite payload: each entry is { input: Buffer, top, left }.
   // top/left are in physical pixels (matches the canvas's coordinate space).

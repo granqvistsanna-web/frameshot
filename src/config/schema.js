@@ -9,11 +9,12 @@ import { z } from 'zod';
 // Filename-safe name shape. Every `name:` field on viewports/regions/pages
 // flows into the output template (see runCapture.js:176) — these names become
 // path components in screenshots/<date>/{page}-{viewport}-{region}-{time}.{ext}.
-// Without this regex two attacks open up:
+// The regex guards two attack surfaces:
 //   1. Path traversal: a name like '../../etc/passwd' could escape SCREENSHOT_ROOT
 //      once template substitution joins it into the output path.
-//   2. XSS via the gallery: server/ui.js:tileLabel interpolates viewport/region
-//      names into innerHTML, so '<img onerror=...>' would execute on render.
+//   2. XSS via the gallery: server/ui.js:setTileLabel renders names via textContent
+//      now (safe), but this is belt-and-braces — a future innerHTML site
+//      reintroducing the bug would still see only sanitized input.
 // Matches the UI's slug sanitizer at server/ui.js:splitBaseUrl — same allowlist,
 // enforced on both ends.
 const safeNameSchema = z

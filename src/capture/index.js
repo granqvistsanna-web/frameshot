@@ -57,15 +57,15 @@ import { stitchFrames } from './stitch.js';
  * @returns {Promise<void>}
  */
 export async function captureFullPage(page, outputPath, options = {}) {
-  const { onProgress, onStepEvent, hideStickyAfterFirstFrame, frameDelay, maxHeight, pinOffset, format = 'png', quality = 85, backdrop } = options;
+  const { onProgress, onStepEvent, onMeta, hideStickyAfterFirstFrame, frameDelay, maxHeight, pinOffset, format = 'png', quality = 85, backdrop } = options;
 
   // Step 1 — OUT-01: scroll + per-viewport screenshots → ordered PNG Buffers + geometry.
-  // maxHeight (v0.4 pin-format): when set, captureFrames clamps totalHeight to
+  // maxHeight (v0.4 pin-format): when set, captureFrames clamps captureHeight to
   // this value so the scroll-stitch stops early and the output is ratio-shaped
   // instead of full-page. Undefined = original full-page behavior.
   // pinOffset (v0.5): fraction 0..1 of available vertical room. Only meaningful
   // together with maxHeight; controls where the pin window starts on the page.
-  const { frames, geometry } = await captureFrames(page, { onProgress, hideStickyAfterFirstFrame, frameDelay, maxHeight, pinOffset });
+  const { frames, geometry } = await captureFrames(page, { onProgress, onMeta, hideStickyAfterFirstFrame, frameDelay, maxHeight, pinOffset });
 
   // Step 2 — OUT-02: sharp composite → encoded image Buffer (png/jpeg/webp).
   // When `backdrop` is set, stitchFrames wraps the composited image in a

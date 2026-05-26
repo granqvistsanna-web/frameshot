@@ -25,6 +25,8 @@ import { ConfigError } from '../config/load.js';
 import { BrowserError } from '../browser/launcher.js';
 
 const SCREENSHOT_ROOT = resolve(process.cwd(), 'screenshots');
+// Top-level await — resolves at module load, before any HTTP request can land.
+// Cached for the process lifetime; do NOT inline as a per-request lookup.
 const PKG_VERSION = await readPkgVersion();
 // Hard cap on POST body size — well above any legitimate framershot payload
 // (a 200-path zip request with 2 KB paths each is < 500 KB) and stops a
@@ -117,9 +119,12 @@ async function readJsonBody(req, res) {
   }
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-  } catch {
+  } catch (err) {
+    // Surface the parser's position/token message — "Unexpected token } in JSON
+    // at position 142" is exactly the diagnostic a UI client needs to fix the
+    // payload. Bare "invalid JSON body" left the developer guessing.
     res.writeHead(400, { 'content-type': 'text/plain' });
-    res.end('invalid JSON body');
+    res.end(`invalid JSON body: ${err?.message ?? 'parse failed'}`);
     return null;
   }
 }
@@ -236,21 +241,43 @@ async function handleCapture(req, res) {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
+  // Cache the most recent `step` event so a thrown error can be reported with
+  // its surrounding context (viewport / page / step label). Without this, the
+  // SSE error event collapsed every failure to a bare message — "Region 'hero':
+  // backdrop apply failed" was missing which viewport/page it happened on.
+  let lastStep = null;
   try {
     const results = await runCapture(parsed.data, {
-      onProgress: (event) => send(event),
+      onProgress: (event) => {
+        if (event.type === 'step') lastStep = event;
+        send(event);
+      },
     });
     send({
       type: 'done',
-      outputs: results.map(({ outputPath, viewportName, regionName }) => ({
+      outputs: results.map(({ outputPath, viewportName, regionName, kind }) => ({
         outputPath,
         urlPath: outputPathToUrl(outputPath),
         viewportName,
+        // `kind` is 'fullPage' | 'pin' | 'region' — the UI uses it to pick a
+        // backdrop image for the pin-offset preview without resorting to slug-
+        // suffix matching on viewportName (which would misfire on custom
+        // viewport names that happen to end with a chip slug).
+        ...(kind ? { kind } : {}),
         ...(regionName ? { regionName } : {}),
       })),
     });
   } catch (err) {
-    send({ type: 'error', message: errorToMessage(err) });
+    send({
+      type: 'error',
+      message: errorToMessage(err),
+      // Attach the last-known step scope so the UI can highlight which row
+      // failed — viewport + page + label gives the user a single line they
+      // can paste into a bug report.
+      ...(lastStep
+        ? { context: { viewport: lastStep.viewport, page: lastStep.page, step: lastStep.label } }
+        : {}),
+    });
   } finally {
     res.end();
   }
@@ -274,23 +301,30 @@ function errorToMessage(err) {
   return err?.message ?? String(err);
 }
 
+// Resolve one user-supplied path string under SCREENSHOT_ROOT. Returns either
+// { absPath } on success or { error: { status, message } } on rejection. Shared
+// by handleReveal and handleZip so the path-traversal guard is one rule, not two.
+function resolveScreenshotPath(input) {
+  const raw = String(input || '').replace(/^\.\//, '').replace(/^\//, '');
+  if (!raw.startsWith('screenshots/')) {
+    return { error: { status: 400, message: `path must be under screenshots/: ${input}` } };
+  }
+  const rel = raw.slice('screenshots/'.length);
+  const absPath = normalize(join(SCREENSHOT_ROOT, rel));
+  if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
+    return { error: { status: 403, message: `forbidden: ${input}` } };
+  }
+  return { absPath };
+}
+
 async function handleReveal(req, res) {
   const body = await readJsonBody(req, res);
   if (body === null) return;
 
-  // body.path is like "./screenshots/.../home.png" — strip leading "./" or "/"
-  const raw = String(body.path || '').replace(/^\.\//, '').replace(/^\//, '');
-  if (!raw.startsWith('screenshots/')) {
-    res.writeHead(400, { 'content-type': 'text/plain' });
-    res.end('path must be under screenshots/');
-    return;
-  }
-  const rel = raw.slice('screenshots/'.length);
-  const absPath = normalize(join(SCREENSHOT_ROOT, rel));
-
-  if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
-    res.writeHead(403, { 'content-type': 'text/plain' });
-    res.end('forbidden');
+  const { absPath, error } = resolveScreenshotPath(body.path);
+  if (error) {
+    res.writeHead(error.status, { 'content-type': 'text/plain' });
+    res.end(error.message);
     return;
   }
 
@@ -315,23 +349,6 @@ async function handleReveal(req, res) {
   spawn('open', ['-R', absPath], { stdio: 'ignore', detached: true }).unref();
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ ok: true }));
-}
-
-// Resolve one user-supplied path string under SCREENSHOT_ROOT. Returns either
-// { absPath } on success or { error: { status, message } } on rejection. Shared
-// by handleZip; handleReveal predates this helper and stays inline so its
-// branching error replies don't change shape.
-function resolveScreenshotPath(input) {
-  const raw = String(input || '').replace(/^\.\//, '').replace(/^\//, '');
-  if (!raw.startsWith('screenshots/')) {
-    return { error: { status: 400, message: `path must be under screenshots/: ${input}` } };
-  }
-  const rel = raw.slice('screenshots/'.length);
-  const absPath = normalize(join(SCREENSHOT_ROOT, rel));
-  if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
-    return { error: { status: 403, message: `forbidden: ${input}` } };
-  }
-  return { absPath };
 }
 
 async function handleZip(req, res) {

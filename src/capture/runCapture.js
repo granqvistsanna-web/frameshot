@@ -243,7 +243,6 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
                 format,
                 quality,
                 backdrop,
-                deviceScaleFactor,
               });
               localResults.push({
                 outputPath: regionPath,

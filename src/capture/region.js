@@ -258,16 +258,7 @@ async function resolveAnchorBox(page, regionName, role, selector) {
  *   matches the silent-library posture of Phase 3+ (the top-level catch in
  *   src/cli.js formats it via formatError's default branch).
  */
-export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {}, format = 'png', quality = 85, backdrop, deviceScaleFactor } = {}) {
-  // When a backdrop is requested, deviceScaleFactor is REQUIRED — defaulting
-  // silently to 1 would produce visibly-undersized padding/radius on retina
-  // captures with no error signal. The historical default (=1) is preserved
-  // for the non-backdrop path where DSR doesn't matter for region output.
-  if (backdrop && (typeof deviceScaleFactor !== 'number' || !(deviceScaleFactor >= 1))) {
-    throw new RegionError(
-      `Region '${regionConfig.name}': backdrop requires deviceScaleFactor to be a number ≥ 1 (got ${deviceScaleFactor}).`,
-    );
-  }
+export async function captureRegion(page, regionConfig, outputPath, { onProgress = () => {}, format = 'png', quality = 85, backdrop } = {}) {
   onProgress({ type: 'step', label: `Capturing region '${regionConfig.name}'` });
 
   // ANCHOR MODE ORDER (Pitfall 3): when both anchors are present, scroll +
@@ -327,12 +318,21 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
   // When the user has opted into a colored backdrop, wrap the raw region
   // capture in a padded canvas before the format-encode hop. Same helper the
   // full-page path uses, so the visual treatment is identical across region
-  // and full-page outputs. Errors are re-thrown as RegionError so the SSE
-  // client sees the region name in the message — otherwise a sharp failure
-  // bubbles as a bare Error with no breadcrumb.
+  // and full-page outputs. DSR is read from the live page here (matching the
+  // full-page path's source of truth — frames.js reads `window.devicePixelRatio`
+  // into geometry.deviceScaleFactor and stitchFrames hands that to applyBackdrop).
+  // Single source of truth keeps backdrop padding/radius scaled identically
+  // across region and full-page outputs in the same run, even if config.deviceScaleFactor
+  // ever drifts from the runtime DPR Playwright actually applied.
+  // Errors are re-thrown as RegionError so the SSE client sees the region name
+  // in the message — otherwise a sharp failure bubbles as a bare Error with no
+  // breadcrumb.
   let framed = raw;
   if (backdrop) {
     onProgress({ type: 'step', label: `Applying backdrop to region '${regionConfig.name}'` });
+    const { deviceScaleFactor } = await page.evaluate(() => ({
+      deviceScaleFactor: window.devicePixelRatio,
+    }));
     try {
       framed = await applyBackdrop(raw, { ...backdrop, deviceScaleFactor });
     } catch (err) {

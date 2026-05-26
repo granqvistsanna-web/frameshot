@@ -1325,12 +1325,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
         <div class="section-label">Render</div>
         <div class="field">
           <div class="vp-section-label">Device</div>
-          <div class="vp-chips" id="vpDevice">
-            <label class="vp-chip"><input type="checkbox" data-preset="desktop" checked><span>Desktop</span><span class="vp-chip-meta">1440×900</span></label>
-            <label class="vp-chip"><input type="checkbox" data-preset="laptop"><span>Laptop</span><span class="vp-chip-meta">1280×800</span></label>
-            <label class="vp-chip"><input type="checkbox" data-preset="tablet"><span>Tablet</span><span class="vp-chip-meta">768×1024</span></label>
-            <label class="vp-chip"><input type="checkbox" data-preset="mobile"><span>Mobile</span><span class="vp-chip-meta">375×667</span></label>
-          </div>
+          <!-- Populated from PRESETS at boot so chip dimensions stay in sync
+               with the JS object that submits them. Do NOT hand-author chips
+               here — see renderDeviceChips() in the script tag below. -->
+          <div class="vp-chips" id="vpDevice"></div>
           <div class="vp-section-label">Pinterest <span class="vp-section-hint">each ratio captured at every selected device width</span></div>
           <div class="vp-chips" id="vpPin">
             <label class="vp-chip"><input type="checkbox" data-ratio="1.5"   data-slug="2x3"><span>Standard pin</span><span class="vp-chip-meta">2:3</span></label>
@@ -1541,12 +1539,22 @@ export function renderUi({ version = '0.0.0' } = {}) {
 </div>
 
 <script type="module">
+// Device presets — single source of truth for both chip rendering and the
+// viewport payload submitted to /api/capture. \`label\` is the human-readable
+// chip text; \`name\` is what runCapture sees and what shows up in output paths
+// and recent-runs entries. Adjust dimensions here and the UI updates with no
+// HTML edits required.
 const PRESETS = {
-  desktop: { name: 'desktop', width: 1440, height: 900 },
-  laptop:  { name: 'laptop',  width: 1280, height: 800 },
-  tablet:  { name: 'tablet',  width: 768,  height: 1024 },
-  mobile:  { name: 'mobile',  width: 375,  height: 667 },
+  desktop: { name: 'desktop', label: 'Desktop', width: 1440, height: 900 },
+  laptop:  { name: 'laptop',  label: 'Laptop',  width: 1280, height: 800 },
+  tablet:  { name: 'tablet',  label: 'Tablet',  width: 768,  height: 1024 },
+  mobile:  { name: 'mobile',  label: 'Mobile',  width: 375,  height: 667 },
 };
+const DEFAULT_DEVICE_KEY = 'desktop'; // initial-checked chip on first load
+// Default concurrency target when the user hasn't touched the slider — 2 in
+// parallel is a sweet spot on modern dev laptops (~800 MB RAM, faster than
+// serial without thrashing). Capped at the selected viewport count.
+const DEFAULT_CONCURRENCY_TARGET = 2;
 const STORAGE_KEY = 'framershot.recentRuns';
 const MAX_RUNS = 12;
 
@@ -1626,6 +1634,21 @@ const deviceCheckboxes = () => [...els.vpDevice.querySelectorAll('input[type=che
 const ratioCheckboxes  = () => [...els.vpPin.querySelectorAll('input[type=checkbox]')];
 const allVpCheckboxes  = () => [...deviceCheckboxes(), ...ratioCheckboxes()];
 
+// Split a viewport name into { root, slug }. Pin entries follow the pattern
+// "<deviceRoot>-<ratioSlug>" (e.g. "desktop-2x3"); full-page entries have no
+// slug. Returns { root: name, slug: null } when no ratio chip slug matches as
+// a suffix, so the helper is safe to call on any viewport name regardless of
+// whether the entry was a pin or full-page capture.
+function splitPinName(name) {
+  for (const slug of ratioCheckboxes().map((cb) => cb.dataset.slug)) {
+    const suffix = '-' + slug;
+    if (name.endsWith(suffix)) {
+      return { root: name.slice(0, -suffix.length), slug };
+    }
+  }
+  return { root: name, slug: null };
+}
+
 // Total captures = devices × (1 full-page + N pin ratios), where the +1 drops
 // when pinsOnly is on AND at least one ratio is checked (otherwise the toggle
 // is moot — there'd be nothing to capture). Custom viewport, when toggled on,
@@ -1653,9 +1676,7 @@ function syncConcurrencyToViewports() {
   els.concurrency.max = String(cap);
   let next = Number(els.concurrency.value);
   if (!concurrencyUserTouched) {
-    // Default heuristic: 2 in parallel is a sweet spot on modern dev laptops
-    // (~800 MB RAM), faster than serial without thrashing. Capped at vpCount.
-    next = Math.min(2, cap);
+    next = Math.min(DEFAULT_CONCURRENCY_TARGET, cap);
   }
   if (next > cap) next = cap;
   els.concurrency.value = String(next);
@@ -1755,19 +1776,26 @@ function renderPinPreview() {
   }
 }
 
-// Try to use a full-page output as the silhouette backdrop. Picks the first
-// output that has no regionName AND no pin-slug suffix on its viewportName —
-// that's the full-page sibling for a given device. Loads the image off-DOM
-// to read naturalWidth/Height so the silhouette can render at the actual
-// page aspect (much more accurate than the 3.2 default for the user's page).
+// Try to use a full-page output as the silhouette backdrop. The server tags
+// each output with kind ∈ {'fullPage', 'pin', 'region'}; we pick the first
+// 'fullPage' entry. Older server builds without the kind field fall back to
+// the legacy slug-suffix heuristic so replaying a saved run from before this
+// change still works. Loads the image off-DOM to read naturalWidth/Height so
+// the silhouette can render at the actual page aspect.
 function trySetBackdrop(outputs) {
   if (!outputs || outputs.length === 0) return;
-  const ratioSlugs = ratioCheckboxes().map((cb) => cb.dataset.slug);
-  const fullPage = outputs.find((o) => {
-    if (o.regionName) return false;
-    if (!o.viewportName) return false;
-    return !ratioSlugs.some((s) => o.viewportName.endsWith('-' + s));
-  });
+  let fullPage = outputs.find((o) => o.kind === 'fullPage');
+  if (!fullPage) {
+    // Legacy fallback: pre-kind outputs. splitPinName returns slug=null when
+    // no ratio chip suffix matches, identifying the full-page sibling. The
+    // heuristic can misfire on custom viewport names ending in a chip slug —
+    // bounded to pre-kind outputs only, so impact is finite.
+    fullPage = outputs.find((o) => {
+      if (o.regionName || o.kind) return false;
+      if (!o.viewportName) return false;
+      return splitPinName(o.viewportName).slug === null;
+    });
+  }
   if (!fullPage) return;
   const img = new Image();
   img.onload = () => {
@@ -1775,8 +1803,13 @@ function trySetBackdrop(outputs) {
     lastFullPage = { url: fullPage.urlPath, aspect };
     renderPinPreview();
   };
-  // Failure (missing file, network) leaves lastFullPage as-is — the silhouette
-  // gracefully falls back to the stylized gradient.
+  // Failure leaves lastFullPage as-is — the silhouette gracefully falls back
+  // to the stylized gradient. Warn so a dev hitting the issue (404 file, CORS,
+  // truncated server response) can find the cause in devtools without having
+  // to set a breakpoint here.
+  img.onerror = () => {
+    console.warn('[pin preview] backdrop image failed to load:', fullPage.urlPath);
+  };
   img.src = fullPage.urlPath;
 }
 
@@ -1788,6 +1821,31 @@ function onViewportSelectionChange() {
   renderPinPreview();
   updateSubmitLabel();
 }
+
+// Populate the device-chip group from PRESETS so chip text always matches the
+// dimensions the form actually submits. Must run BEFORE the per-checkbox
+// listener wiring below (deviceCheckboxes() queries live DOM, not a snapshot).
+function renderDeviceChips() {
+  els.vpDevice.innerHTML = '';
+  for (const [key, preset] of Object.entries(PRESETS)) {
+    const label = document.createElement('label');
+    label.className = 'vp-chip';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.dataset.preset = key;
+    if (key === DEFAULT_DEVICE_KEY) input.checked = true;
+    const name = document.createElement('span');
+    name.textContent = preset.label;
+    const meta = document.createElement('span');
+    meta.className = 'vp-chip-meta';
+    meta.textContent = preset.width + '×' + preset.height;
+    label.appendChild(input);
+    label.appendChild(name);
+    label.appendChild(meta);
+    els.vpDevice.appendChild(label);
+  }
+}
+renderDeviceChips();
 
 els.customViewportToggle.addEventListener('change', () => {
   els.customViewport.hidden = !els.customViewportToggle.checked;
@@ -1862,6 +1920,18 @@ function splitBaseUrl() {
 }
 els.baseUrl.addEventListener('blur', splitBaseUrl);
 els.baseUrl.addEventListener('paste', () => setTimeout(splitBaseUrl, 0));
+
+// Invalidate the pin-preview silhouette when the target URL or path changes —
+// lastFullPage was captured against the previous page and its aspect ratio /
+// content has no relationship to the new page. Falls back to the gradient
+// silhouette until the next non-backdropped capture lands.
+function invalidatePinPreviewBackdrop() {
+  if (lastFullPage === null) return;
+  lastFullPage = null;
+  renderPinPreview();
+}
+els.baseUrl.addEventListener('input', invalidatePinPreviewBackdrop);
+els.pagePath.addEventListener('input', invalidatePinPreviewBackdrop);
 
 // Quality control only applies to lossy codecs — PNG has no quality knob, so
 // hide the slider when png is picked. Keep the stored value intact so a flip
@@ -2385,15 +2455,20 @@ let lastOutputPath = null;
 // to /api/zip without re-reading the (now-cleared) log.
 let currentOutputs = [];
 
-// Tile label: prefer "viewport · region" when both exist; fall back to whichever
-// is present. The full-page-with-regions entry only has viewportName, so it
-// renders as just the viewport name — distinguishable from the region tiles
-// because regions add the " · <name>" suffix.
-function tileLabel(o) {
+// Populate a tile-label DOM node with viewport (+ optional region tag). Built
+// with createElement/textContent rather than returning an HTML string because
+// viewportName/regionName originate in user-supplied config — concatenating
+// them into innerHTML at the call site would execute any embedded markup.
+function setTileLabel(labelEl, o) {
   if (o.viewportName && o.regionName) {
-    return o.viewportName + ' <span class="tag">' + o.regionName + '</span>';
+    labelEl.textContent = o.viewportName + ' ';
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = o.regionName;
+    labelEl.appendChild(tag);
+  } else {
+    labelEl.textContent = o.viewportName || o.regionName || 'capture';
   }
-  return o.viewportName || o.regionName || 'capture';
 }
 
 function showHero(output) {
@@ -2430,7 +2505,7 @@ function showGallery(outputs) {
     tile.innerHTML =
       '<div class="tile-img"><img alt="capture"></div>' +
       '<div class="tile-meta">' +
-        '<div class="tile-label">' + tileLabel(o) + '</div>' +
+        '<div class="tile-label"></div>' +
         '<div class="tile-path" title=""></div>' +
       '</div>' +
       '<div class="tile-actions">' +
@@ -2442,6 +2517,7 @@ function showGallery(outputs) {
     // we don't need to HTML-escape them — outputPath comes from the server but
     // belt-and-braces is cheaper than thinking through every edge case.
     tile.querySelector('img').src = o.urlPath + bust;
+    setTileLabel(tile.querySelector('.tile-label'), o);
     const pathEl = tile.querySelector('.tile-path');
     pathEl.textContent = o.outputPath;
     pathEl.title = o.outputPath;
@@ -2474,11 +2550,16 @@ function hideGallery() {
   els.result.hidden = false;
 }
 
-function showResults(outputs) {
+function showResults(outputs, { hadBackdrop = false } = {}) {
   currentOutputs = outputs;
   // Best-effort: swap the pin-preview backdrop to whichever full-page output
   // landed in this run. No-op when none qualifies; never blocks the gallery.
-  trySetBackdrop(outputs);
+  // Skip when this run produced backdropped outputs — the colored padding
+  // baked into the image would skew the silhouette's measured aspect ratio
+  // (naturalH/naturalW includes padding) and the pin-window overlay would no
+  // longer correspond to the actual page slice. Keep the prior non-backdropped
+  // silhouette (or the default gradient) instead.
+  if (!hadBackdrop) trySetBackdrop(outputs);
   if (outputs.length <= 1) {
     hideGallery();
     if (outputs.length === 1) showHero(outputs[0]);
@@ -2698,9 +2779,18 @@ els.form.addEventListener('submit', async (e) => {
             logLine('done · ' + tag + o.outputPath, 'ok');
           }
           setLed('ok', 'ready');
-          showResults(outputs);
+          showResults(outputs, { hadBackdrop: input.backdrop !== undefined });
         } else if (event.type === 'error') {
-          logLine(event.message, 'err');
+          // Surface the server's lastStep context when present — turns a bare
+          // "Region 'hero': backdrop apply failed" into "[iPad/blog] step:
+          // 'Capturing region hero' · Region 'hero': backdrop apply failed",
+          // which is the single line the user can paste into a bug report.
+          const ctx = event.context;
+          const ctxTag = ctx && (ctx.viewport || ctx.page || ctx.step)
+            ? '[' + [ctx.viewport, ctx.page].filter(Boolean).join('/') + ']'
+              + (ctx.step ? " step: '" + ctx.step + "' · " : ' ')
+            : '';
+          logLine(ctxTag + event.message, 'err');
           setLed('err', 'error');
         }
       }

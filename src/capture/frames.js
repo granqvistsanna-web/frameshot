@@ -131,7 +131,7 @@ async function revealStickies(page) {
  *   geometry: {
  *     viewportWidth: number,      // CSS pixels (innerWidth)
  *     viewportHeight: number,     // CSS pixels (innerHeight)
- *     captureHeight: number,        // CSS pixels (scrollHeight at start)
+ *     captureHeight: number,        // CSS pixels — clamped to maxHeight when set, else raw scrollHeight
  *     frameYOffsets: number[],    // CSS-pixel y offset per frame; order matches frames[]
  *     deviceScaleFactor: number,  // physical:CSS pixel ratio from window.devicePixelRatio
  *   }
@@ -153,14 +153,14 @@ async function revealStickies(page) {
  *   overlap region cleanly. Pattern 1 lines 327-332.
  */
 export async function captureFrames(page, options = {}) {
-  const { onProgress, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight, pinOffset = 0 } = options;
+  const { onProgress, onMeta, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight, pinOffset = 0 } = options;
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
-  const { viewportWidth, viewportHeight, captureHeight: rawScrollHeight, deviceScaleFactor } =
+  const { viewportWidth, viewportHeight, scrollHeight: rawScrollHeight, deviceScaleFactor } =
     await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
-      captureHeight: document.documentElement.scrollHeight,
+      scrollHeight: document.documentElement.scrollHeight,
       deviceScaleFactor: window.devicePixelRatio,
     }));
 
@@ -182,6 +182,25 @@ export async function captureFrames(page, options = {}) {
   const startY = (maxHeight !== undefined && room > 0)
     ? Math.round(room * Math.min(1, Math.max(0, pinOffset)))
     : 0;
+
+  // Observability hook for "the slider didn't move my pin" support tickets.
+  // Emitted only for pin captures (maxHeight set) — for full-page runs the math
+  // is uninteresting and would spam the SSE stream. Subscribers can render or
+  // ignore; the channel is structured (no string parsing required).
+  if (maxHeight !== undefined) {
+    onMeta?.({
+      kind: 'pin-math',
+      rawScrollHeight,
+      captureHeight,
+      room,
+      startY,
+      pinOffset,
+      // Whether the user's pinOffset actually produced a non-zero shift.
+      // false here = either room was 0 (page shorter than pin) OR pinOffset
+      // was 0. The user can tell which from rawScrollHeight vs captureHeight.
+      offsetApplied: startY > 0,
+    });
+  }
 
   // Step 2 — Pre-compute frameYOffsets in CSS pixels (window-relative — i.e.,
   // canvas-placement coords, starting at 0). The page-scroll positions are
@@ -285,6 +304,29 @@ export async function captureFrames(page, options = {}) {
     // path above already hid them pre-screenshot).
     if (i === 0 && hideStickyAfterFirstFrame && total > 1 && startY === 0) {
       await hideStickies(page);
+    }
+  }
+
+  // Reflow drift check — only meaningful for pin captures starting mid-page
+  // (startY > 0). When the page reflowed during capture (lazy content settled
+  // late, font loaded after rAF, etc.) the rawScrollHeight we measured at
+  // Step 1 may differ from the actual scrollHeight by the end of the loop.
+  // For startY=0 captures the drift is harmless (the last frame just dupes
+  // the new bottom). For startY>0 the captured pixels live at a different
+  // absolute page position than the user requested — worth surfacing so a
+  // confusing output is debuggable rather than silently wrong. One extra
+  // page.evaluate at end-of-loop, only when startY > 0.
+  if (startY > 0) {
+    const finalScrollHeight = await page.evaluate(
+      () => document.documentElement.scrollHeight,
+    );
+    if (Math.abs(finalScrollHeight - rawScrollHeight) > viewportHeight * 0.1) {
+      onMeta?.({
+        kind: 'reflow-drift',
+        initialScrollHeight: rawScrollHeight,
+        finalScrollHeight,
+        startY,
+      });
     }
   }
 
