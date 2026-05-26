@@ -171,6 +171,16 @@ export async function captureFrames(page, options = {}) {
   // is a no-op and behavior is identical to the v0.1 contract.
   const captureHeight = maxHeight !== undefined ? Math.min(rawScrollHeight, maxHeight) : rawScrollHeight;
 
+  // Empty-page guard. Without this, the single-frame fast path below resolves
+  // clipHeight to 0, which Playwright rejects with an opaque "clip.height must
+  // be >= 1". Surface a clear message — scrollPrime probably hasn't completed
+  // or the page hasn't rendered yet.
+  if (captureHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+    throw new Error(
+      `Page has no measurable layout (scrollHeight=${rawScrollHeight}, innerWidth=${viewportWidth}, innerHeight=${viewportHeight}). The page may not have rendered yet — check that scrollPrime ran or increase extraDelay.`,
+    );
+  }
+
   // Pin-format offset (v0.5): when pinOffset is set alongside maxHeight, shift
   // the captured window down the page by `pinOffset` fraction of the available
   // room (rawScrollHeight - captureHeight). 0 = top (v0.4 behavior, default),

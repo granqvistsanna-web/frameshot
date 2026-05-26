@@ -14,7 +14,7 @@
 //   - SSE: write events as they happen; flush on each line.
 
 import http from 'node:http';
-import { readFile, access } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { resolve, join, normalize, extname, basename, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ZipArchive } from 'archiver';
@@ -237,8 +237,37 @@ async function handleCapture(req, res) {
   // Flush headers immediately
   res.flushHeaders?.();
 
+  // Client-disconnect handling. The browser may close the EventSource mid-run
+  // (tab close, page reload, navigation). Without this guard the next res.write
+  // throws ERR_STREAM_DESTROYED inside onProgress, which propagates out of the
+  // capture pipeline as a non-actionable error AND triggers a cascading throw
+  // in the catch block's send({ type: 'error', … }) on the already-destroyed
+  // stream. Worse: the worker pool keeps spawning viewports for the run
+  // nobody's watching.
+  //
+  // Strategy: tag a CLIENT_ABORTED throw and let it propagate. Each worker's
+  // next onProgress call rethrows it, runViewport's finally closes the browser,
+  // and runCapture's catch surfaces it as firstError. The catch below detects
+  // CLIENT_ABORTED and skips the SSE error frame (the client is gone). Net
+  // effect: in-flight viewports finish their current frame, then all workers
+  // exit cleanly, browsers close, no wasted work past the next progress event.
+  let aborted = false;
+  req.on('close', () => { aborted = true; });
   const send = (event) => {
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
+    if (aborted) {
+      const err = new Error('client disconnected');
+      err.code = 'CLIENT_ABORTED';
+      throw err;
+    }
+    if (res.writableEnded) return;
+    try {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    } catch {
+      aborted = true;
+      const err = new Error('client disconnected');
+      err.code = 'CLIENT_ABORTED';
+      throw err;
+    }
   };
 
   // Cache the most recent `step` event so a thrown error can be reported with
@@ -268,6 +297,12 @@ async function handleCapture(req, res) {
       })),
     });
   } catch (err) {
+    if (err?.code === 'CLIENT_ABORTED') {
+      // Client is gone — don't try to send an error frame (would throw on the
+      // destroyed stream). The capture pipeline has already torn down its
+      // browser/contexts via the workers' finally blocks.
+      return;
+    }
     // Prefer the error's own attached scope (runCapture tags thrown errors
     // with viewportName/pageName/regionName at the per-page try/catch) over
     // lastStep — under concurrency > 1 the most recent step event can come
@@ -285,13 +320,17 @@ async function handleCapture(req, res) {
       ?? (lastStep
         ? { viewport: lastStep.viewport, page: lastStep.page, step: lastStep.label }
         : null);
-    send({
-      type: 'error',
-      message: errorToMessage(err),
-      ...(context ? { context } : {}),
-    });
+    try {
+      send({
+        type: 'error',
+        message: errorToMessage(err),
+        ...(context ? { context } : {}),
+      });
+    } catch {
+      // Stream destroyed between abort detection and write — already aborted.
+    }
   } finally {
-    res.end();
+    try { res.end(); } catch {}
   }
 }
 
@@ -315,8 +354,20 @@ function errorToMessage(err) {
 
 // Resolve one user-supplied path string under SCREENSHOT_ROOT. Returns either
 // { absPath } on success or { error: { status, message } } on rejection. Shared
-// by handleReveal and handleZip so the path-traversal guard is one rule, not two.
-function resolveScreenshotPath(input) {
+// by handleReveal, handleZip, and handleStaticScreenshot so the path-traversal
+// guard is one rule, not three.
+//
+// Two layers of defense:
+//   1. Lexical: normalize(join(...)) collapses `..`, then startsWith verifies
+//      the result stays under SCREENSHOT_ROOT. Cheap; blocks the obvious
+//      "../../etc/passwd" path.
+//   2. realpath: resolves symlinks so a `screenshots/leak` → `/etc/passwd`
+//      symlink can't bypass the lexical check. ENOENT (file doesn't exist)
+//      surfaces as 404; symlink escape surfaces as 403. The screenshots dir
+//      itself may legitimately be a symlink (user choice), so we compare
+//      against realpath(SCREENSHOT_ROOT) — falling back to the lexical value
+//      when the dir doesn't exist yet (no captures recorded).
+async function resolveScreenshotPath(input) {
   const raw = String(input || '').replace(/^\.\//, '').replace(/^\//, '');
   if (!raw.startsWith('screenshots/')) {
     return { error: { status: 400, message: `path must be under screenshots/: ${input}` } };
@@ -326,19 +377,25 @@ function resolveScreenshotPath(input) {
   if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
     return { error: { status: 403, message: `forbidden: ${input}` } };
   }
-  return { absPath };
+  let realPath;
+  try {
+    realPath = await realpath(absPath);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return { error: { status: 404, message: `not found: ${input}` } };
+    }
+    throw err;
+  }
+  const realRoot = await realpath(SCREENSHOT_ROOT).catch(() => SCREENSHOT_ROOT);
+  if (!realPath.startsWith(realRoot + sep) && realPath !== realRoot) {
+    return { error: { status: 403, message: `forbidden: ${input}` } };
+  }
+  return { absPath: realPath };
 }
 
 async function handleReveal(req, res) {
   const body = await readJsonBody(req, res);
   if (body === null) return;
-
-  const { absPath, error } = resolveScreenshotPath(body.path);
-  if (error) {
-    res.writeHead(error.status, { 'content-type': 'text/plain' });
-    res.end(error.message);
-    return;
-  }
 
   if (process.platform !== 'darwin') {
     res.writeHead(501, { 'content-type': 'text/plain' });
@@ -346,15 +403,13 @@ async function handleReveal(req, res) {
     return;
   }
 
-  try {
-    await access(absPath);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      res.writeHead(404, { 'content-type': 'text/plain' });
-      res.end('not found');
-      return;
-    }
-    throw err;
+  // resolveScreenshotPath now does the realpath + existence check, so the
+  // separate access() probe below is no longer needed.
+  const { absPath, error } = await resolveScreenshotPath(body.path);
+  if (error) {
+    res.writeHead(error.status, { 'content-type': 'text/plain' });
+    res.end(error.message);
+    return;
   }
 
   const { spawn } = await import('node:child_process');
@@ -382,21 +437,13 @@ async function handleZip(req, res) {
   // would leave the client with a half-zip and no error surface.
   const resolved = [];
   for (const p of parsed.data.paths) {
-    const { absPath, error } = resolveScreenshotPath(p);
+    // resolveScreenshotPath now does the realpath + existence check, so the
+    // separate access() probe below is no longer needed.
+    const { absPath, error } = await resolveScreenshotPath(p);
     if (error) {
       res.writeHead(error.status, { 'content-type': 'text/plain' });
       res.end(error.message);
       return;
-    }
-    try {
-      await access(absPath);
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        res.writeHead(404, { 'content-type': 'text/plain' });
-        res.end(`not found: ${p}`);
-        return;
-      }
-      throw err;
     }
     resolved.push(absPath);
   }
@@ -433,14 +480,13 @@ async function handleZip(req, res) {
 
 async function handleStaticScreenshot(pathname, res) {
   // /screenshots/foo/bar.png → CWD/screenshots/foo/bar.png
-  // Strip leading "/screenshots/" then resolve under SCREENSHOT_ROOT.
+  // Strip leading "/screenshots/" then route through the shared resolver so the
+  // lexical-and-realpath guard is identical across reveal/zip/static.
   const rel = decodeURIComponent(pathname.replace(/^\/screenshots\/?/, ''));
-  const absPath = normalize(join(SCREENSHOT_ROOT, rel));
-
-  // Path traversal guard: absPath must stay under SCREENSHOT_ROOT.
-  if (!absPath.startsWith(SCREENSHOT_ROOT + sep) && absPath !== SCREENSHOT_ROOT) {
-    res.writeHead(403, { 'content-type': 'text/plain' });
-    res.end('forbidden');
+  const { absPath, error } = await resolveScreenshotPath('screenshots/' + rel);
+  if (error) {
+    res.writeHead(error.status, { 'content-type': 'text/plain' });
+    res.end(error.status === 404 ? 'not found' : error.message);
     return;
   }
 
@@ -448,6 +494,8 @@ async function handleStaticScreenshot(pathname, res) {
   try {
     data = await readFile(absPath);
   } catch (err) {
+    // EISDIR survives the realpath check (directories resolve fine); surface
+    // as 404 to match the previous behavior for /screenshots/<dir>/ requests.
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {
       res.writeHead(404, { 'content-type': 'text/plain' });
       res.end('not found');

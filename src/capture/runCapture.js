@@ -296,8 +296,12 @@ export async function runCapture(config, { onProgress = () => {}, only } = {}) {
       }
     } finally {
       // ORDER MATTERS: context first, then browser. (06-RESEARCH §Pitfall 5)
-      await context.close();
-      await browser.close();
+      // Swallow cleanup errors — a throw from finally replaces any in-flight
+      // capture error (JS spec), so an unrelated context.close() failure would
+      // mask the real "TimeoutError on hide selector" surfaced through
+      // firstError. Cleanup is best-effort here.
+      try { await context.close(); } catch {}
+      try { await browser.close(); } catch {}
     }
     return localResults;
   }

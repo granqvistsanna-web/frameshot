@@ -1718,6 +1718,13 @@ const DEFAULT_PAGE_ASPECT = 3.2; // page height / page width — rough marketing
 // renderPinPreview(). Null until at least one full-page capture has run.
 let lastFullPage = null;
 
+// Tile registry — one entry per rendered pin-preview tile, kept in sync with
+// the DOM by renderPinPreview. updatePinPreviewPositions mutates these in
+// place on every slider tick so we don't churn through createElement on each
+// 'input' event (≤4 tiles is small, but mutating top% is still ~10× cheaper
+// than tearing down and rebuilding the row, and avoids per-tick GC pressure).
+let pinPreviewTiles = [];
+
 function syncPinOffsetBlockVisibility() {
   const anyRatio = ratioCheckboxes().some((cb) => cb.checked);
   els.pinOffsetBlock.hidden = !anyRatio;
@@ -1727,13 +1734,17 @@ function syncPinOffsetBlockVisibility() {
 // of a "page" (gradient or real backdrop) with a colored window overlay sized
 // to the ratio and positioned by the current offset slider value. Recomputed
 // from scratch on every change — cheap (≤4 small DOM trees).
+// Full rebuild — call when the *set* of checked ratios changes or the backdrop
+// image changes. On slider input alone, updatePinPreviewPositions handles the
+// cheap path (no DOM churn).
 function renderPinPreview() {
-  const offset = Number(els.pinOffset.value) / 100;
-  els.pinOffsetValue.textContent = els.pinOffset.value;
-
   const checked = ratioCheckboxes().filter((cb) => cb.checked);
   els.pinPreviewRow.innerHTML = '';
-  if (checked.length === 0) return;
+  pinPreviewTiles = [];
+  if (checked.length === 0) {
+    updatePinPreviewPositions();
+    return;
+  }
 
   // pageAspect is page_height / page_width. The silhouette is rendered with
   // 'aspect-ratio: 1 / pageAspect' and the pin window height is
@@ -1742,12 +1753,9 @@ function renderPinPreview() {
 
   for (const cb of checked) {
     const ratio = Number(cb.dataset.ratio);
-    const slug = cb.dataset.slug;
     // Clamp to (0, 1] so the window never exceeds the silhouette (degenerate
     // case: pinHeight > pageHeight → window is 100% tall, no room to slide).
     const winFrac = Math.min(1, ratio / pageAspect);
-    const room = 1 - winFrac;
-    const topFrac = room * offset;
 
     const tile = document.createElement('div');
     tile.className = 'pin-preview';
@@ -1762,17 +1770,35 @@ function renderPinPreview() {
 
     const win = document.createElement('div');
     win.className = 'pin-preview-window';
-    win.style.top = (topFrac * 100) + '%';
     win.style.height = (winFrac * 100) + '%';
     sil.appendChild(win);
 
     const label = document.createElement('div');
     label.className = 'pin-preview-label';
-    label.textContent = slug.replace('x', ':').replace('1:2-1', '1:2.1');
+    // Read the chip's own meta label (e.g. "2:3", "1:2.1") rather than munging
+    // the slug — keeps display formatting data-driven so adding a new chip
+    // doesn't require touching this code path.
+    const meta = cb.parentElement.querySelector('.vp-chip-meta');
+    label.textContent = meta ? meta.textContent : cb.dataset.slug;
 
     tile.appendChild(sil);
     tile.appendChild(label);
     els.pinPreviewRow.appendChild(tile);
+
+    pinPreviewTiles.push({ win, winFrac });
+  }
+
+  updatePinPreviewPositions();
+}
+
+// Cheap slider-tick path: only mutates the top% style on already-rendered
+// window elements. No DOM churn, no createElement, no re-measuring.
+function updatePinPreviewPositions() {
+  els.pinOffsetValue.textContent = els.pinOffset.value;
+  const offset = Number(els.pinOffset.value) / 100;
+  for (const { win, winFrac } of pinPreviewTiles) {
+    const room = 1 - winFrac;
+    win.style.top = (room * offset * 100) + '%';
   }
 }
 
@@ -1864,15 +1890,16 @@ els.concurrency.addEventListener('input', () => {
 
 // Pin offset slider — drives the preview live. The actual value is sent at
 // submit time via readForm; nothing else depends on this state.
-els.pinOffset.addEventListener('input', renderPinPreview);
+els.pinOffset.addEventListener('input', updatePinPreviewPositions);
 
 // Density pills — discrete 1×/2×/3× segmented control replacing the prior
 // number-with-0.5-step input. Selection is stored as data-dsr on the active
 // pill; readForm pulls it at submit. setDsr is also called by fillForm when
 // replaying a saved run.
 function setDsr(value) {
-  // Saved DSRs might be 1.5/2.5 from the old number input — snap to the
-  // nearest pill rather than leaving nothing active.
+  // Pre-v0.4 stored runs may carry 1.5/2.5 from the old number-with-0.5-step
+  // input. The current control is a discrete 1×/2×/3× pill group — snap to
+  // the nearest pill rather than leaving every pill inactive on replay.
   const target = String(Math.round(Number(value) || 2));
   let matched = false;
   for (const btn of els.dsrPills.querySelectorAll('.seg-pill')) {
@@ -1901,6 +1928,14 @@ for (const btn of els.dsrPills.querySelectorAll('.seg-pill')) {
 // screenshotting the home page. Split the path out into the Path field so
 // the captured URL matches what was pasted. Only auto-fills Path/Slug when
 // they're still at defaults, so manual edits aren't clobbered.
+//
+// Note on escaping: this entire script body lives inside a backtick template
+// literal in renderUi(), so every backslash must be doubled to survive the
+// outer template before reaching the browser. That is why the slash-stripping
+// regex below uses doubled-backslash escapes, and why the SSE frame separator
+// in the submit handler uses doubled-backslash-n-doubled-backslash-n. Single
+// backslashes here would be consumed by the template literal and never reach
+// the browser as the intended escape sequence.
 function splitBaseUrl() {
   const raw = els.baseUrl.value.trim();
   if (!raw) return;
@@ -2040,6 +2075,11 @@ els.addRegion.addEventListener('click', () => addRegionRow());
 // (anything not /^#?[0-9a-f]{6}$/i) silently no-ops the sync so the user can
 // type freely without snapback. Schema-side validation catches malformed hex
 // at submit time.
+// Snapshot the swatch list once at boot — the swatches are baked into the
+// static HTML and never reorder, so re-querying on every color set is wasted
+// work (and used to fire on every input event from the color picker).
+const backdropSwatchEls = [...els.backdropSwatches.querySelectorAll('.backdrop-swatch')];
+
 function setBackdropColor(hex) {
   const normalized = /^#?[0-9a-fA-F]{6}$/.test(hex)
     ? (hex.startsWith('#') ? hex : '#' + hex).toUpperCase()
@@ -2047,14 +2087,14 @@ function setBackdropColor(hex) {
   if (!normalized) return;
   els.backdropColor.value = normalized;
   els.backdropColorHex.value = normalized;
-  for (const sw of els.backdropSwatches.querySelectorAll('.backdrop-swatch')) {
+  for (const sw of backdropSwatchEls) {
     sw.classList.toggle('is-active', sw.dataset.color.toUpperCase() === normalized);
   }
 }
 els.backdropColor.addEventListener('input', () => setBackdropColor(els.backdropColor.value));
 els.backdropColorHex.addEventListener('change', () => setBackdropColor(els.backdropColorHex.value));
 els.backdropColorHex.addEventListener('blur', () => setBackdropColor(els.backdropColorHex.value));
-for (const sw of els.backdropSwatches.querySelectorAll('.backdrop-swatch')) {
+for (const sw of backdropSwatchEls) {
   sw.addEventListener('click', () => setBackdropColor(sw.dataset.color));
 }
 els.backdropToggle.addEventListener('change', () => {

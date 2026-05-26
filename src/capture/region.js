@@ -142,8 +142,12 @@ async function clampToDocument(page, rect) {
   // When rect.x is negative, the clip starts at 0 and we lose |rect.x| of width
   // off the left. Math.min(0, rect.x) is ≤ 0, so adding it to rect.width
   // subtracts the overflow. Then cap so x + width ≤ docWidth.
-  const width = Math.min(rect.width + Math.min(0, rect.x), docWidth - x);
-  const height = Math.min(rect.height + Math.min(0, rect.y), docHeight - y);
+  // Math.max(0, …) floors at zero — when the padded rect falls entirely outside
+  // the document (tiny element + huge padding at an edge) the inner formula
+  // can go negative and sharp rejects negative dimensions. The captureRegion
+  // call sites translate a zero-area clip into RegionError.
+  const width = Math.max(0, Math.min(rect.width + Math.min(0, rect.x), docWidth - x));
+  const height = Math.max(0, Math.min(rect.height + Math.min(0, rect.y), docHeight - y));
   return { x, y, width, height };
 }
 
@@ -278,6 +282,16 @@ export async function captureRegion(page, regionConfig, outputPath, { onProgress
     rect = unionRect(boxFrom, boxTo);
   }
   const clip = await clampToDocument(page, padRect(rect, padding));
+
+  // clampToDocument floors width/height at 0 — when the padded rect falls
+  // entirely outside the document (degenerate case for tiny elements with
+  // large padding near edges), pass a clear RegionError up rather than a raw
+  // Playwright "clip.width must be >= 1" failure.
+  if (clip.width === 0 || clip.height === 0) {
+    throw new RegionError(
+      `Region '${regionConfig.name}': computed clip has no area (element + padding falls outside document bounds).`,
+    );
+  }
 
   // Wait ONE rAF roundtrip for paint to settle after the last
   // scrollIntoViewIfNeeded — frames.js mirror. With fullPage: true +
