@@ -123,9 +123,14 @@ async function revealStickies(page) {
  *   - maxHeight: v0.4 pin-format clamp. When set, captureHeight is capped at this
  *     CSS-pixel value so the output stops early and is ratio-shaped instead of
  *     full-page. Undefined = full-page behavior.
- *   - pinOffset: v0.5 fraction in [0..1] of available vertical room
- *     (rawScrollHeight - captureHeight). 0 = top of page (default), 1 = flush bottom.
- *     Only meaningful with maxHeight; ignored otherwise (no window to slide).
+ *   - pinOffset: v0.5/v0.6 fraction in [0..1] of available vertical room.
+ *     0 = top of page (default), 1 = flush bottom. Works with maxHeight (slides
+ *     the pin window) AND for full-page captures (shifts the start of the
+ *     scroll-stitch — capture extends from startY to end of page).
+ *   - pinOffsetPx: v0.6 absolute-pixel alternative to pinOffset. Becomes startY
+ *     directly, clamped to [0, rawScrollHeight - viewportHeight]. When both
+ *     pinOffset and pinOffsetPx are provided, pinOffsetPx wins (the schema
+ *     rejects that combo upstream, but be defensive here).
  * @returns {Promise<{
  *   frames: Buffer[],
  *   geometry: {
@@ -153,7 +158,7 @@ async function revealStickies(page) {
  *   overlap region cleanly. Pattern 1 lines 327-332.
  */
 export async function captureFrames(page, options = {}) {
-  const { onProgress, onMeta, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight, pinOffset = 0 } = options;
+  const { onProgress, onMeta, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight, pinOffset = 0, pinOffsetPx } = options;
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
   const { viewportWidth, viewportHeight, scrollHeight: rawScrollHeight, deviceScaleFactor } =
@@ -164,40 +169,52 @@ export async function captureFrames(page, options = {}) {
       deviceScaleFactor: window.devicePixelRatio,
     }));
 
-  // Pin-format clamp (v0.4): when the caller passes maxHeight, cap captureHeight
-  // at that value so the scroll-stitch stops early and the output image is
-  // ratio-shaped instead of full-page. Capped to the actual scrollHeight so
-  // short pages don't produce blank padding. When maxHeight is omitted, this
-  // is a no-op and behavior is identical to the v0.1 contract.
-  const captureHeight = maxHeight !== undefined ? Math.min(rawScrollHeight, maxHeight) : rawScrollHeight;
-
   // Empty-page guard. Without this, the single-frame fast path below resolves
   // clipHeight to 0, which Playwright rejects with an opaque "clip.height must
   // be >= 1". Surface a clear message — scrollPrime probably hasn't completed
   // or the page hasn't rendered yet.
-  if (captureHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+  if (rawScrollHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
     throw new Error(
       `Page has no measurable layout (scrollHeight=${rawScrollHeight}, innerWidth=${viewportWidth}, innerHeight=${viewportHeight}). The page may not have rendered yet — check that scrollPrime ran or increase extraDelay.`,
     );
   }
 
-  // Pin-format offset (v0.5): when pinOffset is set alongside maxHeight, shift
-  // the captured window down the page by `pinOffset` fraction of the available
-  // room (rawScrollHeight - captureHeight). 0 = top (v0.4 behavior, default),
-  // 1 = flush bottom. Clamped to [0,1] and to a non-negative room amount so
-  // short pages (where pinHeight ≥ pageHeight) collapse to startY=0 cleanly.
-  // For full-page captures (no maxHeight) startY is always 0 — pinOffset has
-  // no meaningful interpretation without a window to slide.
+  // Resolve startY first so full-page captures with an offset can size
+  // captureHeight as "from startY to end of page". Two paths:
+  //   (a) Pin capture (maxHeight set): startY slides inside the room between
+  //       rawScrollHeight and the pinned captureHeight (v0.4/v0.5 contract).
+  //   (b) Full-page capture (maxHeight undefined) with an offset: startY slides
+  //       in the room between rawScrollHeight and viewportHeight (so the very
+  //       last frame can fit) and captureHeight becomes (rawScrollHeight - startY).
+  //       This is the v0.6 addition — "capture from middle/bottom of page".
+  // pinOffsetPx wins when provided (schema rejects the combo but be defensive).
+  // Both forms clamp to non-negative room so short pages collapse to startY=0.
+  const pinned = maxHeight !== undefined;
+  const captureHeightIfPinned = pinned ? Math.min(rawScrollHeight, maxHeight) : rawScrollHeight;
+  const roomForOffset = pinned
+    ? Math.max(0, rawScrollHeight - captureHeightIfPinned)
+    : Math.max(0, rawScrollHeight - viewportHeight);
+  let startY;
+  if (pinOffsetPx !== undefined) {
+    startY = Math.max(0, Math.min(roomForOffset, Math.round(pinOffsetPx)));
+  } else if (roomForOffset > 0) {
+    startY = Math.round(roomForOffset * Math.min(1, Math.max(0, pinOffset)));
+  } else {
+    startY = 0;
+  }
+  // Effective captureHeight: pin captures keep their clamp; full-page captures
+  // with startY>0 trim the top so the stitched output starts at the chosen Y.
+  const captureHeight = pinned ? captureHeightIfPinned : rawScrollHeight - startY;
+  // For observability the "room" stays the formal room-against-captureHeight
+  // (matches the v0.5 pin-math contract). For full-page with no startY the
+  // room is 0 and offsetApplied is false, which is the right signal.
   const room = Math.max(0, rawScrollHeight - captureHeight);
-  const startY = (maxHeight !== undefined && room > 0)
-    ? Math.round(room * Math.min(1, Math.max(0, pinOffset)))
-    : 0;
 
   // Observability hook for "the slider didn't move my pin" support tickets.
-  // Emitted only for pin captures (maxHeight set) — for full-page runs the math
-  // is uninteresting and would spam the SSE stream. Subscribers can render or
-  // ignore; the channel is structured (no string parsing required).
-  if (maxHeight !== undefined) {
+  // Emitted for pin captures (maxHeight set) AND for full-page captures that
+  // actually applied a startY offset (v0.6). Plain top-to-bottom full-page
+  // runs skip the event to keep the SSE stream quiet.
+  if (pinned || startY > 0) {
     onMeta?.({
       kind: 'pin-math',
       rawScrollHeight,
@@ -205,8 +222,9 @@ export async function captureFrames(page, options = {}) {
       room,
       startY,
       pinOffset,
-      // Whether the user's pinOffset actually produced a non-zero shift.
-      // false here = either room was 0 (page shorter than pin) OR pinOffset
+      pinOffsetPx,
+      // Whether the user's offset actually produced a non-zero shift.
+      // false here = either room was 0 (page shorter than window) OR offset
       // was 0. The user can tell which from rawScrollHeight vs captureHeight.
       offsetApplied: startY > 0,
     });

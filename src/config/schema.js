@@ -51,10 +51,13 @@ const viewportSchema = z.object({
 // is natural for the chosen device width) but the output image stops at the pin
 // height. Used by the UI's Pinterest ratio chips: pinHeight = round(width × ratio).
 // pinOffset (optional, v0.5): fraction in [0..1] of "available vertical room"
-// (pageHeight - pinHeight). 0 = top of page (legacy behavior, default when omitted),
-// 1 = flush bottom. Requires pinHeight — rejected at schema layer if set alone
-// (without that guard captureFrames silently no-ops via the `maxHeight !== undefined`
-// branch and the user sees no effect).
+// (pageHeight - captureHeight). 0 = top of page (legacy behavior, default when
+// omitted), 1 = flush bottom. v0.6: also honored for full-page captures (no
+// pinHeight), where it shifts the start of the scroll-stitch — the window
+// extends from startY to the end of the page.
+// pinOffsetPx (optional, v0.6): absolute-pixel alternative to pinOffset. When
+// set, it becomes startY directly (clamped at capture time to
+// [0, scrollHeight - viewportHeight]). Mutually exclusive with pinOffset.
 export const viewportEntrySchema = z
   .object({
     width: z.number().int().positive(),
@@ -62,13 +65,14 @@ export const viewportEntrySchema = z
     name: safeNameSchema,
     pinHeight: z.number().int().positive().optional(),
     pinOffset: z.number().min(0).max(1).optional(),
+    pinOffsetPx: z.number().int().min(0).optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.pinOffset !== undefined && data.pinHeight === undefined) {
+    if (data.pinOffset !== undefined && data.pinOffsetPx !== undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['pinOffset'],
-        message: `viewport '${data.name}': pinOffset requires pinHeight (it has no meaning without a pin window to slide)`,
+        path: ['pinOffsetPx'],
+        message: `viewport '${data.name}': provide pinOffset (fraction) OR pinOffsetPx (absolute), not both`,
       });
     }
   });

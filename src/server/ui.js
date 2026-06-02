@@ -1068,6 +1068,260 @@ export function renderUi({ version = '0.0.0' } = {}) {
     font-feature-settings: 'tnum';
   }
 
+  /* Capture-position controls — chips + custom % / px row + Preview button.
+     The chips share the same .seg-pills styling as the density pills; the
+     Custom block reveals the existing slider plus an absolute-pixel input
+     wired two-way to it via JS. */
+  .preview-pick-btn {
+    margin-top: 10px;
+    padding: 7px 12px;
+    font: inherit;
+    font-size: 11px;
+    background: var(--bg-2);
+    color: var(--fg);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 90ms ease, border-color 90ms ease;
+  }
+  .preview-pick-btn:hover:not(:disabled) {
+    background: var(--bg-3);
+    border-color: var(--fg-3);
+  }
+  .preview-pick-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .pin-custom-block { margin-top: 12px; }
+  .pin-custom-row {
+    display: grid;
+    grid-template-columns: 1fr 110px;
+    gap: 14px;
+    align-items: end;
+  }
+  .pin-custom-field { display: flex; flex-direction: column; gap: 6px; }
+  .pin-custom-field .field-label { margin: 0; }
+  .pin-custom-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pin-custom-input-row .range { flex: 1; }
+  .pin-custom-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg-2);
+    font-feature-settings: 'tnum';
+    min-width: 36px;
+    text-align: right;
+  }
+  .pin-custom-px {
+    font: inherit;
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 8px;
+    background: var(--bg-2);
+    color: var(--fg);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .pin-custom-px:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* Preview modal — fullscreen overlay with the captured preview PNG on the
+     left and the position controls on the right. The overlay rectangle is
+     draggable; client-side math maps image-px ↔ CSS-px because the preview
+     is captured at DSR=1. */
+  .preview-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+  }
+  .preview-modal-backdrop[hidden] { display: none; }
+  .preview-modal {
+    background: var(--bg);
+    border: 1px solid var(--rule-2);
+    border-radius: 6px;
+    width: min(900px, 100%);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .preview-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .preview-modal-title {
+    font-size: 13px;
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .preview-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--fg-2);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 6px;
+  }
+  .preview-modal-close:hover { color: var(--fg); }
+  .preview-modal-body {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 18px;
+    padding: 18px;
+    flex: 1;
+    min-height: 0;
+  }
+  .preview-stage {
+    position: relative;
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: auto;
+    max-height: 70vh;
+    min-height: 280px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .preview-stage-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-3);
+    font-size: 12px;
+    padding: 40px 20px;
+    text-align: center;
+  }
+  .preview-stage-frame {
+    position: relative;
+    display: inline-block;
+  }
+  .preview-stage-img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .preview-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: rgba(255, 228, 92, 0.18);
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
+    cursor: grab;
+    user-select: none;
+  }
+  .preview-overlay.is-dragging { cursor: grabbing; }
+  .preview-overlay-tag {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 2px 6px;
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .preview-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .preview-controls .seg-pills { width: 100%; }
+  .preview-controls .seg-pill { flex: 1; }
+  .preview-readout {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg-2);
+    font-feature-settings: 'tnum';
+  }
+  .preview-readout-row {
+    display: flex;
+    justify-content: space-between;
+  }
+  .preview-readout-row strong {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .preview-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--rule);
+  }
+  .preview-btn {
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 12px;
+    background: var(--bg-2);
+    color: var(--fg);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .preview-btn:hover { background: var(--bg-3); }
+  .preview-btn.is-primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+  .preview-btn.is-primary:hover { filter: brightness(1.05); }
+  .preview-error {
+    color: #ff6b6b;
+    font-size: 12px;
+    padding: 12px;
+    background: rgba(255, 107, 107, 0.08);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    border-radius: 4px;
+    text-align: center;
+  }
+  .preview-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--fg-3);
+    font-size: 12px;
+  }
+  .preview-spinner::before {
+    content: '';
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--rule-2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: preview-spin 0.7s linear infinite;
+  }
+  @keyframes preview-spin {
+    to { transform: rotate(360deg); }
+  }
+
   /* Backdrop — color swatch + hex text input sit on one line. The native
      color picker is a small clickable square; the hex field shows the value
      and accepts manual entry. They stay in sync via JS. */
@@ -1251,16 +1505,38 @@ export function renderUi({ version = '0.0.0' } = {}) {
             <label class="vp-chip"><input type="checkbox" data-ratio="1.0"   data-slug="1x1"><span>Square pin</span><span class="vp-chip-meta">1:1</span></label>
             <label class="vp-chip"><input type="checkbox" data-ratio="2.1"   data-slug="1x2-1"><span>Long pin</span><span class="vp-chip-meta">1:2.1</span></label>
             <label class="vp-chip"><input type="checkbox" data-ratio="1.778" data-slug="9x16"><span>Idea / video</span><span class="vp-chip-meta">9:16</span></label>
+            <label class="vp-chip"><input type="checkbox" data-mode="viewport" data-slug="view"><span>Single viewport</span><span class="vp-chip-meta">1×</span></label>
           </div>
           <label class="vp-toggle" id="pinsOnlyChip"><input type="checkbox" id="pinsOnlyToggle" disabled><span>Pins only · skip full-page for these devices</span></label>
-          <div class="pin-offset-block" id="pinOffsetBlock" hidden>
+          <div class="pin-offset-block" id="pinOffsetBlock">
             <div class="pin-offset-label-row">
-              <label class="field-label" for="pinOffset">Vertical offset</label>
-              <span class="pin-offset-val"><span id="pinOffsetValue">0</span>%</span>
+              <label class="field-label">Start position</label>
+              <span class="pin-offset-val" id="positionReadout">Top</span>
             </div>
-            <input id="pinOffset" type="range" min="0" max="100" value="0" class="range">
+            <div class="seg-pills" id="positionPills" role="radiogroup" aria-label="Capture start position">
+              <button type="button" class="seg-pill is-active" data-pos="top" role="radio" aria-checked="true">Top</button>
+              <button type="button" class="seg-pill" data-pos="middle" role="radio" aria-checked="false">Middle</button>
+              <button type="button" class="seg-pill" data-pos="bottom" role="radio" aria-checked="false">Bottom</button>
+              <button type="button" class="seg-pill" data-pos="custom" role="radio" aria-checked="false">Custom</button>
+            </div>
+            <button type="button" class="preview-pick-btn" id="previewPickBtn" disabled title="Add a URL to preview the page">Preview &amp; pick…</button>
+            <div class="pin-custom-block" id="pinCustomBlock" hidden>
+              <div class="pin-custom-row">
+                <div class="pin-custom-field">
+                  <label class="field-label" for="pinOffset">Percent</label>
+                  <div class="pin-custom-input-row">
+                    <input id="pinOffset" type="range" min="0" max="100" value="0" class="range">
+                    <span class="pin-custom-val"><span id="pinOffsetValue">0</span>%</span>
+                  </div>
+                </div>
+                <div class="pin-custom-field">
+                  <label class="field-label" for="pinOffsetPx">Pixels</label>
+                  <input id="pinOffsetPx" type="number" min="0" step="1" placeholder="0" class="pin-custom-px">
+                </div>
+              </div>
+              <span class="help">% slides within available room · px is absolute Y from the top · they stay in sync</span>
+            </div>
             <div class="pin-preview-row" id="pinPreviewRow"></div>
-            <span class="help">0% = top of page · 100% = flush bottom · preview uses your latest full-page capture when available</span>
           </div>
           <div class="vp-section-label">Custom</div>
           <label class="vp-toggle"><input type="checkbox" id="customViewportToggle"><span>Add a custom viewport</span></label>
@@ -1445,6 +1721,51 @@ export function renderUi({ version = '0.0.0' } = {}) {
     </div>
   </footer>
 
+  <!-- ── PREVIEW MODAL ── -->
+  <div class="preview-modal-backdrop" id="previewModal" hidden role="dialog" aria-modal="true" aria-labelledby="previewModalTitle">
+    <div class="preview-modal">
+      <div class="preview-modal-header">
+        <span class="preview-modal-title" id="previewModalTitle">Pick capture position</span>
+        <button type="button" class="preview-modal-close" id="previewModalClose" aria-label="Close">×</button>
+      </div>
+      <div class="preview-modal-body">
+        <div class="preview-stage" id="previewStage">
+          <div class="preview-spinner" id="previewSpinner">Capturing preview…</div>
+        </div>
+        <div class="preview-controls">
+          <div>
+            <label class="field-label">Start position</label>
+            <div class="seg-pills" id="modalPositionPills" role="radiogroup" aria-label="Modal capture start position">
+              <button type="button" class="seg-pill is-active" data-pos="top" role="radio" aria-checked="true">Top</button>
+              <button type="button" class="seg-pill" data-pos="middle" role="radio" aria-checked="false">Mid</button>
+              <button type="button" class="seg-pill" data-pos="bottom" role="radio" aria-checked="false">Bot</button>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="modalOffsetSlider">Percent</label>
+            <div class="pin-custom-input-row">
+              <input id="modalOffsetSlider" type="range" min="0" max="100" value="0" class="range">
+              <span class="pin-custom-val"><span id="modalOffsetPctValue">0</span>%</span>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="modalOffsetPx">Pixels (Y)</label>
+            <input id="modalOffsetPx" type="number" min="0" step="1" value="0" class="pin-custom-px">
+          </div>
+          <div class="preview-readout" id="previewReadout">
+            <div class="preview-readout-row"><span>page height</span><strong id="readoutPage">—</strong></div>
+            <div class="preview-readout-row"><span>window</span><strong id="readoutWindow">—</strong></div>
+            <div class="preview-readout-row"><span>start Y</span><strong id="readoutStartY">—</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="preview-modal-footer">
+        <button type="button" class="preview-btn" id="previewCancelBtn">Cancel</button>
+        <button type="button" class="preview-btn is-primary" id="previewConfirmBtn" disabled>Use this position</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script type="module">
@@ -1479,7 +1800,25 @@ const els = {
   pinOffsetBlock: $('pinOffsetBlock'),
   pinOffset: $('pinOffset'),
   pinOffsetValue: $('pinOffsetValue'),
+  pinOffsetPx: $('pinOffsetPx'),
   pinPreviewRow: $('pinPreviewRow'),
+  positionPills: $('positionPills'),
+  positionReadout: $('positionReadout'),
+  pinCustomBlock: $('pinCustomBlock'),
+  previewPickBtn: $('previewPickBtn'),
+  previewModal: $('previewModal'),
+  previewModalClose: $('previewModalClose'),
+  previewStage: $('previewStage'),
+  previewSpinner: $('previewSpinner'),
+  modalPositionPills: $('modalPositionPills'),
+  modalOffsetSlider: $('modalOffsetSlider'),
+  modalOffsetPctValue: $('modalOffsetPctValue'),
+  modalOffsetPx: $('modalOffsetPx'),
+  readoutPage: $('readoutPage'),
+  readoutWindow: $('readoutWindow'),
+  readoutStartY: $('readoutStartY'),
+  previewCancelBtn: $('previewCancelBtn'),
+  previewConfirmBtn: $('previewConfirmBtn'),
   customViewport: $('customViewport'),
   customViewportToggle: $('customViewportToggle'),
   vpName: $('vpName'), vpWidth: $('vpWidth'), vpHeight: $('vpHeight'),
@@ -1632,10 +1971,132 @@ let lastFullPage = null;
 // than tearing down and rebuilding the row, and avoids per-tick GC pressure).
 let pinPreviewTiles = [];
 
+// v0.6: capture-position controls are always visible (they apply to full-page,
+// pin, and single-viewport captures alike). This function is kept for the few
+// callers that still invoke it after viewport selection changes, but it now
+// only resyncs the preview row — the block itself never hides.
 function syncPinOffsetBlockVisibility() {
-  const anyRatio = ratioCheckboxes().some((cb) => cb.checked);
-  els.pinOffsetBlock.hidden = !anyRatio;
+  els.pinOffsetBlock.hidden = false;
 }
+
+// ── Capture-position state (v0.6) ──────────────────────────
+// position is the active chip: 'top' | 'middle' | 'bottom' | 'custom'.
+// Default 'top' = legacy behavior (startY=0 across every viewport).
+// customSource tracks which Custom input the user last touched so readForm
+// emits the right field — pinOffset (fraction) or pinOffsetPx (absolute).
+// pageHeightHint is set after a preview load OR after a real run completes,
+// enabling two-way sync between % and px inputs in Custom mode.
+let position = 'top';
+let customSource = 'percent';
+let pageHeightHint = null;
+
+function positionToOffsetFrac(pos) {
+  if (pos === 'middle') return 0.5;
+  if (pos === 'bottom') return 1.0;
+  return 0;
+}
+
+function setPositionPillsActive(container, value) {
+  for (const btn of container.querySelectorAll('.seg-pill')) {
+    const active = btn.dataset.pos === value;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-checked', String(active));
+  }
+}
+
+function setPosition(value, { source = 'chip' } = {}) {
+  position = value;
+  setPositionPillsActive(els.positionPills, value);
+  els.pinCustomBlock.hidden = value !== 'custom';
+  if (value === 'top') {
+    els.pinOffset.value = '0';
+    els.pinOffsetPx.value = '';
+    els.positionReadout.textContent = 'Top';
+  } else if (value === 'middle') {
+    els.pinOffset.value = '50';
+    els.pinOffsetPx.value = '';
+    els.positionReadout.textContent = 'Middle';
+  } else if (value === 'bottom') {
+    els.pinOffset.value = '100';
+    els.pinOffsetPx.value = '';
+    els.positionReadout.textContent = 'Bottom';
+  } else if (value === 'custom') {
+    customSource = 'percent';
+    els.positionReadout.textContent = 'Custom ' + els.pinOffset.value + '%';
+  }
+  updatePinPreviewPositions();
+  // Source 'chip' = user click on a pill — refresh the submit label since the
+  // wire payload may have changed shape (e.g. pinOffset toggled on/off).
+  if (source === 'chip') updateSubmitLabel?.();
+}
+
+// Wire the main-form position pills. Clicking 'top'/'middle'/'bottom'/'custom'
+// updates the shared position state and reveals/hides the Custom row.
+for (const btn of els.positionPills.querySelectorAll('.seg-pill')) {
+  btn.addEventListener('click', () => setPosition(btn.dataset.pos));
+}
+
+// Custom % slider → also keep px in sync when we have a page-height hint
+// (from a preview run). Without a hint, leave px empty so the user knows the
+// conversion isn't grounded yet — they can open the preview modal to fix that.
+els.pinOffset.addEventListener('input', () => {
+  customSource = 'percent';
+  if (pageHeightHint != null && pageHeightHint > 0) {
+    const frac = Number(els.pinOffset.value) / 100;
+    const px = Math.round(pageHeightHint * frac);
+    els.pinOffsetPx.value = String(px);
+  } else {
+    els.pinOffsetPx.value = '';
+  }
+  if (position === 'custom') {
+    els.positionReadout.textContent = 'Custom ' + els.pinOffset.value + '%';
+  }
+  updatePinPreviewPositions();
+});
+
+// Custom px → derive % when we have a hint, otherwise just record the value
+// and let readForm emit pinOffsetPx directly.
+els.pinOffsetPx.addEventListener('input', () => {
+  customSource = 'pixels';
+  if (pageHeightHint != null && pageHeightHint > 0) {
+    const px = Math.max(0, Number(els.pinOffsetPx.value) || 0);
+    const frac = Math.min(1, px / pageHeightHint);
+    els.pinOffset.value = String(Math.round(frac * 100));
+  }
+  if (position === 'custom') {
+    els.positionReadout.textContent = 'Custom ' + (els.pinOffsetPx.value || 0) + 'px';
+  }
+  updatePinPreviewPositions();
+});
+
+// Build the position-options object for one viewport entry. Returns either {}
+// (Top — legacy, no field emitted) or { pinOffset } or { pinOffsetPx }.
+function getPositionOpts() {
+  if (position === 'top') return {};
+  if (position === 'middle') return { pinOffset: 0.5 };
+  if (position === 'bottom') return { pinOffset: 1.0 };
+  // Custom — honor whichever input the user last touched.
+  if (customSource === 'pixels') {
+    const px = Math.max(0, Math.round(Number(els.pinOffsetPx.value) || 0));
+    if (px > 0) return { pinOffsetPx: px };
+  }
+  const frac = Math.max(0, Math.min(1, Number(els.pinOffset.value) / 100));
+  if (frac > 0) return { pinOffset: frac };
+  return {};
+}
+
+// Enable the Preview & pick button only when a URL is present. The modal
+// needs a URL to fetch from — disabling avoids a 400 round-trip and a
+// confusing empty modal.
+function syncPreviewPickEnabled() {
+  const ready = els.baseUrl.value.trim().length > 0;
+  els.previewPickBtn.disabled = !ready;
+  els.previewPickBtn.title = ready
+    ? 'Open preview to pick the start position'
+    : 'Add a URL to preview the page';
+}
+els.baseUrl.addEventListener('input', syncPreviewPickEnabled);
+syncPreviewPickEnabled();
 
 // Build one preview tile per checked ratio. Each tile shows the silhouette
 // of a "page" (gradient or real backdrop) with a colored window overlay sized
@@ -1645,7 +2106,11 @@ function syncPinOffsetBlockVisibility() {
 // image changes. On slider input alone, updatePinPreviewPositions handles the
 // cheap path (no DOM churn).
 function renderPinPreview() {
-  const checked = ratioCheckboxes().filter((cb) => cb.checked);
+  // Skip the single-viewport chip (data-mode="viewport") — its window height
+  // depends on the device, not a fixed ratio, so the per-ratio silhouette row
+  // can't represent it generically. The preview modal is the better surface
+  // for visualizing single-viewport captures.
+  const checked = ratioCheckboxes().filter((cb) => cb.checked && cb.dataset.ratio !== undefined);
   els.pinPreviewRow.innerHTML = '';
   pinPreviewTiles = [];
   if (checked.length === 0) {
@@ -1795,9 +2260,9 @@ els.concurrency.addEventListener('input', () => {
   els.concurrencyValue.textContent = els.concurrency.value;
 });
 
-// Pin offset slider — drives the preview live. The actual value is sent at
-// submit time via readForm; nothing else depends on this state.
-els.pinOffset.addEventListener('input', updatePinPreviewPositions);
+// Pin offset slider listeners are wired earlier in the position-state block
+// (one handler updates customSource + readout + px sync, then calls
+// updatePinPreviewPositions). No additional listener needed here.
 
 // Density pills — discrete 1×/2×/3× segmented control replacing the prior
 // number-with-0.5-step input. Selection is stored as data-dsr on the active
@@ -1953,25 +2418,35 @@ function readForm() {
       height: Number(els.vpHeight.value),
     });
   }
-  const ratios = ratioCheckboxes()
+  // Pin variants. data-ratio chips produce a height-as-fraction-of-width pin
+  // (Pinterest shapes); data-mode="viewport" produces a single-viewport-tall
+  // capture sized to the device's natural height.
+  const variants = ratioCheckboxes()
     .filter((cb) => cb.checked)
-    .map((cb) => ({ slug: cb.dataset.slug, ratio: Number(cb.dataset.ratio) }));
-  const skipFullPage = els.pinsOnlyToggle.checked && ratios.length > 0;
-  // pinOffset is a fraction in [0..1]; UI shows it as a 0..100 integer percent.
-  // Only attached to pin entries when non-zero so the wire shape stays minimal
-  // for the common case and recent-runs entries from older builds replay cleanly.
-  const pinOffsetFrac = Number(els.pinOffset.value) / 100;
+    .map((cb) => ({
+      slug: cb.dataset.slug,
+      mode: cb.dataset.mode || 'ratio',
+      ratio: cb.dataset.ratio !== undefined ? Number(cb.dataset.ratio) : null,
+    }));
+  const skipFullPage = els.pinsOnlyToggle.checked && variants.length > 0;
+  // v0.6: position opts (pinOffset OR pinOffsetPx, possibly neither) apply to
+  // EVERY viewport entry — full-page, pin, and single-viewport alike — so
+  // "middle / bottom / custom" works uniformly. Top emits nothing.
+  const positionOpts = getPositionOpts();
   const viewports = [];
   for (const dev of devices) {
-    if (!skipFullPage) viewports.push(dev);
-    for (const r of ratios) {
+    if (!skipFullPage) viewports.push({ ...dev, ...positionOpts });
+    for (const v of variants) {
+      const pinHeight = v.mode === 'viewport'
+        ? dev.height
+        : Math.round(dev.width * v.ratio);
       const pinEntry = {
-        name: dev.name + '-' + r.slug,
+        name: dev.name + '-' + v.slug,
         width: dev.width,
         height: dev.height,
-        pinHeight: Math.round(dev.width * r.ratio),
+        pinHeight,
+        ...positionOpts,
       };
-      if (pinOffsetFrac > 0) pinEntry.pinOffset = pinOffsetFrac;
       viewports.push(pinEntry);
     }
   }
@@ -2032,21 +2507,47 @@ function fillForm(saved) {
   // from the wire, but if that ever changes, a saved 0 must restore as 0
   // (not be skipped as "still searching"). The flag keeps the contract
   // independent of the wire shape.
+  // v0.6: position opts now live on EVERY viewport entry (full-page, pin,
+  // single-viewport) — scan all entries, not just pins. First non-undefined
+  // wins; pinOffsetPx takes precedence over pinOffset (schema rejects both).
   let restoredOffset = 0;
+  let restoredPx = null;
   let offsetRestored = false;
   for (const vp of savedViewports) {
-    if (vp.pinHeight === undefined) continue;
-    const { slug } = splitPinName(vp.name);
-    if (slug) {
-      const cb = ratioCheckboxes().find((c) => c.dataset.slug === slug);
-      if (cb) cb.checked = true;
+    if (vp.pinHeight !== undefined) {
+      const { slug } = splitPinName(vp.name);
+      if (slug) {
+        const cb = ratioCheckboxes().find((c) => c.dataset.slug === slug);
+        if (cb) cb.checked = true;
+      }
     }
-    if (typeof vp.pinOffset === 'number' && !offsetRestored) {
-      restoredOffset = vp.pinOffset;
-      offsetRestored = true;
+    if (!offsetRestored) {
+      if (typeof vp.pinOffsetPx === 'number') {
+        restoredPx = vp.pinOffsetPx;
+        offsetRestored = true;
+      } else if (typeof vp.pinOffset === 'number') {
+        restoredOffset = vp.pinOffset;
+        offsetRestored = true;
+      }
     }
   }
-  els.pinOffset.value = String(Math.round(restoredOffset * 100));
+  // Snap to a chip when the restored offset matches one cleanly; otherwise
+  // land on Custom so the saved value is preserved verbatim.
+  if (restoredPx != null) {
+    els.pinOffset.value = '0';
+    els.pinOffsetPx.value = String(restoredPx);
+    setPosition('custom', { source: 'restore' });
+    customSource = 'pixels';
+    els.positionReadout.textContent = 'Custom ' + restoredPx + 'px';
+  } else {
+    els.pinOffset.value = String(Math.round(restoredOffset * 100));
+    els.pinOffsetPx.value = '';
+    let nextPos = 'top';
+    if (restoredOffset === 0.5) nextPos = 'middle';
+    else if (restoredOffset === 1) nextPos = 'bottom';
+    else if (restoredOffset > 0) nextPos = 'custom';
+    setPosition(nextPos, { source: 'restore' });
+  }
   els.pinOffsetValue.textContent = els.pinOffset.value;
   // Derive pins-only: the run is pins-only iff every saved entry is a pin
   // entry (i.e. every entry has pinHeight set) AND at least one pin entry
@@ -2658,6 +3159,277 @@ els.form.addEventListener('submit', async (e) => {
   } finally {
     setSubmitting(false);
   }
+});
+
+// ── Preview modal (v0.6) ───────────────────────────────────
+// Visual position picker. Fetches /api/preview for the current URL + first
+// selected device, displays the PNG with an overlay rectangle marking the
+// capture window. Drag the overlay (or use the pills/slider/px input) to
+// dial in startY. "Use this position" writes back into the main form.
+//
+// Image-space math: the preview is captured at DSR=1, so 1 image-px ≈ 1
+// CSS-px on the page. We convert image-px ↔ rendered-px via
+// scale = renderedHeight / naturalHeight.
+let modalState = null;
+
+function modalDeviceForPreview() {
+  for (const cb of deviceCheckboxes()) {
+    if (cb.checked) return PRESETS[cb.dataset.preset];
+  }
+  if (els.customViewportToggle.checked) {
+    return {
+      name: 'custom',
+      width: Math.max(1, Number(els.vpWidth.value) || 1440),
+      height: Math.max(1, Number(els.vpHeight.value) || 900),
+    };
+  }
+  return PRESETS[DEFAULT_DEVICE_KEY];
+}
+
+function modalWindowHeight(device) {
+  // Mirrors readForm variant precedence — viewport chip > ratio chip >
+  // full-page. Picks the FIRST checked match when multiple ratios are on so
+  // the modal shows one representative window (the others get the same
+  // start position at capture time anyway).
+  const viewportCb = ratioCheckboxes().find((cb) => cb.checked && cb.dataset.mode === 'viewport');
+  if (viewportCb) return device.height;
+  const ratioCb = ratioCheckboxes().find((cb) => cb.checked && cb.dataset.ratio !== undefined);
+  if (ratioCb) return Math.round(device.width * Number(ratioCb.dataset.ratio));
+  return null; // full-page — overlay extends from startY to bottom of page
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load preview image'));
+    img.src = src;
+  });
+}
+
+function renderModalStage(state) {
+  els.previewStage.innerHTML = '';
+  if (state.kind === 'loading') {
+    const sp = document.createElement('div');
+    sp.className = 'preview-spinner';
+    sp.textContent = 'Capturing preview…';
+    els.previewStage.appendChild(sp);
+    return;
+  }
+  if (state.kind === 'error') {
+    const div = document.createElement('div');
+    div.className = 'preview-error';
+    div.textContent = state.error;
+    els.previewStage.appendChild(div);
+    return;
+  }
+  // kind === 'image'
+  const frame = document.createElement('div');
+  frame.className = 'preview-stage-frame';
+  const imgEl = document.createElement('img');
+  imgEl.className = 'preview-stage-img';
+  imgEl.src = state.img.src;
+  // Prevent the native image-drag ghost — we own pointer events on the overlay.
+  imgEl.addEventListener('dragstart', (e) => e.preventDefault());
+  const overlay = document.createElement('div');
+  overlay.className = 'preview-overlay';
+  const tag = document.createElement('div');
+  tag.className = 'preview-overlay-tag';
+  overlay.appendChild(tag);
+  frame.appendChild(imgEl);
+  frame.appendChild(overlay);
+  els.previewStage.appendChild(frame);
+  modalState.imgEl = imgEl;
+  modalState.overlayEl = overlay;
+  modalState.tagEl = tag;
+  // Image is already loaded so getBoundingClientRect is valid on next frame.
+  requestAnimationFrame(updateModalOverlay);
+}
+
+function setModalPillsActive(value) {
+  for (const btn of els.modalPositionPills.querySelectorAll('.seg-pill')) {
+    const active = btn.dataset.pos === value;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-checked', String(active));
+  }
+}
+
+function updateModalOverlay() {
+  if (!modalState || !modalState.overlayEl) return;
+  const { pageHeight, viewportH, windowH, offsetPx, overlayEl, imgEl, tagEl } = modalState;
+  const room = Math.max(0, pageHeight - viewportH);
+  const startY = Math.max(0, Math.min(room, offsetPx));
+  const winPx = windowH != null
+    ? Math.min(windowH, pageHeight - startY)
+    : Math.max(0, pageHeight - startY);
+  const rendered = imgEl.getBoundingClientRect();
+  const scale = rendered.height > 0 ? rendered.height / pageHeight : 1;
+  overlayEl.style.top = (startY * scale) + 'px';
+  overlayEl.style.height = (winPx * scale) + 'px';
+  tagEl.textContent = 'Y ' + startY + ' · ' + winPx + 'px tall';
+  els.modalOffsetPx.value = String(startY);
+  const pct = room > 0 ? Math.round((startY / room) * 100) : 0;
+  els.modalOffsetSlider.value = String(pct);
+  els.modalOffsetPctValue.textContent = String(pct);
+  els.readoutPage.textContent = pageHeight + 'px';
+  els.readoutWindow.textContent = (windowH != null ? windowH + 'px' : 'to bottom');
+  els.readoutStartY.textContent = startY + 'px';
+  // Pills snap to preset when startY lands on one cleanly; otherwise deselect.
+  if (startY === 0) setModalPillsActive('top');
+  else if (startY === room) setModalPillsActive('bottom');
+  else if (Math.abs(startY - room / 2) <= 1) setModalPillsActive('middle');
+  else setModalPillsActive('');
+}
+
+function initModalControls() {
+  for (const btn of els.modalPositionPills.querySelectorAll('.seg-pill')) {
+    btn.onclick = () => {
+      const room = Math.max(0, modalState.pageHeight - modalState.viewportH);
+      const pos = btn.dataset.pos;
+      if (pos === 'top') modalState.offsetPx = 0;
+      else if (pos === 'middle') modalState.offsetPx = Math.round(room * 0.5);
+      else if (pos === 'bottom') modalState.offsetPx = room;
+      updateModalOverlay();
+    };
+  }
+  els.modalOffsetSlider.oninput = () => {
+    const room = Math.max(0, modalState.pageHeight - modalState.viewportH);
+    const pct = Number(els.modalOffsetSlider.value) / 100;
+    modalState.offsetPx = Math.round(room * pct);
+    updateModalOverlay();
+  };
+  els.modalOffsetPx.oninput = () => {
+    const room = Math.max(0, modalState.pageHeight - modalState.viewportH);
+    const px = Math.max(0, Math.min(room, Number(els.modalOffsetPx.value) || 0));
+    modalState.offsetPx = px;
+    updateModalOverlay();
+  };
+  // Drag the overlay vertically. Pointer events handle mouse + touch + pen
+  // uniformly and capture cleanly when the cursor leaves the overlay.
+  let dragging = null;
+  modalState.overlayEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    modalState.overlayEl.setPointerCapture(e.pointerId);
+    modalState.overlayEl.classList.add('is-dragging');
+    dragging = { startClientY: e.clientY, startOffsetPx: modalState.offsetPx };
+  });
+  modalState.overlayEl.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const room = Math.max(0, modalState.pageHeight - modalState.viewportH);
+    const rendered = modalState.imgEl.getBoundingClientRect();
+    const scale = rendered.height > 0 ? rendered.height / modalState.pageHeight : 1;
+    const dyImg = (e.clientY - dragging.startClientY) / scale;
+    modalState.offsetPx = Math.max(0, Math.min(room, Math.round(dragging.startOffsetPx + dyImg)));
+    updateModalOverlay();
+  });
+  modalState.overlayEl.addEventListener('pointerup', (e) => {
+    if (dragging) {
+      modalState.overlayEl.releasePointerCapture(e.pointerId);
+      modalState.overlayEl.classList.remove('is-dragging');
+      dragging = null;
+    }
+  });
+}
+
+async function openPreviewModal() {
+  const url = els.baseUrl.value.trim();
+  if (!url) return;
+  const device = modalDeviceForPreview();
+
+  els.previewModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  renderModalStage({ kind: 'loading' });
+  els.previewConfirmBtn.disabled = true;
+
+  try {
+    const resp = await fetch('/api/preview', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url, viewport: { width: device.width, height: device.height } }),
+    });
+    if (!resp.ok) {
+      let msg = 'Preview failed (HTTP ' + resp.status + ')';
+      try {
+        const j = await resp.json();
+        msg = j.message || j.error || msg;
+      } catch {}
+      renderModalStage({ kind: 'error', error: msg });
+      return;
+    }
+    const blob = await resp.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const img = await loadImage(objectUrl);
+    // Seed offsetPx from the main form's current state so the modal opens on
+    // the user's last pick (or 0 = Top by default).
+    const room = Math.max(0, img.naturalHeight - device.height);
+    let seedPx = 0;
+    if (customSource === 'pixels' && els.pinOffsetPx.value) {
+      seedPx = Math.min(room, Math.max(0, Number(els.pinOffsetPx.value) || 0));
+    } else {
+      const frac = Math.max(0, Math.min(1, Number(els.pinOffset.value) / 100));
+      seedPx = Math.round(room * frac);
+    }
+    modalState = {
+      device,
+      pageHeight: img.naturalHeight,
+      pageWidth: img.naturalWidth,
+      viewportH: device.height,
+      windowH: modalWindowHeight(device),
+      offsetPx: seedPx,
+      objectUrl,
+    };
+    // Update the main form's pageHeightHint so %/px stay in sync after close.
+    pageHeightHint = img.naturalHeight;
+    renderModalStage({ kind: 'image', img });
+    initModalControls();
+    els.previewConfirmBtn.disabled = false;
+  } catch (err) {
+    renderModalStage({ kind: 'error', error: err?.message || 'Preview request failed' });
+  }
+}
+
+function closePreviewModal() {
+  if (modalState?.objectUrl) URL.revokeObjectURL(modalState.objectUrl);
+  modalState = null;
+  els.previewModal.hidden = true;
+  document.body.style.overflow = '';
+}
+
+function confirmPreviewModal() {
+  if (!modalState) return;
+  const room = Math.max(0, modalState.pageHeight - modalState.viewportH);
+  const px = modalState.offsetPx;
+  // Snap to a preset chip when the value lands cleanly; otherwise land on
+  // Custom with the absolute pixel value preserved verbatim (most accurate).
+  if (px === 0) {
+    setPosition('top');
+  } else if (room > 0 && px === room) {
+    setPosition('bottom');
+  } else if (room > 0 && Math.abs(px - room / 2) <= 1) {
+    setPosition('middle');
+  } else {
+    setPosition('custom');
+    els.pinOffsetPx.value = String(px);
+    customSource = 'pixels';
+    const pct = room > 0 ? Math.round((px / room) * 100) : 0;
+    els.pinOffset.value = String(pct);
+    els.pinOffsetValue.textContent = String(pct);
+    els.positionReadout.textContent = 'Custom ' + px + 'px';
+    updatePinPreviewPositions();
+  }
+  closePreviewModal();
+  updateSubmitLabel();
+}
+
+els.previewPickBtn.addEventListener('click', openPreviewModal);
+els.previewModalClose.addEventListener('click', closePreviewModal);
+els.previewCancelBtn.addEventListener('click', closePreviewModal);
+els.previewConfirmBtn.addEventListener('click', confirmPreviewModal);
+els.previewModal.addEventListener('click', (e) => {
+  if (e.target === els.previewModal) closePreviewModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !els.previewModal.hidden) closePreviewModal();
 });
 
 renderRuns();

@@ -22,7 +22,11 @@ import { configSchema, zipRequestSchema } from '../config/schema.js';
 import { runCapture } from '../capture/runCapture.js';
 import { renderUi } from './ui.js';
 import { ConfigError } from '../config/load.js';
-import { BrowserError } from '../browser/launcher.js';
+import { BrowserError, launchBrowser } from '../browser/launcher.js';
+import { navigateToPage } from '../browser/navigator.js';
+import { installAnimationGuards, runPreparePipeline } from '../prepare/index.js';
+import { captureFrames } from '../capture/frames.js';
+import { stitchFrames } from '../capture/stitch.js';
 
 const SCREENSHOT_ROOT = resolve(process.cwd(), 'screenshots');
 // Top-level await — resolves at module load, before any HTTP request can land.
@@ -148,6 +152,11 @@ async function handleRequest(req, res) {
 
     if (req.method === 'POST' && url.pathname === '/api/capture') {
       await handleCapture(req, res);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/preview') {
+      await handlePreview(req, res);
       return;
     }
 
@@ -321,6 +330,148 @@ async function handleCapture(req, res) {
   } finally {
     try { res.end(); } catch {}
   }
+}
+
+// In-memory preview cache. Keyed by `${url}|${width}x${height}`. Stores either
+// a resolved Buffer (with timestamp for TTL eviction) or an in-flight Promise
+// to de-dupe overlapping requests for the same key. Capped at 16 entries —
+// well above the few-URLs/few-viewports a single session realistically uses,
+// and a hostile request can't grow it unboundedly. 5-minute TTL keeps memory
+// bounded across long-lived sessions while making "open modal, tweak, reopen"
+// instant. Buffers are ~1–3 MB each at DSR=1, so 16 × 3 MB = 48 MB worst case.
+const PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
+const PREVIEW_CACHE_MAX = 16;
+const previewCache = new Map();
+
+function previewCacheGet(key) {
+  const entry = previewCache.get(key);
+  if (!entry) return null;
+  if (entry.promise) return entry.promise;
+  if (Date.now() - entry.ts > PREVIEW_CACHE_TTL_MS) {
+    previewCache.delete(key);
+    return null;
+  }
+  return entry.buffer;
+}
+
+function previewCacheSetPromise(key, promise) {
+  previewCache.set(key, { promise });
+}
+
+function previewCacheSetBuffer(key, buffer) {
+  // Evict the oldest entry when at cap (Map preserves insertion order).
+  while (previewCache.size >= PREVIEW_CACHE_MAX) {
+    const oldestKey = previewCache.keys().next().value;
+    previewCache.delete(oldestKey);
+  }
+  previewCache.set(key, { buffer, ts: Date.now() });
+}
+
+// Render a single full-page PNG at DSR=1 using the same browser + prepare
+// pipeline the real capture uses. We use captureFrames + stitchFrames (not
+// page.screenshot({ fullPage: true })) so the preview's pixel geometry matches
+// the final capture exactly — sticky-nav handling, fixed-element hiding, and
+// scroll-stitch behavior are all identical. DSR=1 keeps the preview small
+// (1 image-px ≈ 1 CSS-px) which simplifies the modal's overlay math.
+async function renderPreview({ url, width, height }) {
+  // The capture pipeline expects a config-shaped object with baseUrl + viewport
+  // + prepare. Build the minimal shape inline — no schema parse needed since
+  // these values came from a validated /api/preview body already.
+  const config = {
+    baseUrl: url,
+    deviceScaleFactor: 1,
+    prepare: {
+      animations: true,
+      hide: [],
+      scrollPrime: true,
+      extraDelay: 0,
+      frameDelay: 0,
+      hideSticky: true,
+      hideFramerBadge: true,
+    },
+  };
+  const viewport = { width, height, name: 'preview' };
+
+  const { browser, context } = await launchBrowser(config, viewport);
+  try {
+    await installAnimationGuards(context, config.prepare);
+    const page = await navigateToPage(context, { path: '/', name: 'preview' });
+    await runPreparePipeline(page, config.prepare);
+    const { frames, geometry } = await captureFrames(page, {
+      hideStickyAfterFirstFrame: config.prepare.hideSticky,
+      frameDelay: 0,
+    });
+    const buffer = await stitchFrames(frames, geometry, { format: 'png' });
+    return buffer;
+  } finally {
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
+  }
+}
+
+async function handlePreview(req, res) {
+  const body = await readJsonBody(req, res);
+  if (body === null) return;
+
+  // Input validation. Inline rather than zod-schema since the surface is tiny
+  // and the error messages need to be UI-friendly.
+  const rawUrl = String(body.url || '').trim();
+  const width = Number(body.viewport?.width);
+  const height = Number(body.viewport?.height);
+
+  const errors = [];
+  let urlObj = null;
+  try {
+    urlObj = new URL(rawUrl);
+    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+      errors.push('url must use http or https');
+    }
+  } catch {
+    errors.push('url must be a valid http/https URL');
+  }
+  if (!Number.isInteger(width) || width < 320 || width > 3840) {
+    errors.push('viewport.width must be an integer 320..3840');
+  }
+  if (!Number.isInteger(height) || height < 200 || height > 10000) {
+    errors.push('viewport.height must be an integer 200..10000');
+  }
+  if (errors.length > 0) {
+    res.writeHead(400, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid preview request', issues: errors }));
+    return;
+  }
+
+  // Normalize the cache key off the parsed URL so trivial variants (trailing
+  // slash, fragment) hit the same cache entry. Query is preserved — Framer
+  // pages can render differently based on query params.
+  const cacheKey = `${urlObj.origin}${urlObj.pathname}${urlObj.search}|${width}x${height}`;
+
+  const cached = previewCacheGet(cacheKey);
+  let buffer;
+  if (cached instanceof Promise) {
+    buffer = await cached;
+  } else if (cached) {
+    buffer = cached;
+  } else {
+    const promise = renderPreview({ url: urlObj.toString(), width, height });
+    previewCacheSetPromise(cacheKey, promise);
+    try {
+      buffer = await promise;
+      previewCacheSetBuffer(cacheKey, buffer);
+    } catch (err) {
+      previewCache.delete(cacheKey);
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Preview failed', message: errorToMessage(err) }));
+      return;
+    }
+  }
+
+  res.writeHead(200, {
+    'content-type': 'image/png',
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+  });
+  res.end(buffer);
 }
 
 function outputPathToUrl(outputPath) {

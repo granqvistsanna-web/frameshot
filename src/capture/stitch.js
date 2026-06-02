@@ -92,10 +92,10 @@ export async function applyBackdrop(buffer, { color, padding, radius, deviceScal
   const innerH = meta.height;
 
   // Clamp radius to half the shorter image dimension. Without this, a small
-  // region capture (say 200px wide) combined with a max-radius config produces
-  // an unintended ellipse — the SVG mask is technically valid but the result
-  // is visually wrong with no warning. Clamping silently caps at a perfect
-  // half-circle, which is the visually-sensible upper bound.
+  // image combined with a max-radius config produces an unintended ellipse —
+  // the SVG mask is technically valid but the result is visually wrong with
+  // no warning. Clamping silently caps at a perfect half-circle, which is
+  // the visually-sensible upper bound.
   const radPxRaw = Math.round(radius * deviceScaleFactor);
   const radPx = Math.min(radPxRaw, Math.floor(Math.min(innerW, innerH) / 2));
 

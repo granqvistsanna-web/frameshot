@@ -109,8 +109,9 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
           }
 
           // vp.pinHeight (v0.4) clamps the scroll-stitch to a CSS-pixel height —
-          // undefined means full-page. vp.pinOffset (v0.5) slides the pin window
-          // down the page when pinHeight is set.
+          // undefined means full-page. vp.pinOffset (v0.5/v0.6) slides the
+          // capture window down the page; works for both pin and full-page
+          // captures. vp.pinOffsetPx (v0.6) is the absolute-pixel alternative.
           // `kind` tags full-page outputs as either 'fullPage' or 'pin' so the UI
           // can pick the right backdrop for the pin-offset preview without
           // re-deriving it from a slug-suffix heuristic (which would misfire
@@ -124,6 +125,7 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
             frameDelay: config.prepare.frameDelay,
             maxHeight: vp.pinHeight,
             pinOffset: vp.pinOffset,
+            pinOffsetPx: vp.pinOffsetPx,
             format,
             quality,
             backdrop,
