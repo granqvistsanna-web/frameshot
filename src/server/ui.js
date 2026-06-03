@@ -395,6 +395,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .led.ok  { background: var(--ok);  box-shadow: 0 0 6px var(--ok); }
   .led.err { background: var(--err); box-shadow: 0 0 6px var(--err); }
+  .led.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
   .bracketed {
@@ -1536,6 +1537,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .status-bar .dot-led.running { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
   .status-bar .dot-led.ok { background: var(--ok); box-shadow: 0 0 5px var(--ok); }
   .status-bar .dot-led.err { background: var(--err); box-shadow: 0 0 5px var(--err); }
+  .status-bar .dot-led.warn { background: var(--warn); box-shadow: 0 0 5px var(--warn); }
   .status-bar .clock {
     color: var(--fg-2);
     font-feature-settings: 'tnum';
