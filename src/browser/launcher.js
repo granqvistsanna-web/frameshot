@@ -60,7 +60,16 @@ export class BrowserError extends Error {
 export async function launchBrowser(config, viewportEntry) {
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      // --disable-dev-shm-usage: Chromium defaults to /dev/shm for the renderer's
+      // shared-memory bitmaps; when it's small (common in containers, and bounded
+      // on macOS too) a tall retina screenshot can exhaust it and crash the
+      // renderer with "Target page, context or browser has been closed". Routing
+      // that allocation to /tmp instead trades a little speed for not dying on
+      // large captures. See the crash-handling note in src/capture/frames.js.
+      args: ['--disable-dev-shm-usage'],
+    });
   } catch (err) {
     throw new BrowserError(
       `Failed to launch Chromium. Is the Playwright browser binary installed at ~/Library/Caches/ms-playwright/chromium-1223/? ` +

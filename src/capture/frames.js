@@ -39,6 +39,46 @@ async function waitForPaint(page) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
 }
 
+// Build the actionable error that replaces Playwright's opaque "Target page,
+// context or browser has been closed" when the renderer actually crashed. A
+// crashed renderer is unrecoverable (the page is dead), so the caller fails
+// fast with this instead of retrying — and the message names the realistic
+// causes so a support ticket is debuggable.
+function rendererCrashError(cause) {
+  const err = new Error(
+    'Chromium renderer crashed during screenshot — most likely out of memory. ' +
+      'The page may be too tall or heavy to capture at this device scale factor, or the ' +
+      'machine is under memory pressure (e.g. live preview running a second Chromium at the same time).',
+  );
+  err.cause = cause;
+  return err;
+}
+
+// Screenshot one frame, hardened against the target dying mid-call. Two failure
+// modes hide behind the same Playwright message ("Target ... has been closed"):
+//   - renderer crash (OOM/GPU kill) — page.on('crash') has fired; the page is
+//     dead and a retry is futile, so convert to rendererCrashError immediately.
+//   - transient close with a still-connected browser — settle briefly and retry
+//     once; a fresh paint usually succeeds.
+// `isCrashed` is a thunk so it reads the live crash flag at catch time, not at
+// call time. Non-close errors (TimeoutError, clip math, etc.) bubble untouched.
+async function captureFrameScreenshot(page, clip, isCrashed) {
+  const opts = { clip, animations: 'disabled', scale: 'device', type: 'png' };
+  try {
+    return await page.screenshot(opts);
+  } catch (err) {
+    if (!/closed|crash/i.test(err?.message ?? '')) throw err;
+    if (isCrashed()) throw rendererCrashError(err);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    try {
+      return await page.screenshot(opts);
+    } catch (retryErr) {
+      if (isCrashed()) throw rendererCrashError(retryErr);
+      throw retryErr;
+    }
+  }
+}
+
 // Hide every computed-position fixed/sticky element via visibility:hidden
 // !important. visibility preserves layout (vs display:none) so scrollHeight and
 // frame offsets remain stable.
@@ -159,6 +199,14 @@ async function revealStickies(page) {
  */
 export async function captureFrames(page, options = {}) {
   const { onProgress, onMeta, hideStickyAfterFirstFrame = true, frameDelay = 0, maxHeight, pinOffset = 0, pinOffsetPx } = options;
+
+  // Track renderer crashes for the duration of this capture so the screenshot
+  // loop can distinguish "the renderer died" (unrecoverable — fail with a clear
+  // OOM message) from a transient target-close (retry once). The listener is
+  // scoped to this page and detaches when the page closes between iterations.
+  let rendererCrashed = false;
+  page.once('crash', () => { rendererCrashed = true; });
+
   // Step 1 — Read geometry ONCE (geometry-once invariant: Pitfall 5, Risk 6).
   // All four properties returned in a single page.evaluate round-trip.
   const { viewportWidth, viewportHeight, scrollHeight: rawScrollHeight, deviceScaleFactor } =
@@ -309,12 +357,11 @@ export async function captureFrames(page, options = {}) {
     // than the canvas). For the standard multi-frame path this collapses to
     // viewportHeight, preserving the v0.1 contract bit-for-bit.
     const clipHeight = Math.min(viewportHeight, captureHeight - y);
-    const buf = await page.screenshot({
-      clip: { x: 0, y: 0, width: viewportWidth, height: clipHeight },
-      animations: 'disabled',
-      scale: 'device',
-      type: 'png',
-    });
+    const buf = await captureFrameScreenshot(
+      page,
+      { x: 0, y: 0, width: viewportWidth, height: clipHeight },
+      () => rendererCrashed,
+    );
     frames.push(buf);
 
     // Invoke onProgress AFTER the frame resolves — "frame i+1 of total complete".
