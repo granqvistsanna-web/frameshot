@@ -407,9 +407,21 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .log-frame {
     padding: 22px 26px;
     min-height: 130px;
+    /* Cap the log height so a long run (e.g. a multi-page crawl streaming one
+       line per page × viewport) scrolls within the panel instead of pushing the
+       preview/gallery far down the page. logLine() keeps the newest line in view. */
+    max-height: 340px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     font-family: var(--mono);
     font-size: 12px;
   }
+  .log-frame::-webkit-scrollbar { width: 8px; }
+  .log-frame::-webkit-scrollbar-thumb {
+    background: var(--rule-2);
+    border-radius: 4px;
+  }
+  .log-frame::-webkit-scrollbar-thumb:hover { background: var(--fg-3); }
 
   .log-line {
     display: flex;
@@ -1092,6 +1104,70 @@ export function renderUi({ version = '0.0.0' } = {}) {
     opacity: 0.45;
     cursor: not-allowed;
   }
+  .crawl-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 10.5px;
+    color: var(--fg-3);
+  }
+  .crawl-panel {
+    margin-top: 10px;
+    border: 1px solid var(--rule-2);
+    border-radius: 5px;
+    background: var(--bg-2);
+    overflow: hidden;
+  }
+  .crawl-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .crawl-all {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .crawl-clear {
+    font: inherit;
+    font-size: 10.5px;
+    background: none;
+    border: none;
+    color: var(--fg-3);
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+  }
+  .crawl-clear:hover { color: var(--fg); }
+  .crawl-list {
+    max-height: 188px;
+    overflow-y: auto;
+  }
+  .crawl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    font-size: 11px;
+    border-top: 1px solid var(--rule-2);
+  }
+  .crawl-row:first-child { border-top: none; }
+  .crawl-row input { flex: none; }
+  .crawl-row .crawl-path {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--fg);
+  }
+  .crawl-row .crawl-slug {
+    flex: none;
+    color: var(--fg-3);
+    font-size: 10px;
+  }
   .pin-custom-block { margin-top: 12px; }
   .pin-custom-row {
     display: grid;
@@ -1489,6 +1565,17 @@ export function renderUi({ version = '0.0.0' } = {}) {
             </div>
           </div>
         </div>
+        <div class="field">
+          <button type="button" class="preview-pick-btn" id="crawlBtn">Find all pages…</button>
+          <span class="crawl-hint" id="crawlHint">Reads the site's sitemap.xml and captures every selected page</span>
+          <div class="crawl-panel" id="crawlPanel" hidden>
+            <div class="crawl-head">
+              <label class="crawl-all"><input type="checkbox" id="crawlAll" checked><span id="crawlCount">0 pages</span></label>
+              <button type="button" class="crawl-clear" id="crawlClear">Use single page</button>
+            </div>
+            <div class="crawl-list" id="crawlList"></div>
+          </div>
+        </div>
       </div>
 
       <div class="group">
@@ -1794,6 +1881,13 @@ const els = {
   baseUrl: $('baseUrl'),
   pagePath: $('pagePath'),
   pageName: $('pageName'),
+  crawlBtn: $('crawlBtn'),
+  crawlHint: $('crawlHint'),
+  crawlPanel: $('crawlPanel'),
+  crawlAll: $('crawlAll'),
+  crawlCount: $('crawlCount'),
+  crawlClear: $('crawlClear'),
+  crawlList: $('crawlList'),
   vpDevice: $('vpDevice'),
   vpPin: $('vpPin'),
   pinsOnlyToggle: $('pinsOnlyToggle'),
@@ -2328,6 +2422,96 @@ function splitBaseUrl() {
 els.baseUrl.addEventListener('blur', splitBaseUrl);
 els.baseUrl.addEventListener('paste', () => setTimeout(splitBaseUrl, 0));
 
+// ---- Sitemap crawl ---------------------------------------------------------
+// "Find all pages" reads the site's sitemap.xml (server /api/discover) and
+// lists every route with a checkbox. selectedCrawlPages() reads the live DOM so
+// the capture payload always matches what's currently checked; when the panel
+// is hidden/empty the run falls back to the single Path/Slug fields above.
+function selectedCrawlPages() {
+  if (els.crawlPanel.hidden) return [];
+  const out = [];
+  for (const cb of els.crawlList.querySelectorAll('input[type="checkbox"]')) {
+    if (cb.checked) out.push({ path: cb.dataset.path, name: cb.dataset.name });
+  }
+  return out;
+}
+
+function updateCrawlCount() {
+  const boxes = els.crawlList.querySelectorAll('input[type="checkbox"]');
+  const total = boxes.length;
+  const picked = selectedCrawlPages().length;
+  els.crawlCount.textContent = picked + ' of ' + total + ' page' + (total === 1 ? '' : 's');
+  els.crawlAll.checked = total > 0 && picked === total;
+  els.crawlAll.indeterminate = picked > 0 && picked < total;
+}
+
+function renderCrawlPages(pages) {
+  els.crawlList.textContent = '';
+  for (const pg of pages) {
+    const row = document.createElement('label');
+    row.className = 'crawl-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.dataset.path = pg.path;
+    cb.dataset.name = pg.name;
+    cb.addEventListener('change', updateCrawlCount);
+    const path = document.createElement('span');
+    path.className = 'crawl-path';
+    path.textContent = pg.path;
+    const slug = document.createElement('span');
+    slug.className = 'crawl-slug';
+    slug.textContent = pg.name;
+    row.appendChild(cb);
+    row.appendChild(path);
+    row.appendChild(slug);
+    els.crawlList.appendChild(row);
+  }
+  els.crawlPanel.hidden = pages.length === 0;
+  updateCrawlCount();
+}
+
+els.crawlAll.addEventListener('change', () => {
+  const on = els.crawlAll.checked;
+  for (const cb of els.crawlList.querySelectorAll('input[type="checkbox"]')) cb.checked = on;
+  updateCrawlCount();
+});
+
+els.crawlClear.addEventListener('click', () => {
+  els.crawlList.textContent = '';
+  els.crawlPanel.hidden = true;
+});
+
+els.crawlBtn.addEventListener('click', async () => {
+  const baseUrl = els.baseUrl.value.trim();
+  if (!baseUrl) { logLine('crawl · add a base URL first', 'warn'); return; }
+  const btn = els.crawlBtn;
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Finding…';
+  try {
+    const res = await fetch('/api/discover', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ baseUrl }),
+    });
+    if (!res.ok) {
+      logLine('crawl · ' + (await res.text()), 'err');
+      return;
+    }
+    const data = await res.json();
+    renderCrawlPages(data.pages || []);
+    let msg = 'crawl · found ' + data.discovered + ' page' + (data.discovered === 1 ? '' : 's');
+    if (data.truncated) msg += ' (capped at 200)';
+    logLine(msg, 'ok');
+  } catch (err) {
+    logLine('crawl · ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
 // Invalidate the pin-preview silhouette when the target URL or path changes —
 // lastFullPage was captured against the previous page and its aspect ratio /
 // content has no relationship to the new page. Falls back to the gradient
@@ -2461,9 +2645,15 @@ function readForm() {
         radius: Number(els.backdropRadius.value) || 0,
       }
     : undefined;
+  // Crawl mode: when the discover panel holds checked routes, capture every
+  // selected page. The plural "pages" is forwarded to the server (which prefers
+  // it over the singular "page"); "page" is still emitted so recent-runs history
+  // and single-page log lines keep working unchanged.
+  const selectedPages = selectedCrawlPages();
   return {
     baseUrl: els.baseUrl.value.trim(),
     page: { path: els.pagePath.value.trim() || '/', name: els.pageName.value.trim() || 'home' },
+    ...(selectedPages.length > 0 ? { pages: selectedPages } : {}),
     viewports,
     concurrency: Number(els.concurrency.value) || 1,
     deviceScaleFactor: getDsr(),
@@ -2777,6 +2967,8 @@ function logLine(msg, cls = '') {
   row.appendChild(ts);
   row.appendChild(m);
   els.status.appendChild(row);
+  // Keep the latest line visible once the log overflows its max-height.
+  els.status.scrollTop = els.status.scrollHeight;
   return row;
 }
 function logActive(msg) {
@@ -2821,7 +3013,10 @@ let currentOutputs = [];
 // textContent so any embedded markup in viewportName (user-supplied config)
 // renders as text rather than HTML.
 function setTileLabel(labelEl, o) {
-  labelEl.textContent = o.viewportName || 'capture';
+  // Multi-page runs reuse the same viewport across many pages, so lead with the
+  // page name when present ("about · desktop") to keep tiles distinguishable.
+  const vp = o.viewportName || 'capture';
+  labelEl.textContent = o.pageName ? o.pageName + ' · ' + vp : vp;
 }
 
 function showHero(output) {
@@ -3031,6 +3226,14 @@ els.form.addEventListener('submit', async (e) => {
   const input = readForm();
   if (!input.baseUrl) return;
 
+  // Crawl panel open but nothing checked: readForm() would drop the pages list
+  // and silently fall back to the single Path/Slug fields — which reads as
+  // "capture nothing" to the user. Block and warn instead of surprising them.
+  if (!els.crawlPanel.hidden && !input.pages) {
+    logLine('crawl · select at least one page, or click “Use single page”', 'warn');
+    return;
+  }
+
   setSubmitting(true);
   logReset();
   frameBarFill = null;
@@ -3041,8 +3244,12 @@ els.form.addEventListener('submit', async (e) => {
   currentOutputs = [];
   setLed('running', 'capturing');
   const vpCount = input.viewports.length;
+  const pageCount = input.pages ? input.pages.length : 1;
   const parallel = vpCount > 1;
-  if (parallel) {
+  if (pageCount > 1) {
+    logLine('begin · ' + pageCount + ' pages × ' + vpCount + ' viewport' + (vpCount > 1 ? 's' : '')
+      + ' = ' + (pageCount * vpCount) + ' shots');
+  } else if (parallel) {
     logLine('begin · ' + vpCount + ' viewports · up to ' + input.concurrency + ' in parallel');
   } else {
     logLine('begin · ' + shortHost(input.baseUrl) + input.page.path);

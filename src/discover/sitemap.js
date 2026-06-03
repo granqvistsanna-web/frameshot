@@ -81,6 +81,7 @@ export async function discoverFromSitemap(baseUrl, opts = {}) {
   const sourceUrl = `${root}/sitemap.xml`;
   const visited = new Set();
   const seenPaths = new Set();
+  const seenNames = new Set();
   const pages = [];
   const childSitemaps = [];
   let truncated = false;
@@ -106,8 +107,8 @@ export async function discoverFromSitemap(baseUrl, opts = {}) {
         return;
       }
       for (const childUrl of locs) {
-        childSitemaps.push(childUrl);
         if (truncated) break;
+        childSitemaps.push(childUrl);
         await fetchAndParse(childUrl, depth + 1);
       }
       return;
@@ -129,7 +130,7 @@ export async function discoverFromSitemap(baseUrl, opts = {}) {
       const path = u.pathname || '/';
       if (seenPaths.has(path)) continue;
       seenPaths.add(path);
-      pages.push({ path, name: deriveName(path, seenPaths) });
+      pages.push({ path, name: deriveName(path, seenNames) });
       if (pages.length >= maxPages) {
         truncated = true;
         break;
@@ -261,23 +262,37 @@ function yamlString(value) {
   return `'${s.replace(/'/g, "''")}'`;
 }
 
-// Convert a URL path to a kebab-case page name that survives the template
-// resolver's slugify. Examples:
+// Convert a URL path to a kebab-case page name. Examples:
 //   /                  → home
 //   /about             → about
 //   /blog/post-1       → blog-post-1
 //   /work/2024/case-a  → work-2024-case-a
 //   /pricing/          → pricing  (trailing slashes collapsed)
+//   /café              → caf-     (percent-encoded/unicode → allowlist-safe)
 //
-// Name uniqueness within a sitemap is enforced by the caller's `seenPaths`
-// loop — but two DIFFERENT paths could collide if their slugified forms match
-// (rare: `/about` and `/about/` both produce 'about'; the seenPaths check on
-// paths catches the duplicate path case already). If a future Framer
-// convention introduces hash-style routes that collide, add `-2`, `-3` here.
-function deriveName(path, _seenPaths) {
+// The output MUST satisfy config/schema.js#safeNameSchema (`[a-zA-Z0-9._-]+`),
+// because the server validates discovered `pages` against the schema BEFORE
+// the template resolver's slugify ever runs. Relying on slugify to clean these
+// names (as an earlier version did) is wrong: a non-ASCII or percent-encoded
+// route (`/café` → pathname `/caf%C3%A9`) fails the schema gate and rejects the
+// ENTIRE multi-page run with a 400, not just that page.
+//
+// Name uniqueness is enforced HERE via the caller's `seenNames` set — two
+// different paths can slug to the same name (`/about` + `/about/` → 'about';
+// `/a/b` + `/a-b` → 'a-b'). The caller's seenPaths check dedupes on pathname,
+// which does NOT catch these, so collisions get a numeric `-2`, `-3` suffix.
+function deriveName(path, seenNames) {
   const trimmed = path.replace(/^\/+|\/+$/g, '');
-  if (trimmed === '') return 'home';
-  // Replace slashes with hyphens. Other non-alphanumeric chars get cleaned by
-  // the template resolver's slugify at write time, so we don't double-process.
-  return trimmed.replace(/\//g, '-');
+  // Slashes → hyphens, then collapse any char outside the safeNameSchema
+  // allowlist to a single hyphen and trim stray edge hyphens.
+  const base =
+    trimmed
+      .replace(/\//g, '-')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'home';
+  // Dedupe against names already emitted for this sitemap.
+  let name = base;
+  for (let n = 2; seenNames.has(name); n++) name = `${base}-${n}`;
+  seenNames.add(name);
+  return name;
 }

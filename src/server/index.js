@@ -27,6 +27,7 @@ import { navigateToPage } from '../browser/navigator.js';
 import { installAnimationGuards, runPreparePipeline } from '../prepare/index.js';
 import { captureFrames } from '../capture/frames.js';
 import { stitchFrames } from '../capture/stitch.js';
+import { discoverFromSitemap, SitemapError } from '../discover/sitemap.js';
 
 const SCREENSHOT_ROOT = resolve(process.cwd(), 'screenshots');
 // Top-level await — resolves at module load, before any HTTP request can land.
@@ -170,6 +171,11 @@ async function handleRequest(req, res) {
       return;
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/discover') {
+      await handleDiscover(req, res);
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname.startsWith('/screenshots/')) {
       await handleStaticScreenshot(url.pathname, res);
       return;
@@ -200,13 +206,18 @@ async function handleCapture(req, res) {
   // exclusivity gate would reject "both" or "neither", so we forward exactly
   // one — preferring plural when present.
   const hasViewports = Array.isArray(body.viewports) && body.viewports.length > 0;
+  // Same posture for page/pages: the new crawl flow sends `pages: [...]` (one
+  // entry per discovered route); the single-page form sends `page: {...}`. The
+  // schema's mutual-exclusivity gate rejects "both", so forward exactly one,
+  // preferring plural when the client included a non-empty list.
+  const hasPages = Array.isArray(body.pages) && body.pages.length > 0;
   const candidate = {
     name: body.name || 'ui-capture',
     baseUrl: body.baseUrl,
     output,
     deviceScaleFactor: body.deviceScaleFactor ?? 2,
     ...(hasViewports ? { viewports: body.viewports } : { viewport: body.viewport }),
-    page: body.page,
+    ...(hasPages ? { pages: body.pages } : { page: body.page }),
     prepare: body.prepare ?? {},
     // Only spread format/quality/concurrency when present so schema defaults
     // (png/85/1) apply for older clients that don't send them.
@@ -286,10 +297,13 @@ async function handleCapture(req, res) {
     });
     send({
       type: 'done',
-      outputs: results.map(({ outputPath, viewportName, kind }) => ({
+      outputs: results.map(({ outputPath, viewportName, pageName, kind }) => ({
         outputPath,
         urlPath: outputPathToUrl(outputPath),
         viewportName,
+        // pageName lets the gallery label tiles per route in multi-page (crawl)
+        // runs, where one viewport repeats across every discovered page.
+        ...(pageName ? { pageName } : {}),
         // `kind` is 'fullPage' | 'pin' — the UI uses it to pick a backdrop
         // image for the pin-offset preview without resorting to slug-suffix
         // matching on viewportName (which would misfire on custom viewport
@@ -556,6 +570,57 @@ async function handleReveal(req, res) {
   spawn('open', ['-R', absPath], { stdio: 'ignore', detached: true }).unref();
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ ok: true }));
+}
+
+// POST /api/discover — read the site's sitemap.xml and return its routes so the
+// UI can offer "capture every page". Pure read of a public sitemap; no browser,
+// no disk write. Returns the same { path, name } shape the capture form submits
+// as `pages: [...]`, so the client can forward the selection verbatim.
+async function handleDiscover(req, res) {
+  const body = await readJsonBody(req, res);
+  if (body === null) return;
+
+  const baseUrl = typeof body.baseUrl === 'string' ? body.baseUrl.trim() : '';
+  if (!baseUrl) {
+    res.writeHead(400, { 'content-type': 'text/plain' });
+    res.end('baseUrl is required');
+    return;
+  }
+
+  // Restrict to http/https before fetching. The capture path enforces this via
+  // the config schema's .refine; discover fetches the URL directly, so without
+  // this gate a request could point the server at file:, data:, or an internal
+  // host (a small SSRF surface). Mirrors baseUrl validation in schema.js.
+  let scheme;
+  try {
+    scheme = new URL(baseUrl).protocol;
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain' });
+    res.end(`Invalid baseUrl: ${baseUrl}`);
+    return;
+  }
+  if (scheme !== 'http:' && scheme !== 'https:') {
+    res.writeHead(400, { 'content-type': 'text/plain' });
+    res.end('baseUrl must use http or https');
+    return;
+  }
+
+  try {
+    const result = await discoverFromSitemap(baseUrl);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({
+      pages: result.pages,
+      discovered: result.discovered,
+      truncated: result.truncated,
+      sourceUrl: result.sourceUrl,
+    }));
+  } catch (err) {
+    // SitemapError carries a user-facing message (no sitemap, empty, network
+    // failure, off-origin). Anything else is unexpected — surface as 500.
+    const status = err instanceof SitemapError ? 422 : 500;
+    res.writeHead(status, { 'content-type': 'text/plain' });
+    res.end(err?.message ?? String(err));
+  }
 }
 
 async function handleZip(req, res) {
