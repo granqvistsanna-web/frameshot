@@ -1144,30 +1144,92 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .crawl-clear:hover { color: var(--fg); }
   .crawl-list {
-    max-height: 188px;
+    max-height: 280px;
     overflow-y: auto;
   }
-  .crawl-row {
+  /* Capture Queue (Option A) — the crawl-head now hosts a progress readout
+     instead of a select-all checkbox; the list below is a status worklist,
+     one row per discovered page, advanced one at a time. */
+  .queue-head-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    margin-right: 12px;
+    min-width: 0;
+  }
+  .queue-head-label {
+    font-size: 11px;
+    color: var(--fg-2);
+    font-feature-settings: 'tnum';
+  }
+  .queue-progress {
+    height: 3px;
+    background: var(--rule-2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .queue-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.25s ease;
+  }
+  .queue-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 5px 10px;
+    padding: 6px 10px;
     font-size: 11px;
     border-top: 1px solid var(--rule-2);
+    cursor: pointer;
   }
-  .crawl-row:first-child { border-top: none; }
-  .crawl-row input { flex: none; }
-  .crawl-row .crawl-path {
+  .queue-row:first-child { border-top: none; }
+  .queue-row:hover { background: var(--surface-2); }
+  .queue-row.is-active { background: var(--accent-soft); }
+  .queue-glyph {
+    flex: none;
+    width: 13px;
+    text-align: center;
+    font-family: var(--mono);
+    color: var(--fg-3);
+  }
+  .queue-row.status-done .queue-glyph { color: var(--ok); }
+  .queue-row.status-failed .queue-glyph { color: var(--warn); }
+  .queue-row.is-active .queue-glyph { color: var(--accent); }
+  .queue-path {
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--fg);
+    color: var(--fg-2);
+    min-width: 0;
   }
-  .crawl-row .crawl-slug {
+  .queue-row.is-active .queue-path { color: var(--fg); }
+  .queue-slug {
     flex: none;
     color: var(--fg-3);
     font-size: 10px;
+    max-width: 90px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .queue-meta {
+    flex: none;
+    color: var(--fg-3);
+    font-size: 10px;
+    font-feature-settings: 'tnum';
+  }
+  .queue-thumb {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    object-fit: cover;
+    object-position: top;
+    border-radius: 3px;
+    border: 1px solid var(--rule-2);
+    background: var(--surface-2);
   }
   .pin-custom-block { margin-top: 12px; }
   .pin-custom-row {
@@ -1586,10 +1648,13 @@ export function renderUi({ version = '0.0.0' } = {}) {
         </div>
         <div class="field">
           <button type="button" class="preview-pick-btn" id="crawlBtn">Find all pages…</button>
-          <span class="crawl-hint" id="crawlHint">Reads the site's sitemap.xml and captures every selected page</span>
+          <span class="crawl-hint" id="crawlHint">Reads the site's sitemap.xml into a queue · capture one page at a time</span>
           <div class="crawl-panel" id="crawlPanel" hidden>
             <div class="crawl-head">
-              <label class="crawl-all"><input type="checkbox" id="crawlAll" checked><span id="crawlCount">0 pages</span></label>
+              <div class="queue-head-info">
+                <span class="queue-head-label" id="crawlCount">Queue · 0 of 0 captured</span>
+                <div class="queue-progress"><div class="queue-progress-fill" id="queueProgressFill"></div></div>
+              </div>
               <button type="button" class="crawl-clear" id="crawlClear">Use single page</button>
             </div>
             <div class="crawl-list" id="crawlList"></div>
@@ -1903,10 +1968,10 @@ const els = {
   crawlBtn: $('crawlBtn'),
   crawlHint: $('crawlHint'),
   crawlPanel: $('crawlPanel'),
-  crawlAll: $('crawlAll'),
   crawlCount: $('crawlCount'),
   crawlClear: $('crawlClear'),
   crawlList: $('crawlList'),
+  queueProgressFill: $('queueProgressFill'),
   vpDevice: $('vpDevice'),
   vpPin: $('vpPin'),
   pinsOnlyToggle: $('pinsOnlyToggle'),
@@ -2442,65 +2507,217 @@ function splitBaseUrl() {
 els.baseUrl.addEventListener('blur', splitBaseUrl);
 els.baseUrl.addEventListener('paste', () => setTimeout(splitBaseUrl, 0));
 
-// ---- Sitemap crawl ---------------------------------------------------------
+// ---- Capture Queue (Option A) ----------------------------------------------
 // "Find all pages" reads the site's sitemap.xml (server /api/discover) and
-// lists every route with a checkbox. selectedCrawlPages() reads the live DOM so
-// the capture payload always matches what's currently checked; when the panel
-// is hidden/empty the run falls back to the single Path/Slug fields above.
-function selectedCrawlPages() {
-  if (els.crawlPanel.hidden) return [];
-  const out = [];
-  for (const cb of els.crawlList.querySelectorAll('input[type="checkbox"]')) {
-    if (cb.checked) out.push({ path: cb.dataset.path, name: cb.dataset.name });
+// seeds a worklist — one row per discovered route — instead of an all-at-once
+// batch. Each entry is captured individually: the active item's path/name drive
+// the single-page form, the user tunes its start position, hits "Capture &
+// next", and the queue advances to the next pending page (without auto-firing).
+//
+// Item shape: { path, name, status, position, thumbUrl, shots }
+//   status   'pending' | 'done' | 'failed'
+//   position null, or a captured position-state object (see capturePositionState)
+//   thumbUrl null, or the servable PNG URL of the last capture (history thumb)
+//   shots    output count from the last successful capture
+//
+// "Use single page" (crawlClear) empties the queue and falls back to the plain
+// Path/Slug single-page behaviour — the escape hatch that must always work.
+let captureQueue = [];
+let activeQueueIndex = -1;
+
+const QUEUE_GLYPH = { pending: '○', active: '▶', done: '✓', failed: '⚠' };
+
+// Queue mode is on whenever the panel holds at least one item. readForm() and
+// the submit handler branch on this to suppress the legacy pages[] batch and
+// drive a single-page capture off the active item instead.
+function isQueueMode() {
+  return !els.crawlPanel.hidden && captureQueue.length > 0;
+}
+
+// Snapshot the form's current start-position controls into a plain object so it
+// can be stored per-item and restored verbatim later. Mirrors the four pieces
+// of state setPosition()/the Custom inputs manage.
+function capturePositionState() {
+  return {
+    position,
+    customSource,
+    pinOffset: els.pinOffset.value,
+    pinOffsetPx: els.pinOffsetPx.value,
+  };
+}
+
+// Restore a position-state snapshot into the form. null → Top (legacy default).
+// Custom is reconstructed the same way confirmPreviewModal() lands a custom
+// pick so the readout/preview stay consistent.
+function applyPositionState(state) {
+  if (!state || state.position !== 'custom') {
+    setPosition(state ? state.position : 'top', { source: 'restore' });
+    els.pinOffsetValue.textContent = els.pinOffset.value;
+    return;
   }
-  return out;
+  els.pinOffset.value = state.pinOffset || '0';
+  els.pinOffsetPx.value = state.pinOffsetPx || '';
+  setPosition('custom', { source: 'restore' });
+  customSource = state.customSource || 'percent';
+  els.pinOffsetValue.textContent = els.pinOffset.value;
+  els.positionReadout.textContent = customSource === 'pixels'
+    ? 'Custom ' + (els.pinOffsetPx.value || 0) + 'px'
+    : 'Custom ' + els.pinOffset.value + '%';
+  updatePinPreviewPositions();
 }
 
-function updateCrawlCount() {
-  const boxes = els.crawlList.querySelectorAll('input[type="checkbox"]');
-  const total = boxes.length;
-  const picked = selectedCrawlPages().length;
-  els.crawlCount.textContent = picked + ' of ' + total + ' page' + (total === 1 ? '' : 's');
-  els.crawlAll.checked = total > 0 && picked === total;
-  els.crawlAll.indeterminate = picked > 0 && picked < total;
+// Persist the form's current start position back onto the active item. Called
+// from the position-control listeners so per-page tuning is never lost when the
+// user switches rows or fires a capture.
+function writeBackActivePosition() {
+  if (activeQueueIndex < 0 || !captureQueue[activeQueueIndex]) return;
+  captureQueue[activeQueueIndex].position = capturePositionState();
 }
 
-function renderCrawlPages(pages) {
+function renderQueue() {
   els.crawlList.textContent = '';
-  for (const pg of pages) {
-    const row = document.createElement('label');
-    row.className = 'crawl-row';
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = true;
-    cb.dataset.path = pg.path;
-    cb.dataset.name = pg.name;
-    cb.addEventListener('change', updateCrawlCount);
+  const total = captureQueue.length;
+  const done = captureQueue.filter((q) => q.status === 'done').length;
+  if (total === 0) {
+    els.crawlCount.textContent = 'Queue · empty';
+  } else if (done === total) {
+    els.crawlCount.textContent = 'Queue complete';
+  } else {
+    els.crawlCount.textContent = 'Queue · ' + done + ' of ' + total + ' captured';
+  }
+  els.queueProgressFill.style.width = total ? Math.round((done / total) * 100) + '%' : '0%';
+
+  captureQueue.forEach((item, i) => {
+    const isActive = i === activeQueueIndex;
+    const row = document.createElement('div');
+    row.className = 'queue-row status-' + item.status + (isActive ? ' is-active' : '');
+
+    const glyph = document.createElement('span');
+    glyph.className = 'queue-glyph';
+    glyph.textContent = isActive ? QUEUE_GLYPH.active : (QUEUE_GLYPH[item.status] || QUEUE_GLYPH.pending);
+
     const path = document.createElement('span');
-    path.className = 'crawl-path';
-    path.textContent = pg.path;
+    path.className = 'queue-path';
+    path.textContent = item.path;
+
     const slug = document.createElement('span');
-    slug.className = 'crawl-slug';
-    slug.textContent = pg.name;
-    row.appendChild(cb);
+    slug.className = 'queue-slug';
+    slug.textContent = item.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'queue-meta';
+    if (item.status === 'done') meta.textContent = item.shots + ' shot' + (item.shots === 1 ? '' : 's');
+    else if (item.status === 'failed') meta.textContent = 'failed';
+
+    row.appendChild(glyph);
     row.appendChild(path);
     row.appendChild(slug);
+    row.appendChild(meta);
+
+    if (item.thumbUrl) {
+      const thumb = document.createElement('img');
+      thumb.className = 'queue-thumb';
+      thumb.src = item.thumbUrl;
+      thumb.alt = item.name;
+      row.appendChild(thumb);
+    }
+
+    row.addEventListener('click', () => activateQueueItem(i));
     els.crawlList.appendChild(row);
-  }
-  els.crawlPanel.hidden = pages.length === 0;
-  updateCrawlCount();
+  });
 }
 
-els.crawlAll.addEventListener('change', () => {
-  const on = els.crawlAll.checked;
-  for (const cb of els.crawlList.querySelectorAll('input[type="checkbox"]')) cb.checked = on;
-  updateCrawlCount();
-});
+// Make item i the active one: persist the outgoing item's position, then load
+// the incoming item's path/name + saved position into the form. Resets the pin
+// silhouette since it was measured against the previous page.
+function activateQueueItem(i) {
+  if (i < 0 || i >= captureQueue.length) return;
+  writeBackActivePosition();
+  activeQueueIndex = i;
+  const item = captureQueue[i];
+  els.pagePath.value = item.path;
+  els.pageName.value = item.name;
+  applyPositionState(item.position);
+  invalidatePinPreviewBackdrop();
+  renderQueue();
+  updateSubmitLabel();
+}
+
+// Find the next pending item after fromIndex (wrapping to earlier pendings),
+// and load it. When nothing remains pending the queue is complete — leave the
+// last item active and let the label/header reflect completion.
+function advanceQueue(fromIndex) {
+  let next = -1;
+  for (let k = fromIndex + 1; k < captureQueue.length; k++) {
+    if (captureQueue[k].status === 'pending') { next = k; break; }
+  }
+  if (next === -1) {
+    for (let k = 0; k <= fromIndex && k < captureQueue.length; k++) {
+      if (captureQueue[k].status === 'pending') { next = k; break; }
+    }
+  }
+  if (next === -1) {
+    renderQueue();
+    updateSubmitLabel();
+    return;
+  }
+  activateQueueItem(next);
+}
+
+// Seed the queue from /api/discover results. First item becomes active and its
+// position is seeded from whatever the form currently shows (so a pre-set
+// position carries onto page 1). Empty result hides the panel.
+function seedQueue(pages) {
+  captureQueue = pages.map((pg) => ({
+    path: pg.path,
+    name: pg.name,
+    status: 'pending',
+    position: null,
+    thumbUrl: null,
+    shots: 0,
+  }));
+  els.crawlPanel.hidden = captureQueue.length === 0;
+  if (captureQueue.length > 0) {
+    activeQueueIndex = 0;
+    const first = captureQueue[0];
+    els.pagePath.value = first.path;
+    els.pageName.value = first.name;
+    writeBackActivePosition();
+    invalidatePinPreviewBackdrop();
+  } else {
+    activeQueueIndex = -1;
+  }
+  renderQueue();
+  updateSubmitLabel();
+}
 
 els.crawlClear.addEventListener('click', () => {
+  captureQueue = [];
+  activeQueueIndex = -1;
   els.crawlList.textContent = '';
   els.crawlPanel.hidden = true;
+  updateSubmitLabel();
 });
+
+// Keep the active item's path/name in sync as the user edits the single-page
+// fields, and refresh the row so the queue mirrors the form live.
+els.pagePath.addEventListener('input', () => {
+  if (activeQueueIndex < 0 || !captureQueue[activeQueueIndex]) return;
+  captureQueue[activeQueueIndex].path = els.pagePath.value.trim() || '/';
+  renderQueue();
+});
+els.pageName.addEventListener('input', () => {
+  if (activeQueueIndex < 0 || !captureQueue[activeQueueIndex]) return;
+  captureQueue[activeQueueIndex].name = els.pageName.value.trim() || 'home';
+  renderQueue();
+});
+
+// Persist position edits onto the active item. These listeners stack on top of
+// the existing position handlers (which run first), so by the time these fire
+// the form state is already updated.
+els.pinOffset.addEventListener('input', writeBackActivePosition);
+els.pinOffsetPx.addEventListener('input', writeBackActivePosition);
+els.positionPills.addEventListener('click', writeBackActivePosition);
 
 els.crawlBtn.addEventListener('click', async () => {
   const baseUrl = els.baseUrl.value.trim();
@@ -2520,8 +2737,8 @@ els.crawlBtn.addEventListener('click', async () => {
       return;
     }
     const data = await res.json();
-    renderCrawlPages(data.pages || []);
-    let msg = 'crawl · found ' + data.discovered + ' page' + (data.discovered === 1 ? '' : 's');
+    seedQueue(data.pages || []);
+    let msg = 'crawl · queued ' + data.discovered + ' page' + (data.discovered === 1 ? '' : 's');
     if (data.truncated) msg += ' (capped at 200)';
     logLine(msg, 'ok');
   } catch (err) {
@@ -2665,15 +2882,13 @@ function readForm() {
         radius: Number(els.backdropRadius.value) || 0,
       }
     : undefined;
-  // Crawl mode: when the discover panel holds checked routes, capture every
-  // selected page. The plural "pages" is forwarded to the server (which prefers
-  // it over the singular "page"); "page" is still emitted so recent-runs history
-  // and single-page log lines keep working unchanged.
-  const selectedPages = selectedCrawlPages();
+  // Capture Queue (Option A) is one-page-at-a-time: every run is a single-page
+  // payload built from the active item (its path/name live in pagePath/pageName).
+  // The legacy pages[] batch branch is gone — the queue advances client-side
+  // instead of submitting all routes at once.
   return {
     baseUrl: els.baseUrl.value.trim(),
     page: { path: els.pagePath.value.trim() || '/', name: els.pageName.value.trim() || 'home' },
-    ...(selectedPages.length > 0 ? { pages: selectedPages } : {}),
     viewports,
     concurrency: Number(els.concurrency.value) || 1,
     deviceScaleFactor: getDsr(),
@@ -3217,6 +3432,14 @@ els.resultReveal.addEventListener('click', async () => {
 // flicker mid-run.
 function updateSubmitLabel() {
   if (els.submit.disabled) return;
+  // Queue mode: "Capture & next" while another page is still pending (firing
+  // the active one will advance), otherwise plain "Capture" (last page, a
+  // re-capture with nothing left, or a complete queue).
+  if (isQueueMode()) {
+    const morePending = captureQueue.some((q, i) => q.status === 'pending' && i !== activeQueueIndex);
+    els.submitLabel.textContent = morePending ? 'Capture & next' : 'Capture';
+    return;
+  }
   const n = selectedViewportCount();
   els.submitLabel.textContent = n > 1 ? 'Capture ' + n + ' shots' : 'Capture';
 }
@@ -3247,13 +3470,12 @@ els.form.addEventListener('submit', async (e) => {
   const input = readForm();
   if (!input.baseUrl) return;
 
-  // Crawl panel open but nothing checked: readForm() would drop the pages list
-  // and silently fall back to the single Path/Slug fields — which reads as
-  // "capture nothing" to the user. Block and warn instead of surprising them.
-  if (!els.crawlPanel.hidden && !input.pages) {
-    logLine('crawl · select at least one page, or click “Use single page”', 'warn');
-    return;
-  }
+  // Queue mode (Option A): every submit captures the single active item. Pin the
+  // index now — the SSE loop runs async and the user could click another row
+  // mid-run, so we update the item we actually fired against, not whatever is
+  // active when the stream ends.
+  const queueMode = isQueueMode();
+  const capturedIndex = queueMode ? activeQueueIndex : -1;
 
   setSubmitting(true);
   logReset();
@@ -3265,12 +3487,8 @@ els.form.addEventListener('submit', async (e) => {
   currentOutputs = [];
   setLed('running', 'capturing');
   const vpCount = input.viewports.length;
-  const pageCount = input.pages ? input.pages.length : 1;
   const parallel = vpCount > 1;
-  if (pageCount > 1) {
-    logLine('begin · ' + pageCount + ' pages × ' + vpCount + ' viewport' + (vpCount > 1 ? 's' : '')
-      + ' = ' + (pageCount * vpCount) + ' shots');
-  } else if (parallel) {
+  if (parallel) {
     logLine('begin · ' + vpCount + ' viewports · up to ' + input.concurrency + ' in parallel');
   } else {
     logLine('begin · ' + shortHost(input.baseUrl) + input.page.path);
@@ -3280,6 +3498,7 @@ els.form.addEventListener('submit', async (e) => {
   // any downstream parsing throws. Without this, one uncaught error leaves the
   // form stuck in "Capturing…" and the user can't capture again.
   let succeeded = false;
+  let doneOutputs = [];
   try {
     let response;
     try {
@@ -3361,6 +3580,7 @@ els.form.addEventListener('submit', async (e) => {
           const active = els.status.querySelector('.log-line.active');
           if (active) active.classList.remove('active');
           const outputs = event.outputs || [];
+          doneOutputs = outputs;
           for (const o of outputs) {
             const tag = parallel && o.viewportName ? '[' + o.viewportName + '] ' : '';
             logLine('done · ' + tag + o.outputPath, 'ok');
@@ -3400,6 +3620,24 @@ els.form.addEventListener('submit', async (e) => {
     setLed('err', 'error');
   } finally {
     setSubmitting(false);
+    // Queue mode: record the outcome on the item we fired against, then load
+    // the next pending page (advance-and-wait — no auto-fire). Runs in finally
+    // so network/bad-response early-returns still mark the item failed.
+    if (queueMode && capturedIndex >= 0 && captureQueue[capturedIndex]) {
+      const item = captureQueue[capturedIndex];
+      if (succeeded) {
+        item.status = 'done';
+        item.shots = doneOutputs.length;
+        if (doneOutputs[0] && doneOutputs[0].urlPath) {
+          // Cache-bust so a re-capture replaces the thumbnail rather than
+          // showing the browser's stale copy at the same URL.
+          item.thumbUrl = doneOutputs[0].urlPath + '?t=' + Date.now();
+        }
+      } else {
+        item.status = 'failed';
+      }
+      advanceQueue(capturedIndex);
+    }
   }
 });
 
@@ -3659,6 +3897,8 @@ function confirmPreviewModal() {
     els.positionReadout.textContent = 'Custom ' + px + 'px';
     updatePinPreviewPositions();
   }
+  // Persist the modal's pick onto the active queue item (no-op in single mode).
+  writeBackActivePosition();
   closePreviewModal();
   updateSubmitLabel();
 }
