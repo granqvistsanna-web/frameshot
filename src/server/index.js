@@ -289,7 +289,7 @@ async function handleCapture(req, res) {
   // loses which viewport/page it happened on.
   let lastStep = null;
   try {
-    const results = await runCapture(parsed.data, {
+    const { results, failures } = await runCapture(parsed.data, {
       onProgress: (event) => {
         if (event.type === 'step') lastStep = event;
         send(event);
@@ -297,6 +297,10 @@ async function handleCapture(req, res) {
     });
     send({
       type: 'done',
+      // Non-fatal per-page skips from a multi-page crawl. Empty for single-page
+      // runs (those reach the catch below instead). The client lists these so a
+      // partial batch is honest about what it dropped.
+      ...(failures.length > 0 ? { failures } : {}),
       outputs: results.map(({ outputPath, viewportName, pageName, kind }) => ({
         outputPath,
         urlPath: outputPathToUrl(outputPath),

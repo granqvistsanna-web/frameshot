@@ -1398,6 +1398,23 @@ export function renderUi({ version = '0.0.0' } = {}) {
     to { transform: rotate(360deg); }
   }
 
+  /* Inline button spinner — a small ring that inherits the button's text color
+     via currentColor, so it reads correctly on both light (.primary) and dark
+     (ghost/pick) buttons. Hidden via [hidden]; the right margin only applies
+     while visible since [hidden] collapses to display:none. */
+  .btn-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 8px;
+    border: 1.5px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    opacity: 0.85;
+    vertical-align: -2px;
+    animation: preview-spin 0.6s linear infinite;
+  }
+
   /* Backdrop — color swatch + hex text input sit on one line. The native
      color picker is a small clickable square; the hex field shows the value
      and accepts manual entry. They stay in sync via JS. */
@@ -1737,7 +1754,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
       </div>
 
       <div class="submit-row">
-        <button type="submit" class="primary" id="submit-btn"><span id="submit-label">Capture</span><span class="kbd">↵</span></button>
+        <button type="submit" class="primary" id="submit-btn"><span class="btn-spinner" id="submit-spinner" hidden></span><span id="submit-label">Capture</span><span class="kbd">↵</span></button>
       </div>
     </form>
   </aside>
@@ -1942,6 +1959,7 @@ const els = {
   backdropRadius: $('backdropRadius'),
   submit: $('submit-btn'),
   submitLabel: $('submit-label'),
+  submitSpinner: $('submit-spinner'),
   status: $('status'),
   result: $('result'),
   resultMeta: $('result-meta'),
@@ -2488,7 +2506,7 @@ els.crawlBtn.addEventListener('click', async () => {
   const btn = els.crawlBtn;
   const original = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Finding…';
+  btn.innerHTML = '<span class="btn-spinner"></span>Finding…';
   try {
     const res = await fetch('/api/discover', {
       method: 'POST',
@@ -3143,7 +3161,7 @@ els.downloadAll.addEventListener('click', async () => {
   const btn = els.downloadAll;
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = 'Bundling…';
+  btn.innerHTML = '<span class="btn-spinner"></span>Bundling…';
   try {
     const res = await fetch('/api/zip', {
       method: 'POST',
@@ -3203,6 +3221,7 @@ function updateSubmitLabel() {
 
 function setSubmitting(on) {
   els.submit.disabled = on;
+  els.submitSpinner.hidden = !on;
   if (on) {
     els.submitLabel.textContent = 'Capturing…';
   } else {
@@ -3329,6 +3348,12 @@ els.form.addEventListener('submit', async (e) => {
           for (const sel of event.selectors) {
             logLine(prefix + 'hide "' + sel + '" matched nothing · skipped', 'warn');
           }
+        } else if (event.type === 'page-error') {
+          // A multi-page crawl skipped one page (a Chromium crash on a heavy
+          // page, a nav error on one route) and kept going. Always tag with
+          // viewport/page since a single-viewport crawl has no parallel prefix.
+          const tag = '[' + [event.viewport, event.page].filter(Boolean).join('/') + '] ';
+          logLine('skipped · ' + tag + event.message, 'warn');
         } else if (event.type === 'done') {
           succeeded = true;
           const active = els.status.querySelector('.log-line.active');
@@ -3338,7 +3363,15 @@ els.form.addEventListener('submit', async (e) => {
             const tag = parallel && o.viewportName ? '[' + o.viewportName + '] ' : '';
             logLine('done · ' + tag + o.outputPath, 'ok');
           }
-          setLed('ok', 'ready');
+          // Headline the partial-batch outcome when a crawl dropped pages — the
+          // per-page 'skipped' lines already streamed above; this is the count.
+          const failures = event.failures || [];
+          if (failures.length) {
+            logLine('done · ' + outputs.length + ' written · ' + failures.length + ' skipped', 'warn');
+            setLed('warn', 'partial');
+          } else {
+            setLed('ok', 'ready');
+          }
           showResults(outputs, { hadBackdrop: input.backdrop !== undefined });
         } else if (event.type === 'error') {
           // Surface the server's lastStep context when present — turns a bare

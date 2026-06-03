@@ -17,6 +17,12 @@
 // Errors bubble. Callers convert to user-facing messages (formatError for CLI,
 // SSE error frame for server).
 //
+// Crawl resilience: a SINGLE-page run is fail-fast (its page error rejects the
+// promise). A MULTI-page run (config.pages.length > 1) isolates per-page
+// failures — a crashed/failed page is recorded in the returned `failures[]` and
+// emitted as a non-fatal `page-error` progress event, and the batch continues.
+// Fatal errors (browser launch, client abort) still reject regardless of mode.
+//
 // v0.3 concurrency: viewports run in parallel up to config.concurrency (CLI
 // `--concurrency N` overrides). Each viewport remains its own browser+context,
 // so the parallel unit-of-work is "one viewport". Pages within a viewport stay
@@ -48,8 +54,14 @@ import { resolveTemplate, swapExtension } from '../output/template.js';
  *   | { type: 'frame', viewport: string, current: number, total: number }
  *   | { type: 'warning', viewport: string, kind: 'hide-missed', selectors: string[] }
  *   Every event carries a viewport field set to the viewport's name.
- * @returns {Promise<Array<{ outputPath: string, hideSummary: { matched: number, missed: string[] }, viewportName: string }>>}
- *   One entry per capture, in execution order.
+ * @returns {Promise<{
+ *   results: Array<{ outputPath: string, hideSummary: { matched: number, missed: string[] }, viewportName: string, pageName: string, kind: string }>,
+ *   failures: Array<{ viewportName: string, pageName: string, message: string }>,
+ * }>}
+ *   `results` — one entry per successful capture, in execution order.
+ *   `failures` — non-fatal per-page failures from multi-page (crawl) runs that
+ *   were skipped so the batch could continue. Always empty for single-page runs
+ *   (those fail-fast: a page error rejects the promise instead).
  */
 export async function runCapture(config, { onProgress = () => {} } = {}) {
   // Single timestamp shared across all viewports/pages in this run so every
@@ -83,6 +95,14 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
   // count").
   async function runViewport(vp) {
     const localResults = [];
+    const localFailures = [];
+    // Crawl resilience: with more than one page queued, a single page's failure
+    // (a Chromium renderer crash on a heavy retina page, a nav error on one bad
+    // route) skips that page and continues the batch — losing a 20-page sitemap
+    // run because page 7 crashed is the wrong trade. A single-page run keeps the
+    // original fail-fast contract: its one error IS the run's outcome, so it
+    // propagates and aborts the run.
+    const multiPage = config.pages.length > 1;
     onProgress({ type: 'step', viewport: vp.name, label: 'Launching Chromium' });
     const { browser, context } = await launchBrowser(config, vp);
     try {
@@ -98,9 +118,24 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
           format,
         );
 
-        onProgress({ type: 'step', ...scope, label: `Navigating to ${config.baseUrl}${pg.path}` });
-        const navigatedPage = await navigateToPage(context, pg);
+        // A crash on an earlier page can take the whole browser process down,
+        // not just its tab. Hammering a dead browser with newPage() for every
+        // remaining route yields N identical low-level "Target closed" errors —
+        // detect it once, record the rest as skipped, and stop this viewport.
+        if (!browser.isConnected()) {
+          const message = 'skipped — Chromium crashed on an earlier page in this viewport';
+          localFailures.push({ viewportName: vp.name, pageName: pg.name, message });
+          onProgress({ type: 'page-error', ...scope, message });
+          continue;
+        }
+
+        // navigatedPage stays in the outer scope so the finally can close it
+        // even when navigateToPage itself throws (it would be undefined then).
+        let navigatedPage;
         try {
+          onProgress({ type: 'step', ...scope, label: `Navigating to ${config.baseUrl}${pg.path}` });
+          navigatedPage = await navigateToPage(context, pg);
+
           onProgress({ type: 'step', ...scope, label: 'Running prepare pipeline' });
           const { hideSummary } = await runPreparePipeline(navigatedPage, config.prepare);
 
@@ -131,23 +166,36 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
             backdrop,
           };
 
-          // Wrap per-page work in a try/catch that attaches viewport+page scope
-          // to thrown errors. Under concurrency > 1 the server's lastStep cache
-          // can capture cross-viewport state when workers interleave SSE
-          // events, so the error itself must carry its own breadcrumb.
-          try {
-            onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
-            await captureFullPage(navigatedPage, outputPath, fullPageOpts);
-            localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
-          } catch (err) {
-            if (err.viewportName === undefined) err.viewportName = vp.name;
-            if (err.pageName === undefined) err.pageName = pg.name;
-            throw err;
-          }
+          onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
+          await captureFullPage(navigatedPage, outputPath, fullPageOpts);
+          localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
+        } catch (err) {
+          // A client disconnect is tagged CLIENT_ABORTED by the server's
+          // onProgress seam — that's fatal for the WHOLE run (nobody's
+          // watching), never a per-page skip. Let it propagate.
+          if (err?.code === 'CLIENT_ABORTED') throw err;
+
+          // Attach viewport+page scope so a fail-fast (single-page) error
+          // reaches the caller's catch with its breadcrumb intact. Under
+          // concurrency > 1 the server's lastStep cache can capture
+          // cross-viewport state when workers interleave SSE events, so the
+          // error itself must carry its own scope.
+          if (err.viewportName === undefined) err.viewportName = vp.name;
+          if (err.pageName === undefined) err.pageName = pg.name;
+
+          // Single-page run: preserve fail-fast — the error IS the outcome.
+          if (!multiPage) throw err;
+
+          // Crawl run: record, surface a non-fatal page-error event, move on.
+          const message = err?.message ?? String(err);
+          localFailures.push({ viewportName: vp.name, pageName: pg.name, message });
+          onProgress({ type: 'page-error', ...scope, message });
         } finally {
           // Close the page tab between iterations so a long sitemap run does
-          // not accumulate tabs in a single context.
-          await navigatedPage.close();
+          // not accumulate tabs in a single context. May be undefined if
+          // newPage()/navigate threw before assignment; guard it. Best-effort:
+          // a throw here would mask the real capture error (JS finally spec).
+          if (navigatedPage) await navigatedPage.close().catch(() => {});
         }
       }
     } finally {
@@ -159,7 +207,7 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
       try { await context.close(); } catch {}
       try { await browser.close(); } catch {}
     }
-    return localResults;
+    return { results: localResults, failures: localFailures };
   }
 
   // Worker-pool dispatcher: pull viewports from a shared index up to
@@ -176,6 +224,9 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
   const concurrency = Math.min(config.concurrency, config.viewports.length);
   let nextIndex = 0;
   let firstError = null;
+  // Non-fatal per-page failures from multi-page (crawl) runs, merged across all
+  // viewports. Distinct from firstError, which is the fatal/single-page abort.
+  const failures = [];
 
   async function worker() {
     while (true) {
@@ -183,8 +234,9 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
       const i = nextIndex++;
       if (i >= config.viewports.length) return;
       try {
-        const viewportResults = await runViewport(config.viewports[i]);
+        const { results: viewportResults, failures: viewportFailures } = await runViewport(config.viewports[i]);
         results.push(...viewportResults);
+        failures.push(...viewportFailures);
       } catch (err) {
         if (!firstError) firstError = err;
         return;
@@ -195,5 +247,5 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
   await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
   if (firstError) throw firstError;
-  return results;
+  return { results, failures };
 }

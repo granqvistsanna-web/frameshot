@@ -154,8 +154,17 @@ export function buildProgram() {
         spinner.text = `Running ${config.viewports.length} viewport(s), up to ${config.concurrency} in parallel`;
       }
 
-      const results = await runCapture(config, {
+      const { results, failures } = await runCapture(config, {
         onProgress: (event) => {
+          // page-error: a multi-page (crawl) run skipped one page and kept
+          // going. Surface it inline as a warning regardless of parallel mode,
+          // then let the run continue — the end-of-run summary lists them all.
+          if (event.type === 'page-error') {
+            spinner.stop();
+            console.error(chalk.yellow(`${scopePrefix(event)} skipped — ${event.message}`));
+            spinner.start();
+            return;
+          }
           if (parallel) {
             if (event.type === 'step') {
               spinner.stop();
@@ -180,7 +189,16 @@ export function buildProgram() {
         },
       });
 
-      spinner.succeed(`${results.length} screenshot(s) written`);
+      // A crawl that lost some pages still wrote the rest — succeed with a count
+      // that names the skips so the exit isn't silently partial.
+      if (failures.length > 0) {
+        spinner.warn(`${results.length} screenshot(s) written, ${failures.length} page(s) skipped`);
+        for (const f of failures) {
+          console.error(chalk.yellow(`  skipped [${f.viewportName}/${f.pageName}]: ${f.message}`));
+        }
+      } else {
+        spinner.succeed(`${results.length} screenshot(s) written`);
+      }
       currentSpinner = null;
       // One stdout line per result — pipe-capturable per 06-RESEARCH §Pitfall 6.
       // Label includes page '<name>' when the run spans multiple pages, 'full

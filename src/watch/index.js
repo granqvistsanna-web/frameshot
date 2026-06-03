@@ -128,8 +128,8 @@ export async function runWatch(config, opts = {}) {
     state.capturing = true;
     onEvent({ type: 'capture-start', trigger });
     try {
-      const results = await runCapture(config, { onProgress: onCaptureProgress });
-      onEvent({ type: 'capture-done', trigger, results });
+      const { results, failures } = await runCapture(config, { onProgress: onCaptureProgress });
+      onEvent({ type: 'capture-done', trigger, results, failures });
     } catch (err) {
       onEvent({ type: 'capture-error', error: err });
     } finally {
