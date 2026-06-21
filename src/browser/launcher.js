@@ -68,7 +68,13 @@ export async function launchBrowser(config, viewportEntry) {
       // renderer with "Target page, context or browser has been closed". Routing
       // that allocation to /tmp instead trades a little speed for not dying on
       // large captures. See the crash-handling note in src/capture/frames.js.
-      args: ['--disable-dev-shm-usage'],
+      // --no-sandbox: required when running as root in a container (the Chromium
+      // sandbox needs user-namespace privileges most container runtimes drop).
+      // Gated behind an env var so local macOS launches keep the sandbox on.
+      args: [
+        '--disable-dev-shm-usage',
+        ...(process.env.FRAMERSHOT_NO_SANDBOX === '1' ? ['--no-sandbox'] : []),
+      ],
     });
   } catch (err) {
     throw new BrowserError(

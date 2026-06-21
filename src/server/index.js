@@ -8,12 +8,14 @@
 //   GET  /screenshots/<path>     → static file under CWD/screenshots
 //
 // Hard rules:
-//   - Bind to 127.0.0.1 only (never 0.0.0.0). This is a local personal tool;
-//     no auth, must not be reachable from the LAN.
+//   - Default binds 127.0.0.1 only — local personal tool, no auth. Hosted mode
+//     (FRAMERSHOT_PUBLIC=1) binds 0.0.0.0 but THEN requires a password + SSRF
+//     guard; it refuses to start without FRAMERSHOT_PASSWORD.
 //   - /screenshots/* must stay sandboxed under CWD/screenshots (path traversal).
 //   - SSE: write events as they happen; flush on each line.
 
 import http from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { resolve, join, normalize, extname, basename, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +30,13 @@ import { installAnimationGuards, runPreparePipeline } from '../prepare/index.js'
 import { captureFrames } from '../capture/frames.js';
 import { stitchFrames } from '../capture/stitch.js';
 import { discoverFromSitemap, SitemapError } from '../discover/sitemap.js';
+import { assertPublicUrl, SsrfError } from './ssrf.js';
+
+// Hosted (public) mode. When set, framershot is reachable beyond localhost, so
+// we require a password, harden SSRF, and serialize captures. Absent = the
+// original local-only tool, unchanged.
+const PUBLIC_MODE = process.env.FRAMERSHOT_PUBLIC === '1';
+const PASSWORD = process.env.FRAMERSHOT_PASSWORD || '';
 
 const SCREENSHOT_ROOT = resolve(process.cwd(), 'screenshots');
 // Top-level await — resolves at module load, before any HTTP request can land.
@@ -37,6 +46,13 @@ const PKG_VERSION = await readPkgVersion();
 // (a 200-path zip request with 2 KB paths each is < 500 KB) and stops a
 // hostile/malformed POST from buffering unbounded bytes before JSON.parse.
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
+
+// Hosted mode runs on a small box; each capture spawns Chromium per viewport.
+// Allowing concurrent captures from multiple users OOMs it. One global lock
+// serializes captures across all clients — a 429 tells the UI to retry.
+// ponytail: single global lock, one capture at a time. Upgrade to a small queue
+// (or per-user slots) only if a few-people workload actually contends.
+let captureInFlight = false;
 
 async function readPkgVersion() {
   try {
@@ -64,18 +80,31 @@ const MIME = {
  * @param {boolean} [opts.open] — open default browser after listen
  */
 export async function startServer({ port, open = false }) {
+  // Hosted mode must never come up without a password — a public box with an
+  // open capture endpoint is an SSRF/abuse magnet. Fail fast and loud.
+  if (PUBLIC_MODE && !PASSWORD) {
+    throw new Error('FRAMERSHOT_PUBLIC=1 requires FRAMERSHOT_PASSWORD to be set');
+  }
+
+  // Platform hosts (Fly/Railway/Render) inject PORT and need 0.0.0.0. Local mode
+  // keeps 127.0.0.1 so nothing on the LAN can reach an unauthenticated tool.
+  const listenPort = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : port;
+  const host = PUBLIC_MODE ? '0.0.0.0' : '127.0.0.1';
+
   const server = http.createServer((req, res) => handleRequest(req, res));
 
   await new Promise((resolveListen, rejectListen) => {
     server.once('error', rejectListen);
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(listenPort, host, () => {
       server.off('error', rejectListen);
       resolveListen();
     });
   });
 
-  const url = `http://localhost:${port}`;
-  console.log(`framershot UI ready at ${url}`);
+  const url = `http://localhost:${listenPort}`;
+  console.log(PUBLIC_MODE
+    ? `framershot UI ready (public mode) on ${host}:${listenPort}`
+    : `framershot UI ready at ${url}`);
   console.log('press Ctrl+C to stop');
 
   if (open) {
@@ -90,20 +119,47 @@ export async function startServer({ port, open = false }) {
   await new Promise(() => {});
 }
 
-// Reject POSTs whose Origin header doesn't match a localhost source. Defends
+// Reject POSTs whose Origin header doesn't match an allowed source. Defends
 // against drive-by CSRF and DNS rebinding from a malicious site (which would
 // send its own Origin like https://evil.com even after rebinding 127.0.0.1).
-// Missing Origin (curl, native scripts) is allowed — reaching 127.0.0.1
-// already implies the caller shares the host.
+// Missing Origin (curl, native scripts) is allowed — reaching the server
+// already implies the caller is intended. In hosted mode we also accept the
+// request's own Host (same-origin), since the browser sends the deployed
+// https:// origin and a localhost-only check would 403 every real request.
 function isOriginAllowed(req) {
   const origin = req.headers.origin;
   if (!origin) return true;
   try {
     const u = new URL(origin);
-    return u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
+    // Same-origin: Origin host[:port] equals the Host header the client used.
+    return Boolean(req.headers.host) && u.host === req.headers.host;
   } catch {
     return false;
   }
+}
+
+// HTTP Basic auth, enforced only when FRAMERSHOT_PASSWORD is set. Any username
+// is accepted; the password is the shared secret. Constant-time compare so the
+// password can't be guessed byte-by-byte via timing. Returns true if the
+// request may proceed; otherwise writes a 401 and returns false.
+function checkAuth(req, res) {
+  if (!PASSWORD) return true;
+  const header = req.headers.authorization || '';
+  const [scheme, encoded] = header.split(' ');
+  if (scheme === 'Basic' && encoded) {
+    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+    const supplied = decoded.slice(decoded.indexOf(':') + 1);
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(PASSWORD);
+    if (a.length === b.length && timingSafeEqual(a, b)) return true;
+  }
+  res.writeHead(401, {
+    'www-authenticate': 'Basic realm="framershot", charset="UTF-8"',
+    'content-type': 'text/plain',
+  });
+  res.end('authentication required');
+  return false;
 }
 
 // Stream and JSON-parse a POST body with a hard size cap. Returns the parsed
@@ -137,6 +193,8 @@ async function readJsonBody(req, res) {
 async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, 'http://localhost');
+
+    if (!checkAuth(req, res)) return;
 
     if (req.method === 'POST' && !isOriginAllowed(req)) {
       res.writeHead(403, { 'content-type': 'text/plain' });
@@ -238,6 +296,25 @@ async function handleCapture(req, res) {
       })),
     }));
     return;
+  }
+
+  // Hosted mode: block captures targeting private/reserved addresses (SSRF).
+  if (PUBLIC_MODE) {
+    try {
+      await assertPublicUrl(parsed.data.baseUrl);
+    } catch (err) {
+      const status = err instanceof SsrfError ? 422 : 500;
+      res.writeHead(status, { 'content-type': 'text/plain' });
+      res.end(err?.message ?? String(err));
+      return;
+    }
+    // One capture at a time on a shared box.
+    if (captureInFlight) {
+      res.writeHead(429, { 'content-type': 'text/plain', 'retry-after': '10' });
+      res.end('another capture is in progress — retry shortly');
+      return;
+    }
+    captureInFlight = true;
   }
 
   // Open SSE stream
@@ -346,6 +423,7 @@ async function handleCapture(req, res) {
       // Stream destroyed between abort detection and write — already aborted.
     }
   } finally {
+    captureInFlight = false;
     try { res.end(); } catch {}
   }
 }
@@ -457,6 +535,18 @@ async function handlePreview(req, res) {
     res.writeHead(400, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: 'Invalid preview request', issues: errors }));
     return;
+  }
+
+  // Hosted mode: block previews of private/reserved addresses (SSRF).
+  if (PUBLIC_MODE) {
+    try {
+      await assertPublicUrl(urlObj.toString());
+    } catch (err) {
+      const status = err instanceof SsrfError ? 422 : 500;
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Preview blocked', message: err?.message ?? String(err) }));
+      return;
+    }
   }
 
   // Normalize the cache key off the parsed URL so trivial variants (trailing
@@ -607,6 +697,17 @@ async function handleDiscover(req, res) {
     res.writeHead(400, { 'content-type': 'text/plain' });
     res.end('baseUrl must use http or https');
     return;
+  }
+
+  // Hosted mode: block sitemap fetches to private/reserved addresses (SSRF).
+  if (PUBLIC_MODE) {
+    try {
+      await assertPublicUrl(baseUrl);
+    } catch (err) {
+      res.writeHead(err instanceof SsrfError ? 422 : 500, { 'content-type': 'text/plain' });
+      res.end(err?.message ?? String(err));
+      return;
+    }
   }
 
   try {
