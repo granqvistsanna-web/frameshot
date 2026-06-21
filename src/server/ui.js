@@ -1727,7 +1727,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
                with the JS object that submits them. Do NOT hand-author chips
                here — see renderDeviceChips() in the script tag below. -->
           <div class="vp-chips" id="vpDevice"></div>
-          <div class="vp-section-label">Pinterest <span class="vp-section-hint">each ratio captured at every selected device width</span></div>
+          <div class="vp-section-label">Pinterest <span class="vp-section-hint">per selected device width</span></div>
           <div class="vp-chips" id="vpPin">
             <label class="vp-chip"><input type="checkbox" data-ratio="1.5"   data-slug="2x3"><span>Standard pin</span><span class="vp-chip-meta">2:3</span></label>
             <label class="vp-chip"><input type="checkbox" data-ratio="1.0"   data-slug="1x1"><span>Square pin</span><span class="vp-chip-meta">1:1</span></label>
@@ -1766,32 +1766,6 @@ export function renderUi({ version = '0.0.0' } = {}) {
             </div>
             <div class="pin-preview-row" id="pinPreviewRow"></div>
           </div>
-          <div class="vp-section-label">Custom</div>
-          <label class="vp-toggle"><input type="checkbox" id="customViewportToggle"><span>Add a custom viewport</span></label>
-        </div>
-        <div class="field" id="customViewport" hidden>
-          <div class="row-3">
-            <div><label class="field-label" for="vpName">Name</label><input id="vpName" type="text" value="custom"></div>
-            <div><label class="field-label" for="vpWidth">Width</label><input id="vpWidth" type="number" min="1" value="1440"></div>
-            <div><label class="field-label" for="vpHeight">Height</label><input id="vpHeight" type="number" min="1" value="900"></div>
-          </div>
-        </div>
-        <div class="slider-field">
-          <div class="slider-head">
-            <label class="slider-label" for="concurrency">Concurrency</label>
-            <span class="slider-val"><span id="concurrencyValue">2</span>×</span>
-          </div>
-          <input id="concurrency" type="range" min="1" max="8" value="2" class="range">
-          <span class="help">browsers in parallel · capped to viewport count · each ≈ 400 MB</span>
-        </div>
-        <div class="field">
-          <label class="field-label">Density</label>
-          <div class="seg-pills" id="dsrPills" role="radiogroup" aria-label="Pixel density">
-            <button type="button" class="seg-pill" data-dsr="1" role="radio" aria-checked="false">1×</button>
-            <button type="button" class="seg-pill is-active" data-dsr="2" role="radio" aria-checked="true">2×</button>
-            <button type="button" class="seg-pill" data-dsr="3" role="radio" aria-checked="false">3×</button>
-          </div>
-          <span class="help">retina = 2× · 3× doubles file size with little visible gain</span>
         </div>
         <div class="field">
           <div class="format-row" id="formatRow">
@@ -1813,9 +1787,40 @@ export function renderUi({ version = '0.0.0' } = {}) {
           </div>
           <span class="help">retina PNGs are 10–15 MB · JPEG @ 85 ≈ 10× smaller, universally supported · WebP for max compression</span>
         </div>
+        <details class="group sub">
+          <summary class="section-label">Advanced</summary>
+          <div class="slider-field">
+            <div class="slider-head">
+              <label class="slider-label" for="concurrency">Concurrency</label>
+              <span class="slider-val"><span id="concurrencyValue">2</span>×</span>
+            </div>
+            <input id="concurrency" type="range" min="1" max="8" value="2" class="range">
+            <span class="help">browsers in parallel · capped to viewport count · each ≈ 400 MB</span>
+          </div>
+          <div class="field">
+            <label class="field-label">Density</label>
+            <div class="seg-pills" id="dsrPills" role="radiogroup" aria-label="Pixel density">
+              <button type="button" class="seg-pill" data-dsr="1" role="radio" aria-checked="false">1×</button>
+              <button type="button" class="seg-pill is-active" data-dsr="2" role="radio" aria-checked="true">2×</button>
+              <button type="button" class="seg-pill" data-dsr="3" role="radio" aria-checked="false">3×</button>
+            </div>
+            <span class="help">retina = 2× · 3× doubles file size with little visible gain</span>
+          </div>
+          <div class="field">
+            <div class="vp-section-label">Custom viewport</div>
+            <label class="vp-toggle"><input type="checkbox" id="customViewportToggle"><span>Add a custom viewport</span></label>
+          </div>
+          <div class="field" id="customViewport" hidden>
+            <div class="row-3">
+              <div><label class="field-label" for="vpName">Name</label><input id="vpName" type="text" value="custom"></div>
+              <div><label class="field-label" for="vpWidth">Width</label><input id="vpWidth" type="number" min="1" value="1440"></div>
+              <div><label class="field-label" for="vpHeight">Height</label><input id="vpHeight" type="number" min="1" value="900"></div>
+            </div>
+          </div>
+        </details>
       </details>
 
-      <details class="group" open>
+      <details class="group">
         <summary class="section-label">Backdrop</summary>
         <label class="vp-toggle"><input type="checkbox" id="backdropToggle"><span>Frame with colored background</span></label>
         <div id="backdropOptions" hidden>
@@ -1852,7 +1857,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
         </div>
       </details>
 
-      <details class="group" open>
+      <details class="group">
         <summary class="section-label">Prepare</summary>
         <div class="field">
           <label class="field-label" for="hide">Hide selectors</label>
