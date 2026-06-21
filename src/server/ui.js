@@ -169,7 +169,12 @@ export function renderUi({ version = '0.0.0' } = {}) {
   details.group:not([open]) > summary::after { transform: rotate(-45deg); }  /* points right = collapsed */
   details.group > summary:hover::after { border-color: var(--fg-2); }
 
-  .field { margin-bottom: 16px; }
+  /* Nested advanced sub-group inside a section — no own rule, just a disclosure */
+  details.group.sub { border-bottom: 0; margin: 6px 0 0; padding: 0; }
+  details.group.sub > summary { margin-bottom: 0; }
+  details.group.sub[open] > summary { margin-bottom: 16px; }
+
+  .field { margin-bottom: 18px; }
   .field:last-child { margin-bottom: 0; }
 
   .field-label {
@@ -203,7 +208,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
   input::placeholder, textarea::placeholder {
-    color: var(--fg-3);
+    color: #83838C;          /* ponytail: lifted from --fg-3 to clear 4.5:1 on filled inputs (WCAG AA) */
     font-family: var(--sans);
     font-style: normal;
     font-weight: 400;
@@ -261,32 +266,33 @@ export function renderUi({ version = '0.0.0' } = {}) {
   input[type=range].range::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 12px;
-    height: 12px;
-    margin-top: -5px;
+    width: 14px;
+    height: 14px;
+    margin-top: -6px;
     background: var(--accent);
     border: 0;
     border-radius: 50%;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    transition: transform 150ms ease-out;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: transform 150ms ease-out, box-shadow 150ms ease-out;
   }
-  input[type=range].range:hover::-webkit-slider-thumb { transform: scale(1.1); }
+  input[type=range].range:hover::-webkit-slider-thumb { transform: scale(1.12); }
+  input[type=range].range:active::-webkit-slider-thumb { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 5px var(--accent-soft); }
   input[type=range].range::-moz-range-track { height: 2px; background: var(--rule-2); border: 0; border-radius: 1px; }
   input[type=range].range::-moz-range-thumb {
-    width: 12px; height: 12px;
+    width: 14px; height: 14px;
     background: var(--accent); border: 0; border-radius: 50%;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.22);
     transition: transform 150ms ease-out;
   }
   input[type=range].range:hover::-moz-range-thumb { transform: scale(1.1); }
 
   /* Arqé-style slider row: sentence-case label left, live value right, full-width track below */
-  .slider-field { margin-bottom: 16px; }
+  .slider-field { margin-bottom: 22px; }
   .slider-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    margin-bottom: 4px;
+    margin-bottom: 9px;
   }
   .slider-head .slider-label {
     font-family: var(--sans);
@@ -296,9 +302,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .slider-head .slider-val {
     font-family: var(--sans);
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 400;
     color: var(--fg-2);
+    letter-spacing: -0.01em;
     font-feature-settings: 'tnum';
   }
 
@@ -955,14 +962,15 @@ export function renderUi({ version = '0.0.0' } = {}) {
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--fg-3);
-    margin: 14px 0 7px;
+    margin: 20px 0 9px;
   }
   .vp-section-label:first-child { margin-top: 0; }
 
   /* Concurrency control — slider + numeric badge */
   /* Density pills — discrete 1×/2×/3× segmented control */
   .seg-pills {
-    display: inline-flex;
+    display: flex;
+    width: 100%;
     background: var(--surface-2);
     border: 0;
     border-radius: var(--radius);
@@ -970,23 +978,25 @@ export function renderUi({ version = '0.0.0' } = {}) {
     gap: 2px;
   }
   .seg-pill {
+    flex: 1;
     background: transparent;
     color: var(--fg-2);
     border: 0;
     border-radius: var(--radius-sm);
-    padding: 7px 16px;
+    padding: 9px 16px;
     font-family: var(--sans);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
+    text-align: center;
     cursor: pointer;
     transition: color 150ms ease-out, background 150ms ease-out, box-shadow 150ms ease-out;
     font-feature-settings: 'tnum';
   }
-  .seg-pill:hover { color: var(--fg); }
+  .seg-pill:hover:not(.is-active) { color: var(--fg); }
   .seg-pill.is-active {
     background: var(--surface-4);
     color: var(--fg);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   }
 
   /* Behavior toggles that sit alongside the chip groups — wider, full-width
@@ -1816,14 +1826,14 @@ export function renderUi({ version = '0.0.0' } = {}) {
               <input type="text" id="backdropColorHex" value="#FFE45C" maxlength="7" spellcheck="false">
             </div>
             <div class="backdrop-swatches" id="backdropSwatches">
-              <button type="button" class="backdrop-swatch" data-color="#FFE45C" style="background:#FFE45C" title="Yellow"></button>
-              <button type="button" class="backdrop-swatch" data-color="#F4F0E8" style="background:#F4F0E8" title="Cream"></button>
-              <button type="button" class="backdrop-swatch" data-color="#E8E4DD" style="background:#E8E4DD" title="Stone"></button>
-              <button type="button" class="backdrop-swatch" data-color="#171513" style="background:#171513" title="Ink"></button>
-              <button type="button" class="backdrop-swatch" data-color="#FF6B5C" style="background:#FF6B5C" title="Coral"></button>
-              <button type="button" class="backdrop-swatch" data-color="#6FCF97" style="background:#6FCF97" title="Mint"></button>
-              <button type="button" class="backdrop-swatch" data-color="#7AA2F7" style="background:#7AA2F7" title="Sky"></button>
-              <button type="button" class="backdrop-swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></button>
+              <button type="button" class="backdrop-swatch" data-color="#FFE45C" style="background:#FFE45C" title="Yellow" aria-label="Yellow"></button>
+              <button type="button" class="backdrop-swatch" data-color="#F4F0E8" style="background:#F4F0E8" title="Cream" aria-label="Cream"></button>
+              <button type="button" class="backdrop-swatch" data-color="#E8E4DD" style="background:#E8E4DD" title="Stone" aria-label="Stone"></button>
+              <button type="button" class="backdrop-swatch" data-color="#171513" style="background:#171513" title="Ink" aria-label="Ink"></button>
+              <button type="button" class="backdrop-swatch" data-color="#FF6B5C" style="background:#FF6B5C" title="Coral" aria-label="Coral"></button>
+              <button type="button" class="backdrop-swatch" data-color="#6FCF97" style="background:#6FCF97" title="Mint" aria-label="Mint"></button>
+              <button type="button" class="backdrop-swatch" data-color="#7AA2F7" style="background:#7AA2F7" title="Sky" aria-label="Sky"></button>
+              <button type="button" class="backdrop-swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White" aria-label="White"></button>
             </div>
           </div>
           <div class="field">
@@ -1884,7 +1894,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
         <div class="section-label">Log</div>
         <span class="led-wrap"><span class="led" id="led"></span><span id="led-text">idle</span></span>
       </div>
-      <div class="bracketed log-frame" id="status">
+      <div class="bracketed log-frame" id="status" role="log" aria-live="polite">
         <div class="log-line idle"><span class="ts">--:--:--</span><span class="msg">Idle</span></div>
       </div>
     </div>
