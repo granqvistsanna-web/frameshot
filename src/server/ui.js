@@ -143,6 +143,32 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .group.no-rule { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
 
+  /* Collapsible group headers — native <details>/<summary>, no JS */
+  details.group { padding-bottom: 26px; }
+  details.group:not([open]) { padding-bottom: 0; }
+  details.group > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    margin: 0 0 14px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  details.group:not([open]) > summary { margin-bottom: 0; }
+  details.group > summary::-webkit-details-marker { display: none; }
+  details.group > summary::after {
+    content: '';
+    width: 7px; height: 7px;
+    border-right: 1.5px solid var(--fg-3);
+    border-bottom: 1.5px solid var(--fg-3);
+    transform: translateY(-2px) rotate(45deg);   /* points down = open */
+    transition: transform 180ms ease-out, border-color 150ms ease-out;
+    margin-right: 2px;
+  }
+  details.group:not([open]) > summary::after { transform: rotate(-45deg); }  /* points right = collapsed */
+  details.group > summary:hover::after { border-color: var(--fg-2); }
+
   .field { margin-bottom: 16px; }
   .field:last-child { margin-bottom: 0; }
 
@@ -253,6 +279,28 @@ export function renderUi({ version = '0.0.0' } = {}) {
     transition: transform 150ms ease-out;
   }
   input[type=range].range:hover::-moz-range-thumb { transform: scale(1.1); }
+
+  /* Arqé-style slider row: sentence-case label left, live value right, full-width track below */
+  .slider-field { margin-bottom: 16px; }
+  .slider-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .slider-head .slider-label {
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: 13.5px;
+    color: var(--fg);
+  }
+  .slider-head .slider-val {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--fg-2);
+    font-feature-settings: 'tnum';
+  }
 
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .row-3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 14px; }
@@ -912,22 +960,6 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .vp-section-label:first-child { margin-top: 0; }
 
   /* Concurrency control — slider + numeric badge */
-  .concurrency-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 14px;
-  }
-  .concurrency-badge {
-    font-family: var(--sans);
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--fg);
-    min-width: 28px;
-    text-align: right;
-    font-feature-settings: 'tnum';
-  }
-
   /* Density pills — discrete 1×/2×/3× segmented control */
   .seg-pills {
     display: inline-flex;
@@ -1643,8 +1675,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
 
     <form id="capture-form" autocomplete="off" spellcheck="false">
 
-      <div class="group">
-        <div class="section-label">Source</div>
+      <details class="group" open>
+        <summary class="section-label">Source</summary>
         <div class="field">
           <label class="field-label" for="baseUrl">Base URL</label>
           <input id="baseUrl" type="text" placeholder="https://framer.site" required>
@@ -1675,10 +1707,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
             <div class="crawl-list" id="crawlList"></div>
           </div>
         </div>
-      </div>
+      </details>
 
-      <div class="group">
-        <div class="section-label">Render</div>
+      <details class="group" open>
+        <summary class="section-label">Render</summary>
         <div class="field">
           <div class="vp-section-label">Device</div>
           <!-- Populated from PRESETS at boot so chip dimensions stay in sync
@@ -1734,12 +1766,12 @@ export function renderUi({ version = '0.0.0' } = {}) {
             <div><label class="field-label" for="vpHeight">Height</label><input id="vpHeight" type="number" min="1" value="900"></div>
           </div>
         </div>
-        <div class="field">
-          <label class="field-label" for="concurrency">Concurrency</label>
-          <div class="concurrency-row">
-            <input id="concurrency" type="range" min="1" max="8" value="2" class="range">
-            <div class="concurrency-badge"><span id="concurrencyValue">2</span>×</div>
+        <div class="slider-field">
+          <div class="slider-head">
+            <label class="slider-label" for="concurrency">Concurrency</label>
+            <span class="slider-val"><span id="concurrencyValue">2</span>×</span>
           </div>
+          <input id="concurrency" type="range" min="1" max="8" value="2" class="range">
           <span class="help">browsers in parallel · capped to viewport count · each ≈ 400 MB</span>
         </div>
         <div class="field">
@@ -1761,17 +1793,20 @@ export function renderUi({ version = '0.0.0' } = {}) {
                 <option value="jpeg" selected>JPEG · universal</option>
               </select>
             </div>
-            <div id="qualityField">
-              <label class="field-label" for="quality">Quality · <span id="qualityValue">85</span></label>
+            <div id="qualityField" class="slider-field" style="margin-bottom:0">
+              <div class="slider-head">
+                <label class="slider-label" for="quality">Quality</label>
+                <span class="slider-val" id="qualityValue">85</span>
+              </div>
               <input id="quality" type="range" min="1" max="100" value="85" class="range">
             </div>
           </div>
           <span class="help">retina PNGs are 10–15 MB · JPEG @ 85 ≈ 10× smaller, universally supported · WebP for max compression</span>
         </div>
-      </div>
+      </details>
 
-      <div class="group">
-        <div class="section-label">Backdrop</div>
+      <details class="group" open>
+        <summary class="section-label">Backdrop</summary>
         <label class="vp-toggle"><input type="checkbox" id="backdropToggle"><span>Frame with colored background</span></label>
         <div id="backdropOptions" hidden>
           <div class="field" style="margin-top: 14px;">
@@ -1805,10 +1840,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
             <span class="help">padding wraps the screenshot · radius rounds the inner corners (filled with backdrop color)</span>
           </div>
         </div>
-      </div>
+      </details>
 
-      <div class="group">
-        <div class="section-label">Prepare</div>
+      <details class="group" open>
+        <summary class="section-label">Prepare</summary>
         <div class="field">
           <label class="field-label" for="hide">Hide selectors</label>
           <textarea id="hide" placeholder="nav.sticky&#10;#cookie-banner&#10;.intercom-widget"></textarea>
@@ -1833,7 +1868,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
           </div>
           <span class="help">settle = once before capture · per-frame = each scroll step (full-page only)</span>
         </div>
-      </div>
+      </details>
 
       <div class="submit-row">
         <button type="submit" class="primary" id="submit-btn"><span class="btn-spinner" id="submit-spinner" hidden></span><span id="submit-label">Capture</span><span class="kbd">↵</span></button>
@@ -3529,13 +3564,17 @@ els.form.addEventListener('submit', async (e) => {
     }
 
     if (!response.ok) {
-      let detail = '';
+      // Read the body ONCE — a Response stream can only be consumed once, so
+      // parse the text we already have rather than calling .json() then .text()
+      // (the second read throws "body stream already read").
+      const text = await response.text();
+      let detail = text;
       try {
-        const body = await response.json();
+        const body = JSON.parse(text);
         detail = body.issues
           ? body.issues.map((i) => i.field + ' · ' + i.message).join('\\n')
           : (body.error || '');
-      } catch { detail = await response.text(); }
+      } catch { /* not JSON — keep raw text */ }
       detail.split('\\n').forEach((line) => logLine(line, 'err'));
       setLed('err', 'error');
       return;
