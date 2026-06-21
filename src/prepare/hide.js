@@ -109,9 +109,12 @@ export async function hideFramerBadge(page) {
       node.style.setProperty('visibility', 'hidden', 'important');
       matched++;
     };
-    // Known container id used by Framer's published site runtime.
-    const byId = document.getElementById('__framer-badge-container');
-    if (byId) hide(byId);
+    // Known ids in Framer's published site runtime: the "Made in Framer" badge
+    // and the "Edit page" editor bar (an iframe shown to logged-in editors).
+    for (const id of ['__framer-badge-container', '__framer-editorbar']) {
+      const byId = document.getElementById(id);
+      if (byId) hide(byId);
+    }
     // Any element whose id/class hints at the badge.
     for (const el of document.querySelectorAll('[id*="framer-badge"], [class*="framer-badge"], [id*="__framer-badge"]')) {
       hide(el);
