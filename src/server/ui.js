@@ -16,14 +16,14 @@ export function renderUi({ version = '0.0.0' } = {}) {
 <style>
   :root {
     --bg:           #0A0A0B;
-    --surface:      #101012;
-    --surface-2:    #16161A;
-    --surface-3:    #1B1B20;
+    --surface:      #111113;
+    --surface-2:    #1C1C1F;
+    --surface-3:    #26262A;
     --fg:           #EDEDED;
     --fg-2:         #A1A1AA;
-    --fg-3:         #52525B;
-    --rule:         #1F1F22;
-    --rule-2:       #2A2A2E;
+    --fg-3:         #7C7C86;
+    --rule:         #202024;
+    --rule-2:       #313136;
     --accent:       #F4F4F5;
     --accent-hot:   #FFFFFF;
     --accent-soft:  rgba(244, 244, 245, 0.10);
@@ -31,6 +31,14 @@ export function renderUi({ version = '0.0.0' } = {}) {
     --ok:           #6FCF97;
     --warn:         #E0B341;
     --err:          #FF6B6B;
+    --surface-4:    #313136;             /* active segment / elevated control — clearly lifted */
+    --bg-2:         #1C1C1F;             /* alias: stage / readout recessed fill */
+    --bg-3:         #26262A;             /* alias: recessed-fill hover */
+    --surface-input: #1A1A1D;            /* filled field bg — raised above panel, borderless */
+    --surface-modal: #202023;            /* elevated modal card — sits clearly above panel */
+    --radius-sm:    10px;                 /* inputs, chips, small controls */
+    --radius:       14px;                 /* buttons, segmented containers, cards */
+    --radius-lg:    20px;                 /* modal */
     --sans:  'Geist', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
     --mono:  'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   }
@@ -118,55 +126,55 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .section-label {
     display: block;
     font-family: var(--sans);
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 500;
-    letter-spacing: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
     color: var(--fg-3);
-    margin: 0 0 12px;
+    margin: 0 0 14px;
   }
 
   /* ── FORM ────────────────────────────────────────────── */
-  form { padding: 24px 28px 28px; }
+  form { padding: 26px 28px 30px; }
   .group {
-    padding-bottom: 22px;
-    margin-bottom: 22px;
+    padding-bottom: 26px;
+    margin-bottom: 26px;
     border-bottom: 1px solid var(--rule);
   }
   .group.no-rule { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
 
-  .field { margin-bottom: 14px; }
+  .field { margin-bottom: 16px; }
   .field:last-child { margin-bottom: 0; }
 
   .field-label {
     display: block;
     font-family: var(--sans);
     font-weight: 500;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--fg-2);
-    margin-bottom: 6px;
+    margin-bottom: 7px;
     font-feature-settings: 'tnum';
   }
 
   input[type=text], input[type=number], select, textarea {
     width: 100%;
-    background: transparent;
+    background: var(--surface-input);
     color: var(--fg);
-    border: 0;
-    border-bottom: 1px solid var(--rule-2);
-    border-radius: 0;
-    padding: 6px 0 7px;
-    font-family: var(--mono);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: 10px 13px;
+    font-family: var(--sans);
     font-size: 13px;
     font-feature-settings: 'tnum', 'zero', 'ss01';
-    transition: border-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
+    transition: border-color 150ms ease-out, background 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
   }
   input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) {
-    border-bottom-color: var(--fg-3);
+    background: var(--surface-3);
   }
   input:focus, select:focus, textarea:focus {
     outline: none;
-    border-bottom-color: var(--fg-2);
-    box-shadow: 0 1px 0 0 var(--fg-2), 0 4px 12px -6px var(--accent-soft);
+    border-color: var(--accent-line);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
   input::placeholder, textarea::placeholder {
     color: var(--fg-3);
@@ -181,7 +189,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     resize: vertical;
     min-height: 64px;
     line-height: 1.6;
-    padding: 8px 0 8px;
+    padding: 10px 13px;
   }
 
   /* Custom select arrow */
@@ -192,10 +200,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
     background-image:
       linear-gradient(45deg, transparent 50%, var(--fg-2) 50%),
       linear-gradient(135deg, var(--fg-2) 50%, transparent 50%);
-    background-position: calc(100% - 11px) calc(50% - 1px), calc(100% - 6px) calc(50% - 1px);
+    background-position: calc(100% - 16px) calc(50% - 1px), calc(100% - 11px) calc(50% - 1px);
     background-size: 5px 5px;
     background-repeat: no-repeat;
-    padding-right: 22px;
+    padding-right: 28px;
   }
   select option { background: var(--surface-2); color: var(--fg); }
   select optgroup {
@@ -304,8 +312,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
     background: var(--accent);
     color: var(--bg);
     border: 0;
-    border-radius: 6px;
-    padding: 10px 16px;
+    border-radius: var(--radius);
+    padding: 13px 16px;
     font-family: var(--sans);
     font-size: 13px;
     font-weight: 500;
@@ -547,7 +555,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     background: transparent;
     color: var(--fg-2);
     border: 1px solid var(--rule-2);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 6px 11px;
     font-family: var(--sans);
     font-size: 12px;
@@ -632,7 +640,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .gallery-tile {
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--surface);
     display: flex;
     flex-direction: column;
@@ -797,11 +805,11 @@ export function renderUi({ version = '0.0.0' } = {}) {
     border-top: 1px solid var(--rule);
   }
   button.ghost {
-    background: transparent;
+    background: var(--surface-2);
     color: var(--fg-2);
-    border: 1px solid var(--rule-2);
-    border-radius: 6px;
-    padding: 6px 11px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 9px 14px;
     font-family: var(--sans);
     font-weight: 500;
     font-size: 12px;
@@ -811,8 +819,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   button.ghost:hover {
     color: var(--fg);
-    border-color: var(--fg-3);
-    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--rule-2);
+    background: var(--surface-3);
   }
 
   /* ── ENTRANCE STAGGER ────────────────────────────────── */
@@ -844,7 +852,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     gap: 8px;
     padding: 8px 11px;
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--surface-2);
     cursor: pointer;
     font-family: var(--sans);
@@ -896,6 +904,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
     font-family: var(--sans);
     font-size: 11px;
     font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
     color: var(--fg-3);
     margin: 14px 0 7px;
   }
@@ -909,43 +919,42 @@ export function renderUi({ version = '0.0.0' } = {}) {
     gap: 14px;
   }
   .concurrency-badge {
-    font-family: var(--mono);
-    font-size: 12px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
     color: var(--fg);
-    background: var(--surface-3);
-    border: 1px solid var(--rule-2);
-    border-radius: 6px;
-    padding: 3px 9px;
     min-width: 28px;
-    text-align: center;
+    text-align: right;
+    font-feature-settings: 'tnum';
   }
 
   /* Density pills — discrete 1×/2×/3× segmented control */
   .seg-pills {
     display: inline-flex;
     background: var(--surface-2);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 2px;
+    border: 0;
+    border-radius: var(--radius);
+    padding: 4px;
     gap: 2px;
   }
   .seg-pill {
     background: transparent;
     color: var(--fg-2);
     border: 0;
-    border-radius: 4px;
-    padding: 5px 14px;
-    font-family: var(--mono);
-    font-size: 12px;
+    border-radius: var(--radius-sm);
+    padding: 7px 16px;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 500;
     cursor: pointer;
-    transition: color 150ms ease-out, background 150ms ease-out;
+    transition: color 150ms ease-out, background 150ms ease-out, box-shadow 150ms ease-out;
     font-feature-settings: 'tnum';
   }
   .seg-pill:hover { color: var(--fg); }
   .seg-pill.is-active {
-    background: var(--accent-soft);
+    background: var(--surface-4);
     color: var(--fg);
-    box-shadow: inset 0 0 0 1px var(--accent-line);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
 
   /* Behavior toggles that sit alongside the chip groups — wider, full-width
@@ -957,8 +966,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
     gap: 10px;
     margin-top: 6px;
     padding: 8px 11px;
-    border: 1px dashed var(--rule-2);
-    border-radius: 6px;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
     background: transparent;
     cursor: pointer;
     font-family: var(--sans);
@@ -1278,7 +1287,9 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .preview-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.78);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1287,9 +1298,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
   }
   .preview-modal-backdrop[hidden] { display: none; }
   .preview-modal {
-    background: var(--bg);
-    border: 1px solid var(--rule-2);
-    border-radius: 6px;
+    background: var(--surface-modal);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
     width: min(900px, 100%);
     max-height: 90vh;
     display: flex;
@@ -1300,13 +1312,15 @@ export function renderUi({ version = '0.0.0' } = {}) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 18px;
+    padding: 18px 22px;
     border-bottom: 1px solid var(--rule);
   }
   .preview-modal-title {
-    font-size: 13px;
-    color: var(--fg);
+    font-size: 11px;
+    color: var(--fg-2);
     font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
   }
   .preview-modal-close {
     background: transparent;
@@ -1321,8 +1335,8 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .preview-modal-body {
     display: grid;
     grid-template-columns: 1fr 240px;
-    gap: 18px;
-    padding: 18px;
+    gap: 20px;
+    padding: 22px;
     flex: 1;
     min-height: 0;
   }
@@ -1330,7 +1344,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     position: relative;
     background: var(--bg-2);
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     overflow: auto;
     max-height: 70vh;
     min-height: 280px;
@@ -1390,10 +1404,10 @@ export function renderUi({ version = '0.0.0' } = {}) {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 10px 12px;
+    padding: 12px 14px;
     background: var(--bg-2);
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-family: var(--mono);
     font-size: 11px;
     color: var(--fg-2);
@@ -1410,21 +1424,22 @@ export function renderUi({ version = '0.0.0' } = {}) {
   .preview-modal-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    padding: 14px 18px;
+    gap: 10px;
+    padding: 18px 22px;
     border-top: 1px solid var(--rule);
   }
   .preview-btn {
-    padding: 7px 14px;
+    padding: 9px 16px;
     font: inherit;
-    font-size: 12px;
-    background: var(--bg-2);
+    font-size: 12.5px;
+    font-weight: 500;
+    background: var(--surface-3);
     color: var(--fg);
     border: 1px solid var(--rule-2);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
   }
-  .preview-btn:hover { background: var(--bg-3); }
+  .preview-btn:hover { background: var(--surface-4); }
   .preview-btn.is-primary {
     background: var(--accent);
     color: var(--bg);
@@ -1492,7 +1507,7 @@ export function renderUi({ version = '0.0.0' } = {}) {
     width: 28px;
     height: 28px;
     border: 1px solid var(--rule-2);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 0;
     background: transparent;
     cursor: pointer;
