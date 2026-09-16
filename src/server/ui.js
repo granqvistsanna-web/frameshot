@@ -3,7 +3,7 @@
 // requests beyond the Google Fonts stylesheet (gracefully degrades to system
 // serif/mono when offline).
 
-export function renderUi({ version = '0.0.0' } = {}) {
+export function renderUi({ version = '0.0.0', publicMode = false } = {}) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2021,6 +2021,11 @@ const DEFAULT_DEVICE_KEY = 'desktop'; // initial-checked chip on first load
 // parallel is a sweet spot on modern dev laptops (~800 MB RAM, faster than
 // serial without thrashing). Capped at the selected viewport count.
 const DEFAULT_CONCURRENCY_TARGET = 2;
+// Hosted mode runs one viewport at a time — a ~1 GB container cannot hold two
+// Chromiums scroll-stitching a tall page at deviceScaleFactor 2. The server
+// enforces this regardless; the slider is capped here so the number on screen
+// is the number that runs, rather than a setting that is silently overridden.
+const PUBLIC_MODE = ${publicMode ? 'true' : 'false'};
 const STORAGE_KEY = 'framershot.recentRuns';
 const MAX_RUNS = 12;
 
@@ -2162,7 +2167,7 @@ const HARD_CONCURRENCY_MAX = 8;
 let concurrencyUserTouched = false;
 function syncConcurrencyToViewports() {
   const vpCount = Math.max(1, selectedViewportCount());
-  const cap = Math.min(HARD_CONCURRENCY_MAX, vpCount);
+  const cap = PUBLIC_MODE ? 1 : Math.min(HARD_CONCURRENCY_MAX, vpCount);
   els.concurrency.max = String(cap);
   let next = Number(els.concurrency.value);
   if (!concurrencyUserTouched) {

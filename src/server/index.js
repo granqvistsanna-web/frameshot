@@ -203,7 +203,7 @@ async function handleRequest(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/') {
-      const html = renderUi({ version: PKG_VERSION });
+      const html = renderUi({ version: PKG_VERSION, publicMode: PUBLIC_MODE });
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       res.end(html);
       return;
@@ -281,7 +281,16 @@ async function handleCapture(req, res) {
     // (png/85/1) apply for older clients that don't send them.
     ...(body.format !== undefined ? { format: body.format } : {}),
     ...(body.quality !== undefined ? { quality: body.quality } : {}),
-    ...(body.concurrency !== undefined ? { concurrency: body.concurrency } : {}),
+    // Hosted mode serializes viewports. The UI defaults the slider to 2, which
+    // is right on a laptop and wrong in a ~1 GB container: two Chromiums
+    // scroll-stitching the same tall page at deviceScaleFactor 2 exceed the
+    // memory limit, the OS reaps one, and Playwright reports the survivor's
+    // dead sibling as "Target page, context or browser has been closed" — a
+    // message that names neither the cause nor the knob. One viewport at a
+    // time is slower and finishes.
+    ...(body.concurrency !== undefined
+      ? { concurrency: PUBLIC_MODE ? 1 : body.concurrency }
+      : {}),
     ...(body.backdrop !== undefined ? { backdrop: body.backdrop } : {}),
   };
 
