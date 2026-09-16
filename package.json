@@ -1,11 +1,11 @@
 {
-  "name": "framershot",
+  "name": "frameshotter",
   "version": "0.5.0",
   "description": "Local CLI for clean, retina-quality screenshots of Framer sites",
   "type": "module",
   "private": true,
   "bin": {
-    "framershot": "./index.js"
+    "frameshotter": "./index.js"
   },
   "main": "./index.js",
   "engines": {

@@ -1,5 +1,5 @@
 // src/config/schema.js
-// Zod 3 schema for the full v0.1/v0.2 framershot config shape + formatZodError helper.
+// Zod 3 schema for the full v0.1/v0.2 frameshotter config shape + formatZodError helper.
 // NOTE: package.json declares "zod": "^3", resolving to zod 3.x at install time.
 //   - Use `z.string().url()` (the zod 3 form). The top-level `z.url()` exists in
 //     zod v4 but is undefined in zod 3.x. Both `import { z }` and `import * as z`
@@ -103,7 +103,7 @@ const pageSchema = z.object({
 
 // v0.3 plural shape — mirrors viewportEntrySchema/viewportsSchema. `name` is
 // REQUIRED so the {page} placeholder in output templates can never silently
-// produce identical paths for two pages. Used by `framershot discover` to emit
+// produce identical paths for two pages. Used by `frameshotter discover` to emit
 // runnable multipage configs from a sitemap, and by anyone hand-listing a small
 // set of routes.
 export const pageEntrySchema = z.object({
@@ -301,7 +301,7 @@ export const configSchema = baseConfigSchema
 // Max 200 entries keeps a hostile/malformed request from trying to zip the
 // whole disk; real runs top out around N viewports × M pages, well under
 // that. Per-path max 2000 chars caps the JSON payload size at the field
-// level — a legitimate framershot path is under 200 chars, so 2000 is
+// level — a legitimate frameshotter path is under 200 chars, so 2000 is
 // generous headroom while still blocking degenerate inputs.
 export const zipRequestSchema = z.object({
   paths: z.array(z.string().min(1).max(2000)).min(1).max(200),

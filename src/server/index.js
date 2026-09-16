@@ -9,8 +9,8 @@
 //
 // Hard rules:
 //   - Default binds 127.0.0.1 only — local personal tool, no auth. Hosted mode
-//     (FRAMERSHOT_PUBLIC=1) binds 0.0.0.0 but THEN requires a password + SSRF
-//     guard; it refuses to start without FRAMERSHOT_PASSWORD.
+//     (FRAMESHOTTER_PUBLIC=1) binds 0.0.0.0 but THEN requires a password + SSRF
+//     guard; it refuses to start without FRAMESHOTTER_PASSWORD.
 //   - /screenshots/* must stay sandboxed under CWD/screenshots (path traversal).
 //   - SSE: write events as they happen; flush on each line.
 
@@ -32,17 +32,17 @@ import { stitchFrames } from '../capture/stitch.js';
 import { discoverFromSitemap, SitemapError } from '../discover/sitemap.js';
 import { assertPublicUrl, SsrfError } from './ssrf.js';
 
-// Hosted (public) mode. When set, framershot is reachable beyond localhost, so
+// Hosted (public) mode. When set, frameshotter is reachable beyond localhost, so
 // we require a password, harden SSRF, and serialize captures. Absent = the
 // original local-only tool, unchanged.
-const PUBLIC_MODE = process.env.FRAMERSHOT_PUBLIC === '1';
-const PASSWORD = process.env.FRAMERSHOT_PASSWORD || '';
+const PUBLIC_MODE = (process.env.FRAMESHOTTER_PUBLIC ?? process.env.FRAMERSHOT_PUBLIC) === '1';
+const PASSWORD = (process.env.FRAMESHOTTER_PASSWORD ?? process.env.FRAMERSHOT_PASSWORD) || '';
 
 const SCREENSHOT_ROOT = resolve(process.cwd(), 'screenshots');
 // Top-level await — resolves at module load, before any HTTP request can land.
 // Cached for the process lifetime; do NOT inline as a per-request lookup.
 const PKG_VERSION = await readPkgVersion();
-// Hard cap on POST body size — well above any legitimate framershot payload
+// Hard cap on POST body size — well above any legitimate frameshotter payload
 // (a 200-path zip request with 2 KB paths each is < 500 KB) and stops a
 // hostile/malformed POST from buffering unbounded bytes before JSON.parse.
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -83,7 +83,7 @@ export async function startServer({ port, open = false }) {
   // Hosted mode must never come up without a password — a public box with an
   // open capture endpoint is an SSRF/abuse magnet. Fail fast and loud.
   if (PUBLIC_MODE && !PASSWORD) {
-    throw new Error('FRAMERSHOT_PUBLIC=1 requires FRAMERSHOT_PASSWORD to be set');
+    throw new Error('FRAMESHOTTER_PUBLIC=1 requires FRAMESHOTTER_PASSWORD to be set');
   }
 
   // Platform hosts (Fly/Railway/Render) inject PORT and need 0.0.0.0. Local mode
@@ -103,8 +103,8 @@ export async function startServer({ port, open = false }) {
 
   const url = `http://localhost:${listenPort}`;
   console.log(PUBLIC_MODE
-    ? `framershot UI ready (public mode) on ${host}:${listenPort}`
-    : `framershot UI ready at ${url}`);
+    ? `frameshotter UI ready (public mode) on ${host}:${listenPort}`
+    : `frameshotter UI ready at ${url}`);
   console.log('press Ctrl+C to stop');
 
   if (open) {
@@ -139,7 +139,7 @@ function isOriginAllowed(req) {
   }
 }
 
-// HTTP Basic auth, enforced only when FRAMERSHOT_PASSWORD is set. Any username
+// HTTP Basic auth, enforced only when FRAMESHOTTER_PASSWORD is set. Any username
 // is accepted; the password is the shared secret. Constant-time compare so the
 // password can't be guessed byte-by-byte via timing. Returns true if the
 // request may proceed; otherwise writes a 401 and returns false.
@@ -155,7 +155,7 @@ function checkAuth(req, res) {
     if (a.length === b.length && timingSafeEqual(a, b)) return true;
   }
   res.writeHead(401, {
-    'www-authenticate': 'Basic realm="framershot", charset="UTF-8"',
+    'www-authenticate': 'Basic realm="frameshotter", charset="UTF-8"',
     'content-type': 'text/plain',
   });
   res.end('authentication required');
@@ -773,7 +773,7 @@ async function handleZip(req, res) {
   // uses, so a zip "looks like" the run that produced it.
   const safeName = parsed.data.filename
     ? parsed.data.filename.replace(/[^a-zA-Z0-9._-]/g, '-')
-    : `framershot-${new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)}.zip`;
+    : `frameshotter-${new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)}.zip`;
 
   res.writeHead(200, {
     'content-type': 'application/zip',

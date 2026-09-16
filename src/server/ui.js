@@ -9,7 +9,7 @@ export function renderUi({ version = '0.0.0', publicMode = false } = {}) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>framershot · capture</title>
+<title>frameshotter · capture</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
@@ -1680,7 +1680,7 @@ export function renderUi({ version = '0.0.0', publicMode = false } = {}) {
           <path class="frame" d="M3 8V3H8 M16 3H21V8 M21 16V21H16 M8 21H3V16"/>
           <rect class="dot" x="10.5" y="10.5" width="3" height="3"/>
         </svg>
-        <div class="wordmark">framershot</div>
+        <div class="wordmark">frameshotter</div>
         <div class="build-tag">v${version}</div>
       </div>
     </div>
@@ -1953,7 +1953,7 @@ export function renderUi({ version = '0.0.0', publicMode = false } = {}) {
       <span id="status-bar-text">idle</span>
     </div>
     <div class="seg">
-      <span class="key">framershot</span>
+      <span class="key">frameshotter</span>
       <span class="accent">v${version}</span>
       <span class="sep">·</span>
       <span class="clock" id="status-bar-clock">--:--</span>
@@ -3469,7 +3469,7 @@ els.downloadAll.addEventListener('click', async () => {
     // exact timestamp); fall back to a UI-side stamp if absent.
     const cd = res.headers.get('content-disposition') || '';
     const match = cd.match(/filename="([^"]+)"/);
-    const fallback = 'framershot-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.zip';
+    const fallback = 'frameshotter-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.zip';
     const a = document.createElement('a');
     a.href = url;
     a.download = match ? match[1] : fallback;

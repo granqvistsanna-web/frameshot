@@ -7,8 +7,8 @@ WORKDIR /app
 # Public mode: bind 0.0.0.0, require password, SSRF guard, serialized captures.
 # --no-sandbox because the base image runs as root and containers drop the
 # user-namespace privileges Chromium's sandbox needs.
-ENV FRAMERSHOT_PUBLIC=1 \
-    FRAMERSHOT_NO_SANDBOX=1 \
+ENV FRAMESHOTTER_PUBLIC=1 \
+    FRAMESHOTTER_NO_SANDBOX=1 \
     NODE_ENV=production \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
@@ -20,6 +20,6 @@ COPY . .
 # Platform hosts inject PORT (startServer reads it); 5173 is the local fallback.
 EXPOSE 5173
 
-# serve = start the UI without trying to open a browser. FRAMERSHOT_PASSWORD
+# serve = start the UI without trying to open a browser. FRAMESHOTTER_PASSWORD
 # must be supplied at runtime as a platform secret, or the server refuses to boot.
 CMD ["node", "index.js", "serve"]

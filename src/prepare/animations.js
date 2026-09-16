@@ -90,7 +90,7 @@ export async function installAnimationGuards(context, prepareConfig) {
   });
 
   // Step 2 — Guard 2: CSS injection via context.addInitScript (PREP-01).
-  // Appends a <style data-framershot="animation-guards"> element to
+  // Appends a <style data-frameshotter="animation-guards"> element to
   // document.head ?? document.documentElement with the universal CSS rule.
   // Robust to early-document-start timing where document.head may not yet exist.
   await context.addInitScript(() => {
@@ -105,9 +105,9 @@ export async function installAnimationGuards(context, prepareConfig) {
       }
     `;
     const inject = () => {
-      if (document.querySelector('style[data-framershot="animation-guards"]')) return;
+      if (document.querySelector('style[data-frameshotter="animation-guards"]')) return;
       const style = document.createElement('style');
-      style.dataset.framershot = 'animation-guards';
+      style.dataset.frameshotter = 'animation-guards';
       style.textContent = css;
       (document.head ?? document.documentElement).appendChild(style);
     };

@@ -49,7 +49,7 @@ export function buildProgram() {
   const program = new Command();
 
   program
-    .name('framershot')
+    .name('frameshotter')
     .description('Clean retina screenshots of Framer sites')
     .version('0.1.0', '-v, --version');
 
@@ -356,7 +356,7 @@ export function buildProgram() {
 
   // `discover` — point at a Framer site, read /sitemap.xml, emit a runnable
   // multipage config. Sister command to `capture` — the typical flow is
-  // `framershot discover <baseUrl> -o site.yaml` then `framershot capture site.yaml`.
+  // `frameshotter discover <baseUrl> -o site.yaml` then `frameshotter capture site.yaml`.
   // Prints to stdout when -o is omitted, so it composes with shell redirection.
   program
     .command('discover <baseUrl>')
@@ -438,10 +438,10 @@ export function buildProgram() {
     });
 
   // `start` — the easy-mode entry point. Aliased as the default so bare
-  // `framershot` just opens the UI. Same as `serve --open` with a default port.
+  // `frameshotter` just opens the UI. Same as `serve --open` with a default port.
   program
     .command('start', { isDefault: true })
-    .description('Open the framershot UI in your browser — paste a link and capture')
+    .description('Open the frameshotter UI in your browser — paste a link and capture')
     .option('-p, --port <port>', 'port to listen on', '5173')
     .action(async (opts) => {
       const port = Number.parseInt(opts.port, 10);

@@ -1,4 +1,4 @@
-# framershot — Usage
+# frameshotter — Usage
 
 Local CLI for clean, retina-quality screenshots of Framer sites. Tested on `https://deltaventure.framer.website` — produced a 12 MB full-page retina PNG in one command.
 

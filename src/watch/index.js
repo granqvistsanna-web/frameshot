@@ -1,5 +1,5 @@
 // src/watch/index.js
-// Watch loop for `framershot watch <config>`. Two modes:
+// Watch loop for `frameshotter watch <config>`. Two modes:
 //   - hash (default): poll the live URL on `pollMs`, hash the HTML response,
 //     and re-run runCapture after a debounce window of `debounceMs` once a new
 //     hash is observed. Successive changes inside the debounce window reset

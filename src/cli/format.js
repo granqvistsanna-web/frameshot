@@ -24,7 +24,7 @@ export class CliError extends Error {
 }
 
 /**
- * Create a spinner configured for framershot's capture flow.
+ * Create a spinner configured for frameshotter's capture flow.
  *
  * - Writes to stderr (ora default; set explicitly for self-documentation) so
  *   stdout stays clean for the final result line.
@@ -41,7 +41,7 @@ export class CliError extends Error {
  */
 export function makeProgress() {
   return ora({
-    color: 'cyan',            // explicit; matches ora default — cyan for framershot steps
+    color: 'cyan',            // explicit; matches ora default — cyan for frameshotter steps
     stream: process.stderr,   // explicit; matches ora default — leaves stdout for final result line
     // text intentionally omitted — caller sets via spinner.start('...')
   });

@@ -73,7 +73,7 @@ export async function launchBrowser(config, viewportEntry) {
       // Gated behind an env var so local macOS launches keep the sandbox on.
       args: [
         '--disable-dev-shm-usage',
-        ...(process.env.FRAMERSHOT_NO_SANDBOX === '1' ? ['--no-sandbox'] : []),
+        ...((process.env.FRAMESHOTTER_NO_SANDBOX ?? process.env.FRAMERSHOT_NO_SANDBOX) === '1' ? ['--no-sandbox'] : []),
       ],
     });
   } catch (err) {

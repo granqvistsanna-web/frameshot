@@ -1,11 +1,11 @@
 // src/server/ssrf.js
-// SSRF guard for hosted (public) mode. When framershot runs on a cloud box it
+// SSRF guard for hosted (public) mode. When frameshotter runs on a cloud box it
 // fetches and renders arbitrary user-supplied URLs — without this, a user could
 // point it at http://169.254.169.254/ (cloud metadata) or an internal service
 // and exfiltrate credentials. We resolve the hostname to its IPs and reject any
 // that fall in private / loopback / link-local / reserved ranges.
 //
-// Only invoked in public mode (FRAMERSHOT_PUBLIC=1). Local mode keeps full
+// Only invoked in public mode (FRAMESHOTTER_PUBLIC=1). Local mode keeps full
 // reach so you can still screenshot http://localhost:3000 dev drafts.
 //
 // ponytail: DNS-resolve-then-check. There's a theoretical TOCTOU window (DNS
