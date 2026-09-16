@@ -8,11 +8,17 @@
 //     Server passes an in-memory config; CLI passes the result of loadConfig.
 //   - onProgress is the single presentation seam — events drive both ora text
 //     and the SSE stream. Every event carries viewport: <name>.
-//   - Lifecycle: per viewport — launches browser/context, runs the pipeline,
+//   - Lifecycle: per DEVICE — launches browser/context, runs the pipeline,
 //     closes context THEN browser (order matters; ~22% leak otherwise — see
 //     06-RESEARCH §Pitfall 5 in src/cli.js comments). Fail-fast: if iteration
 //     N throws, its context+browser still close before the throw propagates;
 //     iterations N+1..M never run.
+//
+// A "device" is every viewport entry sharing a rendering size. The UI sends a
+// device's full-page shot and each of its Pinterest ratios as separate entries,
+// but they differ only in which band of the page they keep — so the page is
+// captured ONCE, whole, and each entry is cut out of that image. Ticking a pin
+// therefore costs a crop, not a second Chromium.
 //
 // Errors bubble. Callers convert to user-facing messages (formatError for CLI,
 // SSE error frame for server).
@@ -23,9 +29,9 @@
 // emitted as a non-fatal `page-error` progress event, and the batch continues.
 // Fatal errors (browser launch, client abort) still reject regardless of mode.
 //
-// v0.3 concurrency: viewports run in parallel up to config.concurrency (CLI
-// `--concurrency N` overrides). Each viewport remains its own browser+context,
-// so the parallel unit-of-work is "one viewport". Pages within a viewport stay
+// v0.3 concurrency: devices run in parallel up to config.concurrency (CLI
+// `--concurrency N` overrides). Each device remains its own browser+context,
+// so the parallel unit-of-work is "one device". Pages within a device stay
 // sequential (they share the context). Concurrency=1 (default) preserves
 // Phase 7 fail-fast semantics exactly — a throw in viewport N skips N+1..M.
 // At >1, the in-flight viewports finish (no cancellation; closing a context
@@ -38,15 +44,16 @@
 import { launchBrowser } from '../browser/launcher.js';
 import { navigateToPage } from '../browser/navigator.js';
 import { installAnimationGuards, runPreparePipeline } from '../prepare/index.js';
-import { captureFullPage } from './index.js';
-import { classifyTargetClosed } from './frames.js';
+import { capturePageImage, writeCutout } from './index.js';
+import { classifyTargetClosed, resolveCaptureWindow } from './frames.js';
 import { resolveTemplate, swapExtension } from '../output/template.js';
 
 /**
  * Run the full capture pipeline against a validated config object, iterating
- * over all viewports in config.viewports[]. Each viewport gets its own fresh
- * Playwright browser and context — no cross-viewport state sharing. Viewports
- * run concurrently up to `config.concurrency` (default 1 = sequential).
+ * over the DEVICES in config.viewports[] — entries sharing a rendering size are
+ * one device and one browser pass. Each device gets its own fresh Playwright
+ * browser and context — no cross-device state sharing. Devices run concurrently
+ * up to `config.concurrency` (default 1 = sequential).
  *
  * @param {import('../config/schema.js').ResolvedConfig} config
  * @param {object} [opts]
@@ -80,8 +87,8 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
   // think about format-vs-template skew.
   const { format, quality, backdrop } = config;
 
-  // v0.3 (DISC-01): viewport is the OUTER loop, page is the INNER loop. One
-  // browser+context per viewport — pages are reused tabs in the same context,
+  // v0.3 (DISC-01): device is the OUTER loop, page is the INNER loop. One
+  // browser+context per device — pages are reused tabs in the same context,
   // because the only thing that requires a new context is a different
   // viewport/DSR pair. A 20-page sitemap capture launches Chromium once per
   // viewport, not 20× per viewport. Tabs are closed between pages so a long
@@ -94,7 +101,34 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
   // never leak into the result set, which matches the Phase 7 fail-fast
   // contract of "either a viewport completes whole or its captures don't
   // count").
-  async function runViewport(vp) {
+  // Outputs that share a device share a browser pass. The UI sends a device's
+  // full-page entry and each of its Pinterest ratios as separate viewport
+  // entries, but they differ only in which band of the page they keep — the
+  // rendering width and height are identical. Grouping them means Desktop +
+  // Standard pin opens one Chromium instead of two.
+  //
+  // The key is the rendering size, because that is the only property that
+  // forces a separate browser context. Offsets deliberately do NOT join the
+  // key: every entry's window is cut from the same whole-page image, so two
+  // entries wanting different offsets still share the pass.
+  const groups = [];
+  const groupsByKey = new Map();
+  for (const vp of config.viewports) {
+    const key = `${vp.width}x${vp.height}`;
+    let group = groupsByKey.get(key);
+    if (!group) {
+      group = { name: vp.name, width: vp.width, height: vp.height, entries: [] };
+      groupsByKey.set(key, group);
+      groups.push(group);
+    }
+    // Progress events are labelled with the group, so prefer the full-page
+    // entry's name — '[desktop]' reads better in the log than '[desktop-2x3]'
+    // for work that serves both.
+    if (vp.pinHeight === undefined) group.name = vp.name;
+    group.entries.push(vp);
+  }
+
+  async function runDevice(group) {
     const localResults = [];
     const localFailures = [];
     // Crawl resilience: with more than one page queued, a single page's failure
@@ -104,29 +138,27 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
     // original fail-fast contract: its one error IS the run's outcome, so it
     // propagates and aborts the run.
     const multiPage = config.pages.length > 1;
-    onProgress({ type: 'step', viewport: vp.name, label: 'Launching Chromium' });
-    const { browser, context } = await launchBrowser(config, vp);
+    onProgress({ type: 'step', viewport: group.name, label: 'Launching Chromium' });
+    const { browser, context } = await launchBrowser(config, group);
     try {
-      onProgress({ type: 'step', viewport: vp.name, label: 'Installing animation guards' });
+      onProgress({ type: 'step', viewport: group.name, label: 'Installing animation guards' });
       await installAnimationGuards(context, config.prepare);
 
       for (const pg of config.pages) {
         // Per-page event scope adds `page: pg.name` so CLI/server UX can label
         // multi-page runs without parsing the label string.
-        const scope = { viewport: vp.name, page: pg.name };
-        const outputPath = swapExtension(
-          resolveTemplate(config.output, { date, time, viewport: vp.name, page: pg.name }),
-          format,
-        );
+        const scope = { viewport: group.name, page: pg.name };
 
         // A crash on an earlier page can take the whole browser process down,
         // not just its tab. Hammering a dead browser with newPage() for every
         // remaining route yields N identical low-level "Target closed" errors —
-        // detect it once, record the rest as skipped, and stop this viewport.
+        // detect it once, record the rest as skipped, and stop this device.
         if (!browser.isConnected()) {
-          const message = 'skipped — Chromium crashed on an earlier page in this viewport';
-          localFailures.push({ viewportName: vp.name, pageName: pg.name, message });
-          onProgress({ type: 'page-error', ...scope, message });
+          const message = 'skipped — Chromium crashed on an earlier page for this device';
+          for (const vp of group.entries) {
+            localFailures.push({ viewportName: vp.name, pageName: pg.name, message });
+            onProgress({ type: 'page-error', viewport: vp.name, page: pg.name, message });
+          }
           continue;
         }
 
@@ -153,32 +185,65 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
             onProgress({ type: 'warning', ...scope, kind: 'hide-missed', selectors: hideSummary.missed });
           }
 
-          // vp.pinHeight (v0.4) clamps the scroll-stitch to a CSS-pixel height —
-          // undefined means full-page. vp.pinOffset (v0.5/v0.6) slides the
-          // capture window down the page; works for both pin and full-page
-          // captures. vp.pinOffsetPx (v0.6) is the absolute-pixel alternative.
-          // `kind` tags full-page outputs as either 'fullPage' or 'pin' so the UI
-          // can pick the right backdrop for the pin-offset preview without
-          // re-deriving it from a slug-suffix heuristic (which would misfire
-          // if a custom viewport name happened to end with a chip slug).
-          const fullPageKind = vp.pinHeight !== undefined ? 'pin' : 'fullPage';
-          const fullPageOpts = {
+          // ONE scroll-and-stitch pass for the whole device, whole page.
+          onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
+          const { composited, geometry } = await capturePageImage(navigatedPage, {
             onProgress: (current, total) => onProgress({ type: 'frame', ...scope, current, total }),
             onStepEvent: (e) => onProgress({ type: 'step', ...scope, label: e.label }),
             onMeta: (e) => onProgress({ type: 'debug', ...scope, ...e }),
             hideStickyAfterFirstFrame: config.prepare.hideSticky,
             frameDelay: config.prepare.frameDelay,
-            maxHeight: vp.pinHeight,
-            pinOffset: vp.pinOffset,
-            pinOffsetPx: vp.pinOffsetPx,
-            format,
-            quality,
-            backdrop,
-          };
+          });
 
-          onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
-          await captureFullPage(navigatedPage, outputPath, fullPageOpts);
-          localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
+          // Now cut each output out of that image. geometry.captureHeight is
+          // the whole page here (capturePageImage passes no clamp), which is
+          // exactly the rawScrollHeight resolveCaptureWindow expects.
+          for (const vp of group.entries) {
+            const outputPath = swapExtension(
+              resolveTemplate(config.output, { date, time, viewport: vp.name, page: pg.name }),
+              format,
+            );
+            const window = resolveCaptureWindow({
+              rawScrollHeight: geometry.captureHeight,
+              viewportHeight: geometry.viewportHeight,
+              pinHeight: vp.pinHeight,
+              pinOffset: vp.pinOffset,
+              pinOffsetPx: vp.pinOffsetPx,
+            });
+            // Kept for the "the slider didn't move my pin" case — same event
+            // the dedicated pin pass used to emit, same fields.
+            if (window.pinned || window.startY > 0) {
+              onProgress({
+                type: 'debug',
+                viewport: vp.name,
+                page: pg.name,
+                kind: 'pin-math',
+                rawScrollHeight: geometry.captureHeight,
+                captureHeight: window.captureHeight,
+                room: window.room,
+                startY: window.startY,
+                pinOffset: vp.pinOffset,
+                pinOffsetPx: vp.pinOffsetPx,
+                offsetApplied: window.startY > 0,
+              });
+            }
+            onProgress({ type: 'step', viewport: vp.name, page: pg.name, label: 'Writing image' });
+            await writeCutout(composited, geometry, outputPath, {
+              startY: window.startY,
+              captureHeight: window.captureHeight,
+              format,
+              quality,
+              backdrop,
+              onStepEvent: (e) => onProgress({ type: 'step', viewport: vp.name, page: pg.name, label: e.label }),
+            });
+            localResults.push({
+              outputPath,
+              hideSummary,
+              viewportName: vp.name,
+              pageName: pg.name,
+              kind: window.pinned ? 'pin' : 'fullPage',
+            });
+          }
         } catch (rawErr) {
           // Resolve an opaque target-closed message into the actual cause
           // before anything else looks at it, so both the fail-fast throw and
@@ -193,21 +258,24 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
           // watching), never a per-page skip. Let it propagate.
           if (err?.code === 'CLIENT_ABORTED') throw err;
 
-          // Attach viewport+page scope so a fail-fast (single-page) error
-          // reaches the caller's catch with its breadcrumb intact. Under
-          // concurrency > 1 the server's lastStep cache can capture
-          // cross-viewport state when workers interleave SSE events, so the
-          // error itself must carry its own scope.
-          if (err.viewportName === undefined) err.viewportName = vp.name;
+          // Attach scope so a fail-fast (single-page) error reaches the
+          // caller's catch with its breadcrumb intact. Under concurrency > 1
+          // the server's lastStep cache can capture cross-device state when
+          // workers interleave SSE events, so the error must carry its own.
+          if (err.viewportName === undefined) err.viewportName = group.name;
           if (err.pageName === undefined) err.pageName = pg.name;
 
           // Single-page run: preserve fail-fast — the error IS the outcome.
           if (!multiPage) throw err;
 
           // Crawl run: record, surface a non-fatal page-error event, move on.
+          // One entry per output the device owed, so a device with pins does
+          // not report a single skip for what was several expected files.
           const message = err?.message ?? String(err);
-          localFailures.push({ viewportName: vp.name, pageName: pg.name, message });
-          onProgress({ type: 'page-error', ...scope, message });
+          for (const vp of group.entries) {
+            localFailures.push({ viewportName: vp.name, pageName: pg.name, message });
+            onProgress({ type: 'page-error', viewport: vp.name, page: pg.name, message });
+          }
         } finally {
           // Close the page tab between iterations so a long sitemap run does
           // not accumulate tabs in a single context. May be undefined if
@@ -239,7 +307,7 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
   // equivalent to the Phase 7 for-of loop including fail-fast (next viewport
   // never starts after a throw because the worker exits its while-loop and
   // there's no second worker to keep going).
-  const concurrency = Math.min(config.concurrency, config.viewports.length);
+  const concurrency = Math.min(config.concurrency, groups.length);
   let nextIndex = 0;
   let firstError = null;
   // Non-fatal per-page failures from multi-page (crawl) runs, merged across all
@@ -250,9 +318,9 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
     while (true) {
       if (firstError) return; // stop pulling new work after a failure
       const i = nextIndex++;
-      if (i >= config.viewports.length) return;
+      if (i >= groups.length) return;
       try {
-        const { results: viewportResults, failures: viewportFailures } = await runViewport(config.viewports[i]);
+        const { results: viewportResults, failures: viewportFailures } = await runDevice(groups[i]);
         results.push(...viewportResults);
         failures.push(...viewportFailures);
       } catch (err) {

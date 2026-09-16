@@ -163,6 +163,27 @@ export async function applyBackdrop(buffer, { color, padding, radius, deviceScal
  * @returns {Promise<Buffer>} — encoded image buffer in the requested format.
  */
 export async function stitchFrames(frames, geometry, { format = 'png', quality = 85, backdrop, onStepEvent } = {}) {
+  const composited = await compositeFrames(frames, geometry);
+  return finishImage(composited, {
+    format,
+    quality,
+    backdrop,
+    deviceScaleFactor: geometry.deviceScaleFactor,
+    onStepEvent,
+  });
+}
+
+/**
+ * Compose the ordered frame buffers onto one canvas and return the raw
+ * composited PNG — before any backdrop or output encoding. This is the
+ * expensive half of stitching, and the half worth doing only once when several
+ * outputs are cut from the same page.
+ *
+ * @param {Buffer[]} frames — ordered viewport-sized PNG buffers
+ * @param {object} geometry — the geometry payload from captureFrames
+ * @returns {Promise<Buffer>} composited PNG bytes
+ */
+export async function compositeFrames(frames, geometry) {
   const { viewportWidth, captureHeight, frameYOffsets, deviceScaleFactor } = geometry;
 
   // Physical-pixel canvas dimensions.
@@ -190,7 +211,7 @@ export async function stitchFrames(frames, geometry, { format = 'png', quality =
   // .png() vs .jpeg({quality, mozjpeg}) vs .webp({quality}) all live in
   // encodeImage; we hand off the intermediate composited PNG buffer so the
   // sharp pipeline tree stays linear and easy to reason about.
-  let composited = await sharp({
+  const composited = await sharp({
     create: {
       width: canvasWidth,
       height: canvasHeight,
@@ -201,12 +222,50 @@ export async function stitchFrames(frames, geometry, { format = 'png', quality =
     .composite(overlays)
     .png()
     .toBuffer();
+  return composited;
+}
+
+/**
+ * Cut a horizontal band out of a composited image, in PHYSICAL pixels.
+ *
+ * The band is clamped to the image rather than validated, because the caller's
+ * numbers come from a page measured before capture and the image from after:
+ * a page that reflowed by a few pixels mid-capture would otherwise turn a
+ * correct request into a sharp "extract_area: bad extract area" throw.
+ *
+ * @param {Buffer} buffer — composited image bytes
+ * @param {{ top: number, height: number }} band — physical-pixel offsets
+ * @returns {Promise<Buffer>} PNG bytes of the band (the whole image, untouched,
+ *   when the band already covers it — no needless re-encode)
+ */
+export async function cropImage(buffer, { top, height }) {
+  const meta = await sharp(buffer).metadata();
+  const safeTop = Math.max(0, Math.min(meta.height - 1, Math.round(top)));
+  const safeHeight = Math.max(1, Math.min(meta.height - safeTop, Math.round(height)));
+  if (safeTop === 0 && safeHeight === meta.height) return buffer;
+  return sharp(buffer)
+    .extract({ left: 0, top: safeTop, width: meta.width, height: safeHeight })
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Apply the optional backdrop and encode to the requested format. Split out of
+ * stitchFrames so one composited page image can be finished many times over —
+ * once per output cut from it — without re-running the frame loop.
+ *
+ * @param {Buffer} composited — composited image bytes
+ * @param {{ format?: 'png'|'jpeg'|'webp', quality?: number, backdrop?: object, deviceScaleFactor: number, onStepEvent?: (e: { label: string }) => void }} options
+ * @returns {Promise<Buffer>} encoded image bytes
+ */
+export async function finishImage(composited, { format = 'png', quality = 85, backdrop, deviceScaleFactor, onStepEvent } = {}) {
+  let out = composited;
   if (backdrop) {
     // Emit BEFORE the (potentially-slow) sharp pipeline so an SSE client sees
     // the step transition even if applyBackdrop throws — otherwise the failure
     // looks like the frame loop crashed.
     onStepEvent?.({ label: 'Applying backdrop' });
-    composited = await applyBackdrop(composited, { ...backdrop, deviceScaleFactor });
+    out = await applyBackdrop(out, { ...backdrop, deviceScaleFactor });
   }
-  return encodeImage(composited, { format, quality });
+  return encodeImage(out, { format, quality });
 }

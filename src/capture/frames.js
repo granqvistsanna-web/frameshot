@@ -158,6 +158,42 @@ async function revealStickies(page) {
 }
 
 /**
+ * Resolve which slice of the page an output covers, in CSS pixels.
+ *
+ * Two callers need the same answer and must not drift: captureFrames, which
+ * scrolls and shoots that slice directly, and runCapture, which cuts the same
+ * slice out of a whole-page image it already has. Keeping the arithmetic in one
+ * exported place is what makes "capture once, cut many" produce pixels
+ * identical to a dedicated pass.
+ *
+ * @param {{ rawScrollHeight: number, viewportHeight: number, pinHeight?: number, pinOffset?: number, pinOffsetPx?: number }} input
+ * @returns {{ startY: number, captureHeight: number, room: number, pinned: boolean }}
+ *   startY — first page-scroll position the output covers.
+ *   captureHeight — how far down from startY it extends.
+ *   room — the vertical slack an offset slides within; 0 means the offset
+ *   cannot move anything, which is what "the slider did nothing" looks like.
+ */
+export function resolveCaptureWindow({ rawScrollHeight, viewportHeight, pinHeight, pinOffset = 0, pinOffsetPx }) {
+  const pinned = pinHeight !== undefined;
+  const captureHeightIfPinned = pinned ? Math.min(rawScrollHeight, pinHeight) : rawScrollHeight;
+  const roomForOffset = pinned
+    ? Math.max(0, rawScrollHeight - captureHeightIfPinned)
+    : Math.max(0, rawScrollHeight - viewportHeight);
+  let startY;
+  if (pinOffsetPx !== undefined) {
+    startY = Math.max(0, Math.min(roomForOffset, Math.round(pinOffsetPx)));
+  } else if (roomForOffset > 0) {
+    startY = Math.round(roomForOffset * Math.min(1, Math.max(0, pinOffset)));
+  } else {
+    startY = 0;
+  }
+  // Pin captures keep their clamp; a full-page capture with startY > 0 trims
+  // the top so the output starts at the chosen Y and still runs to the end.
+  const captureHeight = pinned ? captureHeightIfPinned : rawScrollHeight - startY;
+  return { startY, captureHeight, room: Math.max(0, rawScrollHeight - captureHeight), pinned };
+}
+
+/**
  * Scroll the prepared page from top to bottom in viewport-height steps,
  * capturing a viewport-sized PNG buffer per step. Returns ordered buffers plus
  * the geometry the stitcher needs to compose them into a final PNG.
@@ -265,22 +301,13 @@ export async function captureFrames(page, options = {}) {
   //       This is the v0.6 addition — "capture from middle/bottom of page".
   // pinOffsetPx wins when provided (schema rejects the combo but be defensive).
   // Both forms clamp to non-negative room so short pages collapse to startY=0.
-  const pinned = maxHeight !== undefined;
-  const captureHeightIfPinned = pinned ? Math.min(rawScrollHeight, maxHeight) : rawScrollHeight;
-  const roomForOffset = pinned
-    ? Math.max(0, rawScrollHeight - captureHeightIfPinned)
-    : Math.max(0, rawScrollHeight - viewportHeight);
-  let startY;
-  if (pinOffsetPx !== undefined) {
-    startY = Math.max(0, Math.min(roomForOffset, Math.round(pinOffsetPx)));
-  } else if (roomForOffset > 0) {
-    startY = Math.round(roomForOffset * Math.min(1, Math.max(0, pinOffset)));
-  } else {
-    startY = 0;
-  }
-  // Effective captureHeight: pin captures keep their clamp; full-page captures
-  // with startY>0 trim the top so the stitched output starts at the chosen Y.
-  const captureHeight = pinned ? captureHeightIfPinned : rawScrollHeight - startY;
+  const { startY, captureHeight, pinned } = resolveCaptureWindow({
+    rawScrollHeight,
+    viewportHeight,
+    pinHeight: maxHeight,
+    pinOffset,
+    pinOffsetPx,
+  });
   // For observability the "room" stays the formal room-against-captureHeight
   // (matches the v0.5 pin-math contract). For full-page with no startY the
   // room is 0 and offsetApplied is false, which is the right signal.

@@ -32,7 +32,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { captureFrames } from './frames.js';
-import { stitchFrames } from './stitch.js';
+import { stitchFrames, compositeFrames, cropImage, finishImage } from './stitch.js';
 
 /**
  * Full-page capture orchestrator. Scroll-and-stitch a prepared page into one
@@ -80,4 +80,53 @@ export async function captureFullPage(page, outputPath, options = {}) {
   // dirname, NOT outputPath itself (Risk 11, Pitfall 7).
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, pngBuffer);
+}
+
+/**
+ * Capture the WHOLE page once and return it composited but unencoded, together
+ * with the geometry describing it.
+ *
+ * Every output a device produces — the full-page shot and each Pinterest ratio —
+ * is a horizontal band of this one image, so the scroll loop runs once per
+ * device instead of once per output. That is the difference between a device
+ * with a pin selected opening one Chromium and opening two, which on a
+ * memory-capped host is the difference between finishing and being reaped.
+ *
+ * Deliberately takes no pin clamp and no offset: clamping here would throw away
+ * the very pixels a later cut needs.
+ *
+ * @param {import('playwright-chromium').Page} page — a prepared Page
+ * @param {{ onProgress?, onStepEvent?, onMeta?, hideStickyAfterFirstFrame?, frameDelay? }} [options]
+ * @returns {Promise<{ composited: Buffer, geometry: object }>}
+ */
+export async function capturePageImage(page, options = {}) {
+  const { onProgress, onStepEvent, onMeta, hideStickyAfterFirstFrame, frameDelay } = options;
+  const { frames, geometry } = await captureFrames(page, {
+    onProgress,
+    onMeta,
+    hideStickyAfterFirstFrame,
+    frameDelay,
+  });
+  onStepEvent?.({ label: 'Stitching page' });
+  return { composited: await compositeFrames(frames, geometry), geometry };
+}
+
+/**
+ * Cut one output out of a captured page image and write it to disk.
+ *
+ * @param {Buffer} composited — the whole-page image from capturePageImage
+ * @param {object} geometry — its geometry (supplies deviceScaleFactor)
+ * @param {string} outputPath — resolved destination path
+ * @param {{ startY: number, captureHeight: number, format?, quality?, backdrop?, onStepEvent? }} options
+ *   startY/captureHeight are CSS pixels — the window resolveCaptureWindow gave
+ *   for this output; they are scaled to physical pixels here.
+ * @returns {Promise<void>}
+ */
+export async function writeCutout(composited, geometry, outputPath, options) {
+  const { startY, captureHeight, format = 'png', quality = 85, backdrop, onStepEvent } = options;
+  const dsf = geometry.deviceScaleFactor;
+  const band = await cropImage(composited, { top: startY * dsf, height: captureHeight * dsf });
+  const encoded = await finishImage(band, { format, quality, backdrop, deviceScaleFactor: dsf, onStepEvent });
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, encoded);
 }
