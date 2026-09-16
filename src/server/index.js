@@ -351,7 +351,9 @@ async function handleCapture(req, res) {
   // effect: in-flight viewports finish their current frame, then all workers
   // exit cleanly, browsers close, no wasted work past the next progress event.
   let aborted = false;
-  req.on('close', () => { aborted = true; });
+  // res 'close', not req 'close': the body is already consumed by now, so
+  // req's close has fired and would never report a disconnect.
+  res.on('close', () => { if (!res.writableFinished) aborted = true; });
   const send = (event) => {
     if (aborted) {
       const err = new Error('client disconnected');

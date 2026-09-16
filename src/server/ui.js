@@ -402,6 +402,8 @@ export function renderUi({ version = '0.0.0', publicMode = false } = {}) {
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
   button.primary:disabled { opacity: 0.42; cursor: not-allowed; }
+  .submit-row { display: flex; gap: 8px; }
+  .submit-row button.ghost { width: auto; flex: none; padding: 0 16px; font-size: 13px; }
 
   .help {
     display: block;
@@ -1887,6 +1889,7 @@ export function renderUi({ version = '0.0.0', publicMode = false } = {}) {
 
       <div class="submit-row">
         <button type="submit" class="primary" id="submit-btn"><span class="btn-spinner" id="submit-spinner" hidden></span><span id="submit-label">Capture</span><span class="kbd">↵</span></button>
+        <button type="button" class="ghost" id="cancel-btn" title="Cancel capture (Esc)" hidden>Cancel</button>
       </div>
     </form>
   </aside>
@@ -2095,6 +2098,7 @@ const els = {
   backdropPadding: $('backdropPadding'),
   backdropRadius: $('backdropRadius'),
   submit: $('submit-btn'),
+  cancel: $('cancel-btn'),
   submitLabel: $('submit-label'),
   submitSpinner: $('submit-spinner'),
   status: $('status'),
@@ -3514,8 +3518,23 @@ function updateSubmitLabel() {
   els.submitLabel.textContent = n > 1 ? 'Capture ' + n + ' shots' : 'Capture';
 }
 
+// Aborts the in-flight /api/capture fetch. The server treats the dropped
+// connection as CLIENT_ABORTED: workers stop at their next progress event and
+// close their browsers.
+let captureAbort = null;
+
+function cancelCapture() {
+  if (captureAbort) captureAbort.abort();
+}
+
+els.cancel.addEventListener('click', cancelCapture);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && captureAbort && els.previewModal.hidden) cancelCapture();
+});
+
 function setSubmitting(on) {
   els.submit.disabled = on;
+  els.cancel.hidden = !on;
   els.submitSpinner.hidden = !on;
   if (on) {
     els.submitLabel.textContent = 'Capturing…';
@@ -3547,6 +3566,7 @@ els.form.addEventListener('submit', async (e) => {
   const queueMode = isQueueMode();
   const capturedIndex = queueMode ? activeQueueIndex : -1;
 
+  captureAbort = new AbortController();
   setSubmitting(true);
   logReset();
   frameBarFill = null;
@@ -3568,6 +3588,7 @@ els.form.addEventListener('submit', async (e) => {
   // any downstream parsing throws. Without this, one uncaught error leaves the
   // form stuck in "Capturing…" and the user can't capture again.
   let succeeded = false;
+  let cancelled = false;
   let doneOutputs = [];
   try {
     let response;
@@ -3576,8 +3597,15 @@ els.form.addEventListener('submit', async (e) => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
+        signal: captureAbort.signal,
       });
     } catch (err) {
+      if (err.name === 'AbortError') {
+        cancelled = true;
+        logLine('cancelled', 'warn');
+        setLed('warn', 'cancelled');
+        return;
+      }
       logLine('network · ' + err.message, 'err');
       setLed('err', 'error');
       return;
@@ -3690,14 +3718,24 @@ els.form.addEventListener('submit', async (e) => {
       catch (err) { logLine('record · ' + err.message, 'warn'); }
     }
   } catch (err) {
-    logLine('stream · ' + err.message, 'err');
-    setLed('err', 'error');
+    if (err.name === 'AbortError') {
+      cancelled = true;
+      const active = els.status.querySelector('.log-line.active');
+      if (active) active.classList.remove('active');
+      logLine('cancelled', 'warn');
+      setLed('warn', 'cancelled');
+    } else {
+      logLine('stream · ' + err.message, 'err');
+      setLed('err', 'error');
+    }
   } finally {
+    captureAbort = null;
     setSubmitting(false);
     // Queue mode: record the outcome on the item we fired against, then load
     // the next pending page (advance-and-wait — no auto-fire). Runs in finally
     // so network/bad-response early-returns still mark the item failed.
-    if (queueMode && capturedIndex >= 0 && captureQueue[capturedIndex]) {
+    // A cancelled item stays pending and the queue does not advance.
+    if (!cancelled && queueMode && capturedIndex >= 0 && captureQueue[capturedIndex]) {
       const item = captureQueue[capturedIndex];
       if (succeeded) {
         item.status = 'done';
