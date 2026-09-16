@@ -109,9 +109,23 @@ export async function hideFramerBadge(page) {
       node.style.setProperty('visibility', 'hidden', 'important');
       matched++;
     };
+    // The editor bar is mounted async by Framer's runtime for logged-in
+    // editors, often AFTER this one-shot sweep runs — so a persistent CSS
+    // rule keeps it hidden no matter when it appears. The DOM sweep below
+    // still handles the badge (preserving its layout via visibility:hidden).
+    // ponytail: persistent <style> covers late mounts; no MutationObserver needed.
+    if (!document.getElementById('__screenshotter-hide')) {
+      const style = document.createElement('style');
+      style.id = '__screenshotter-hide';
+      style.textContent =
+        '#__framer-badge-container,#__framer-editorbar,#__framer-editorbar-container,' +
+        '[id*="framer-badge"],[class*="framer-badge"],[id*="__framer-badge"],' +
+        '[data-framer-editor-bar]{visibility:hidden !important}';
+      (document.head || document.documentElement).appendChild(style);
+    }
     // Known ids in Framer's published site runtime: the "Made in Framer" badge
     // and the "Edit page" editor bar (an iframe shown to logged-in editors).
-    for (const id of ['__framer-badge-container', '__framer-editorbar']) {
+    for (const id of ['__framer-badge-container', '__framer-editorbar', '__framer-editorbar-container']) {
       const byId = document.getElementById(id);
       if (byId) hide(byId);
     }
