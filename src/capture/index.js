@@ -100,12 +100,16 @@ export async function captureFullPage(page, outputPath, options = {}) {
  * @returns {Promise<{ composited: Buffer, geometry: object }>}
  */
 export async function capturePageImage(page, options = {}) {
-  const { onProgress, onStepEvent, onMeta, hideStickyAfterFirstFrame, frameDelay } = options;
+  const { onProgress, onStepEvent, onMeta, hideStickyAfterFirstFrame, frameDelay, maxHeight } = options;
+  // maxHeight clamps how far down the page is walked. It is a depth limit, not
+  // a pin: the capture still starts at the top, because every cut is measured
+  // from there. Undefined means the whole page.
   const { frames, geometry } = await captureFrames(page, {
     onProgress,
     onMeta,
     hideStickyAfterFirstFrame,
     frameDelay,
+    maxHeight,
   });
   onStepEvent?.({ label: 'Stitching page' });
   return { composited: await compositeFrames(frames, geometry), geometry };

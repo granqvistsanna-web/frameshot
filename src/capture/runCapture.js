@@ -185,9 +185,25 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
             onProgress({ type: 'warning', ...scope, kind: 'hide-missed', selectors: hideSummary.missed });
           }
 
-          // ONE scroll-and-stitch pass for the whole device, whole page.
+          // ONE scroll-and-stitch pass for the device — but no deeper than its
+          // outputs actually reach. A group of top-anchored pins needs only its
+          // tallest pin; scrolling to the end of a 9000px page to then throw
+          // away everything below 2160 costs frames, canvas and peak memory for
+          // nothing. Anything that can reach the bottom — a full-page entry, or
+          // a pin with an offset, whose start depends on a page height we have
+          // not measured yet — forces the whole page.
+          const needsWholePage = group.entries.some((vp) => (
+            vp.pinHeight === undefined
+            || (vp.pinOffset !== undefined && vp.pinOffset > 0)
+            || (vp.pinOffsetPx !== undefined && vp.pinOffsetPx > 0)
+          ));
+          const captureDepth = needsWholePage
+            ? undefined
+            : Math.max(...group.entries.map((vp) => vp.pinHeight));
+
           onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
           const { composited, geometry } = await capturePageImage(navigatedPage, {
+            maxHeight: captureDepth,
             onProgress: (current, total) => onProgress({ type: 'frame', ...scope, current, total }),
             onStepEvent: (e) => onProgress({ type: 'step', ...scope, label: e.label }),
             onMeta: (e) => onProgress({ type: 'debug', ...scope, ...e }),
