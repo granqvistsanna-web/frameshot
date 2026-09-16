@@ -183,7 +183,10 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
           // Resolve an opaque target-closed message into the actual cause
           // before anything else looks at it, so both the fail-fast throw and
           // the crawl `failures[]` entry carry a message that names the OOM.
-          const err = classifyTargetClosed(rawErr, rendererCrashed);
+          const err = classifyTargetClosed(rawErr, {
+            crashed: rendererCrashed,
+            browserGone: !browser.isConnected(),
+          });
 
           // A client disconnect is tagged CLIENT_ABORTED by the server's
           // onProgress seam — that's fatal for the WHOLE run (nobody's

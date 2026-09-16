@@ -54,15 +54,32 @@ export function rendererCrashError(cause) {
   return err;
 }
 
+// The renderer crashing and the whole browser process dying look identical to
+// Playwright, but only the first fires page.on('crash') — when the browser
+// goes, there is no page left to emit anything. A disconnected browser at
+// catch time is therefore the tell, and on a laptop it almost always means the
+// OS reclaimed the process under memory pressure.
+function browserGoneError(cause) {
+  const err = new Error(
+    'Chromium exited during capture — the whole browser process went away, not just the page. ' +
+      'On a local run this is almost always the OS reclaiming it under memory pressure: lower ' +
+      'deviceScaleFactor, drop concurrency to 1, or pin a height on the tallest page.',
+  );
+  err.cause = cause;
+  return err;
+}
+
 // Playwright reports a dead target the same way from every API — page.evaluate,
 // page.screenshot and page.waitForTimeout all surface "Target page, context or
 // browser has been closed", a message that names no cause. Given a live crash
 // flag (from page.on('crash')) it resolves into the real one: a crashed
 // renderer is an OOM/GPU kill and says so. Everything else passes through
 // untouched, including the genuine "browser went away" case.
-export function classifyTargetClosed(err, isCrashed) {
+export function classifyTargetClosed(err, { crashed = false, browserGone = false } = {}) {
   if (!/closed|crash/i.test(err?.message ?? '')) return err;
-  return isCrashed ? rendererCrashError(err) : err;
+  if (crashed) return rendererCrashError(err);
+  if (browserGone) return browserGoneError(err);
+  return err;
 }
 
 // Screenshot one frame, hardened against the target dying mid-call. Two failure
