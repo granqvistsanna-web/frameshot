@@ -44,7 +44,7 @@ async function waitForPaint(page) {
 // crashed renderer is unrecoverable (the page is dead), so the caller fails
 // fast with this instead of retrying — and the message names the realistic
 // causes so a support ticket is debuggable.
-function rendererCrashError(cause) {
+export function rendererCrashError(cause) {
   const err = new Error(
     'Chromium renderer crashed during screenshot — most likely out of memory. ' +
       'The page may be too tall or heavy to capture at this device scale factor, or the ' +
@@ -52,6 +52,17 @@ function rendererCrashError(cause) {
   );
   err.cause = cause;
   return err;
+}
+
+// Playwright reports a dead target the same way from every API — page.evaluate,
+// page.screenshot and page.waitForTimeout all surface "Target page, context or
+// browser has been closed", a message that names no cause. Given a live crash
+// flag (from page.on('crash')) it resolves into the real one: a crashed
+// renderer is an OOM/GPU kill and says so. Everything else passes through
+// untouched, including the genuine "browser went away" case.
+export function classifyTargetClosed(err, isCrashed) {
+  if (!/closed|crash/i.test(err?.message ?? '')) return err;
+  return isCrashed ? rendererCrashError(err) : err;
 }
 
 // Screenshot one frame, hardened against the target dying mid-call. Two failure

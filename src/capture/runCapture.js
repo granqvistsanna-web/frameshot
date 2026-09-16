@@ -39,6 +39,7 @@ import { launchBrowser } from '../browser/launcher.js';
 import { navigateToPage } from '../browser/navigator.js';
 import { installAnimationGuards, runPreparePipeline } from '../prepare/index.js';
 import { captureFullPage } from './index.js';
+import { classifyTargetClosed } from './frames.js';
 import { resolveTemplate, swapExtension } from '../output/template.js';
 
 /**
@@ -132,9 +133,18 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
         // navigatedPage stays in the outer scope so the finally can close it
         // even when navigateToPage itself throws (it would be undefined then).
         let navigatedPage;
+        let rendererCrashed = false;
         try {
           onProgress({ type: 'step', ...scope, label: `Navigating to ${config.baseUrl}${pg.path}` });
           navigatedPage = await navigateToPage(context, pg);
+
+          // page.on('crash') is the only reliable signal that the renderer died
+          // rather than the tab being closed on purpose. Registered here — not
+          // inside captureFrames — because the prepare pipeline's own
+          // page.evaluate calls (scrollPrime walks the whole page) can be the
+          // thing that OOMs, and until now those errors escaped as Playwright's
+          // bare "Target page, context or browser has been closed".
+          navigatedPage.once('crash', () => { rendererCrashed = true; });
 
           onProgress({ type: 'step', ...scope, label: 'Running prepare pipeline' });
           const { hideSummary } = await runPreparePipeline(navigatedPage, config.prepare);
@@ -169,7 +179,12 @@ export async function runCapture(config, { onProgress = () => {} } = {}) {
           onProgress({ type: 'step', ...scope, label: 'Capturing frames (estimating)' });
           await captureFullPage(navigatedPage, outputPath, fullPageOpts);
           localResults.push({ outputPath, hideSummary, viewportName: vp.name, pageName: pg.name, kind: fullPageKind });
-        } catch (err) {
+        } catch (rawErr) {
+          // Resolve an opaque target-closed message into the actual cause
+          // before anything else looks at it, so both the fail-fast throw and
+          // the crawl `failures[]` entry carry a message that names the OOM.
+          const err = classifyTargetClosed(rawErr, rendererCrashed);
+
           // A client disconnect is tagged CLIENT_ABORTED by the server's
           // onProgress seam — that's fatal for the WHOLE run (nobody's
           // watching), never a per-page skip. Let it propagate.
