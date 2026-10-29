@@ -2,198 +2,285 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>framershot — clean retina screenshots of Framer sites</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>frameshotter — clean retina screenshots of Framer sites</title>
 <meta name="description" content="Local CLI for clean, retina-quality screenshots of Framer sites. Node + Playwright. Browser UI or YAML config.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23171513'/%3E%3Crect x='3' y='3' width='10' height='10' fill='%23f4f0e8'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2220%22 fill=%22%2317181a%22/><rect x=%2218%22 y=%2218%22 width=%2228%22 height=%2228%22 rx=%228%22 fill=%22%23f7f7f6%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap">
+<link rel="stylesheet" href="https://granqvistsanna-web.github.io/pumice/tokens.css">
+<script>
+  /* Set the theme before first paint: a stored choice wins, otherwise the system's. */
+  (function () {
+    var t;
+    try { t = localStorage.getItem("theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
 <style>
-  :root {
-    --bg: #f4f0e8;
-    --ink: #171513;
-    --muted: #6b655c;
-    --rule: #d9d2c4;
-    --accent: #b0411e;
-    --code-bg: #ebe6d9;
-    --code-ink: #1f1c18;
-    --pre-bg: #171513;
-    --pre-ink: #ebe6d9;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #131210;
-      --ink: #ebe6d9;
-      --muted: #8a847a;
-      --rule: #2a2722;
-      --accent: #e8794d;
-      --code-bg: #221f1b;
-      --code-ink: #ebe6d9;
-      --pre-bg: #0a0908;
-      --pre-ink: #d9d2c4;
-    }
-  }
+  /* Pumice — https://granqvistsanna-web.github.io/pumice/
+     Tokens, both themes and the system default come from tokens.css; this
+     sheet only lays the page out with them. */
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  html { scroll-padding-top: 80px; }
   body {
-    font-family: ui-sans-serif, system-ui, -apple-system, "Inter", "Helvetica Neue", sans-serif;
-    font-size: 16.5px;
-    line-height: 1.55;
+    margin: 0; background: var(--bg); color: var(--ink-2);
+    font: 400 15px/1.5 var(--font-ui);
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+    transition: background-color var(--t-fade), color var(--t-color);
   }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 80px 28px 120px; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 
-  header { margin-bottom: 64px; }
-  .mark {
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    font-size: 13px;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin: 0 0 24px;
-  }
-  h1 {
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    font-size: 44px;
-    line-height: 1.05;
-    letter-spacing: -0.01em;
-    margin: 0 0 18px;
-    font-weight: 500;
-  }
-  .lede {
-    font-size: 19px;
-    line-height: 1.5;
-    color: var(--ink);
-    margin: 0 0 28px;
-    max-width: 580px;
-  }
-  .meta {
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    font-size: 13px;
-    color: var(--muted);
-    display: flex;
-    gap: 18px;
-    flex-wrap: wrap;
-  }
-  .meta a { color: var(--muted); border-bottom: 1px solid var(--rule); }
-  .meta a:hover { color: var(--accent); border-color: var(--accent); }
+  /* Icons: Lucide geometry on a 24 grid, 2px round stroke, ink-3 at rest */
+  svg.i { width: var(--icon); height: var(--icon); flex: none; fill: none; stroke: currentColor; stroke-width: var(--icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
 
-  h2 {
-    font-size: 13px;
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin: 56px 0 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--rule);
-    font-weight: 500;
+  .wrap {
+    max-width: 1440px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
-  h3 {
-    font-size: 17px;
-    margin: 28px 0 10px;
-    font-weight: 600;
-    letter-spacing: -0.005em;
+  .col { max-width: 720px; margin: 0 auto; }
+
+  /* ---- Bar ---- */
+  .bar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--frost);
+    -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px);
   }
+  .bar .wrap { height: 64px; display: flex; align-items: center; gap: var(--s-6); }
+  .lead { display: flex; align-items: center; gap: var(--s-8); min-width: 0; margin-right: auto; }
+  .mark { display: inline-flex; align-items: center; gap: var(--s-4); color: var(--ink); font-weight: 500; font-size: 15px; text-decoration: none; flex: none; }
+  .mark i { width: 26px; height: 26px; border-radius: 9px; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; }
+  .mark i svg.i { width: 15px; height: 15px; }
+  .nav { display: flex; gap: var(--s-1); }
+  .nav a {
+    height: var(--h-nav); padding: 0 13px; border-radius: var(--r-pill);
+    display: inline-flex; align-items: center; white-space: nowrap;
+    font: 500 14px/1 var(--font-ui); color: var(--ink-4); text-decoration: none;
+    transition: color var(--t-color), scale var(--t-press) var(--spring-soft);
+  }
+  .nav a:hover { color: var(--ink); }
+  .nav a:active { scale: var(--press-link); }
+
+  .tail { display: flex; align-items: center; gap: var(--s-4); }
+  .tool {
+    position: relative; width: 36px; height: 36px; border: 0; border-radius: var(--r-pill);
+    background: none; color: var(--ink-3); display: grid; place-items: center; cursor: pointer;
+    transition: color var(--t-color);
+  }
+  .tool::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(var(--ink-rgb), .08); opacity: 0; scale: .86; transition: opacity 150ms, scale var(--t-press) var(--spring-soft); }
+  .tool:hover { color: var(--ink); }
+  .tool:hover::before, .tool:focus-visible::before { opacity: 1; scale: 1; }
+  .tool > svg { position: relative; transition: scale var(--t-press) var(--spring-soft); }
+  .tool:hover > svg { scale: 1.04; }
+  .tool:active > svg { scale: var(--press-icon); transition-duration: 90ms; }
+  .tool.ring { box-shadow: var(--ring); }
+  .tool svg.i { width: 16px; height: 16px; }
+  .theme .to-dark { display: none; }
+  :root[data-theme="dark"] .theme .to-light { display: none; }
+  :root[data-theme="dark"] .theme .to-dark { display: block; }
+
+  .btn {
+    height: var(--h-button); padding: 0 20px; border: 0; border-radius: var(--r-pill);
+    background: var(--ink); color: var(--on-ink); text-decoration: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: var(--s-4);
+    font: 500 15px/1 var(--font-ui);
+    transition: opacity var(--t-fade), background var(--t-color), color var(--t-color), scale var(--t-press) var(--spring-soft);
+  }
+  .btn svg.i { width: var(--icon-sm); height: var(--icon-sm); }
+  .btn:hover { opacity: .86; }
+  .btn:active { scale: var(--press); }
+  .btn.sm { height: var(--h-nav); padding: 0 16px; font-size: 14px; }
+  .btn.hero:hover { opacity: 1; scale: .98; }
+  .btn.hero:active { scale: var(--press-hero); }
+  .btn.quiet { background: var(--wash); color: var(--ink); }
+  .btn.quiet:hover { opacity: 1; background: var(--wash-2); }
+
+  /* ---- Hero ---- */
+  .top { text-align: center; display: grid; justify-items: center; gap: var(--s-7); padding-block: 64px 56px; }
+  .top > * { animation: rise var(--t-rise) var(--rise) both; }
+  .top .row { animation-delay: .3s; }
+  @keyframes rise { from { opacity: 0; translate: 0 10px; } }
+  .count {
+    height: 32px; padding: 0 14px; border-radius: var(--r-pill); box-shadow: var(--ring);
+    display: inline-flex; align-items: center; gap: var(--s-4);
+    font: 500 14px/1 var(--font-ui); color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .count b { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+  h1 { margin: 0; font-size: 40px; line-height: 1.1; font-weight: 500; letter-spacing: -.02em; color: var(--ink); }
+  .lede { margin: 0; max-width: 52ch; font-size: 16px; line-height: 1.55; color: var(--ink-4); text-wrap: balance; }
+  .row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-4); margin-top: var(--s-2); }
+  .meta { margin: 0; font-size: 13px; color: var(--ink-4); }
+
+  /* ---- Note ---- */
+  .note {
+    display: flex; gap: var(--s-6); padding: 18px 24px; border-radius: var(--r-card);
+    background: var(--wash); font-size: 14px; line-height: 1.5; color: var(--ink-3);
+  }
+  .note svg.i { color: var(--ink-3); margin-top: 1px; }
+  .note p { margin: 0; }
+  .note b { font-weight: 500; color: var(--ink); }
+
+  /* ---- Sections ---- */
+  section { padding-top: 56px; }
+  h2 { margin: 0 0 var(--s-8); font-size: 26px; line-height: 1.2; font-weight: 500; letter-spacing: -.01em; color: var(--ink); }
+  h3 { margin: 28px 0 var(--s-4); font-size: 16px; line-height: 1.4; font-weight: 500; color: var(--ink); }
+  h2 + h3 { margin-top: 0; }
   p { margin: 0 0 14px; }
-  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
-  a:hover { opacity: 0.75; }
+  code { font: inherit; font-size: .93em; color: var(--ink); background: var(--wash); padding: 1px 6px; border-radius: 6px; overflow-wrap: anywhere; }
 
-  code {
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    font-size: 0.88em;
-    background: var(--code-bg);
-    color: var(--code-ink);
-    padding: 1px 6px;
-    border-radius: 3px;
+  /* ---- Command panels: Inter, no monospace ---- */
+  .cmd { margin: 0 0 18px; padding: 6px; border-radius: 20px; background: var(--wash); }
+  .cmd-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: 0 0 0 14px; }
+  .cmd-head span { font-size: 13px; color: var(--ink-4); }
+  .copy {
+    height: var(--h-chip); padding: 0 12px; border: 0; border-radius: var(--r-pill);
+    background: var(--elev); color: var(--ink-3); cursor: pointer;
+    display: inline-flex; align-items: center; gap: var(--s-3);
+    font: 500 13px/1 var(--font-ui);
+    transition: color var(--t-color), background var(--t-color), scale var(--t-press) var(--spring-soft);
   }
-  pre {
-    background: var(--pre-bg);
-    color: var(--pre-ink);
-    padding: 18px 20px;
-    border-radius: 6px;
-    overflow-x: auto;
-    font-size: 13.5px;
-    line-height: 1.6;
-    margin: 0 0 18px;
+  .copy svg.i { width: var(--icon-sm); height: var(--icon-sm); }
+  .copy:hover { color: var(--ink); }
+  .copy:active { scale: var(--press-chip); }
+  .copy .done { display: none; }
+  .copy[data-done] { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+  .copy[data-done] .idle { display: none; }
+  .copy[data-done] .done { display: block; }
+  .cmd pre {
+    margin: 6px 0 0; padding: 14px 14px 16px; border-radius: 14px; background: var(--elev);
+    font: 400 14px/1.7 var(--font-ui); word-spacing: .2em; color: var(--ink);
+    white-space: pre; overflow-x: auto; scrollbar-width: thin;
   }
-  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+  .cmd .c { color: var(--ink-4); }
 
-  ul { padding-left: 20px; margin: 0 0 16px; }
-  li { margin: 6px 0; }
-  li code { font-size: 0.86em; }
+  /* ---- Errors: a menu-like list ---- */
+  .errs { list-style: none; margin: 0; padding: 4px; border-radius: var(--r-menu); background: var(--wash); display: grid; gap: 2px; }
+  .errs li { padding: 12px 16px; border-radius: var(--r-row); display: flex; gap: var(--s-6); }
+  .errs li > svg.i { color: var(--ink-3); margin-top: 2px; }
+  .errs code { background: none; padding: 0; font-weight: 500; }
+  .errs li > span { min-width: 0; }
 
-  .callout {
-    border-left: 2px solid var(--accent);
-    padding: 4px 0 4px 16px;
-    margin: 18px 0;
-    color: var(--muted);
-    font-size: 15px;
+  /* ---- Footer ---- */
+  footer { margin-top: 96px; padding-block: 24px 40px; border-top: 1px solid var(--hairline); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4) var(--s-8); font-size: 13px; color: var(--ink-4); }
+  footer .by { color: var(--ink-2); font-weight: 500; margin-right: auto; }
+  footer a { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); text-decoration: none; font-weight: 500; transition: color var(--t-color); }
+  footer a:hover { color: var(--ink); }
+  footer svg.i { width: 15px; height: 15px; }
+
+  @media (max-width: 900px) {
+    .nav { display: none; }
   }
-  .callout strong { color: var(--ink); font-weight: 600; }
-
-  footer {
-    margin-top: 96px;
-    padding-top: 24px;
-    border-top: 1px solid var(--rule);
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    font-size: 12.5px;
-    color: var(--muted);
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
+  @media (max-width: 760px) {
+    .bar .wrap { height: 62px; }
+    .top { padding-block: 40px; }
+    h1 { font-size: 34px; }
+    .note { padding: 16px 18px; }
   }
-  footer a { color: var(--muted); border-color: var(--rule); }
-  footer a:hover { color: var(--accent); border-color: var(--accent); }
-
-  .kbd {
-    display: inline-block;
-    font-family: ui-monospace, "SF Mono", monospace;
-    font-size: 12px;
-    padding: 1px 6px;
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    color: var(--muted);
+  @media (pointer: coarse) {
+    .tool { width: var(--h-touch); height: var(--h-touch); }
+    .btn, .btn.sm, .copy { height: var(--h-touch); }
+    footer a { min-height: var(--h-touch); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; animation: none !important; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-<header>
-  <p class="mark">v0.2 · node ≥ 20 · mit</p>
-  <h1>framershot</h1>
-  <p class="lede">A local CLI for clean, retina-quality screenshots of Framer sites. Disables animations, hides sticky bars, primes lazy content, then captures full-page at 2×.</p>
-  <p class="meta">
-    <a href="https://github.com/granqvistsanna-web/frameshot">github →</a>
-    <span>node ≥ 20</span>
-    <span>playwright chromium</span>
-  </p>
+<!-- Icons: Lucide geometry (lucide.dev, ISC), drawn as strokes by svg.i -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.07-2.07 1.41-1.41M17.66 6.34l1.41-1.41M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+</svg>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="lead">
+      <a class="mark" href="#top" aria-label="frameshotter, back to top"><i><svg class="i"><use href="#i-camera"/></svg></i><span>frameshotter</span></a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#install">Install</a>
+        <a href="#use">Usage</a>
+        <a href="#config">Config</a>
+        <a href="#errors">Errors</a>
+      </nav>
+    </div>
+    <div class="tail">
+      <button class="tool ring theme" type="button" aria-label="Switch theme">
+        <svg class="i to-light"><use href="#i-moon"/></svg>
+        <svg class="i to-dark"><use href="#i-sun"/></svg>
+      </button>
+      <a class="btn sm" href="https://github.com/granqvistsanna-web/frameshot"><svg class="i"><use href="#i-github"/></svg>GitHub</a>
+    </div>
+  </div>
 </header>
 
-<div class="callout">
-  <strong>Heads-up.</strong> This page is documentation. framershot itself runs locally — it needs Node and a real browser, so it can&rsquo;t execute inside GitHub Pages.
-</div>
+<main class="wrap" id="top">
 
-<h2>Install</h2>
-<pre><code>git clone https://github.com/granqvistsanna-web/frameshot.git
+  <div class="top">
+    <span class="count"><b></b>v0.2 · node ≥ 20 · mit</span>
+    <h1>frameshotter</h1>
+    <p class="lede">A local CLI for clean, retina-quality screenshots of Framer sites. Disables animations, hides sticky bars, primes lazy content, then captures full-page at 2×.</p>
+    <div class="row">
+      <a class="btn hero" href="#install">Install</a>
+      <a class="btn quiet" href="https://github.com/granqvistsanna-web/frameshot"><svg class="i"><use href="#i-github"/></svg>github</a>
+    </div>
+    <p class="meta">node ≥ 20 · playwright chromium</p>
+  </div>
+
+  <div class="col">
+
+    <div class="note">
+      <svg class="i"><use href="#i-info"/></svg>
+      <p><b>Heads-up.</b> This page is documentation. frameshotter itself runs locally — it needs Node and a real browser, so it can&rsquo;t execute inside GitHub Pages.</p>
+    </div>
+
+    <section id="install">
+      <h2>Install</h2>
+      <div class="cmd">
+        <div class="cmd-head"><span>Terminal</span><button class="copy" type="button"><svg class="i idle"><use href="#i-copy"/></svg><svg class="i done"><use href="#i-check"/></svg><span class="lbl">Copy</span></button></div>
+<pre>git clone https://github.com/granqvistsanna-web/frameshot.git
 cd frameshot
-npm install</code></pre>
+npm install</pre>
+      </div>
+    </section>
 
-<h2>Two ways to use it</h2>
+    <section id="use">
+      <h2>Two ways to use it</h2>
 
-<h3>1. Browser UI</h3>
-<p>Paste a Framer URL, hit capture. Good for one-offs.</p>
-<pre><code>node index.js               <span style="opacity:.55"># opens UI on :5173</span>
-node index.js serve -p 8080 <span style="opacity:.55"># custom port, no auto-open</span></code></pre>
+      <h3>1. Browser UI</h3>
+      <p>Paste a Framer URL, hit capture. Good for one-offs.</p>
+      <div class="cmd">
+        <div class="cmd-head"><span>Terminal</span><button class="copy" type="button"><svg class="i idle"><use href="#i-copy"/></svg><svg class="i done"><use href="#i-check"/></svg><span class="lbl">Copy</span></button></div>
+<pre>node index.js  <span class="c"># opens UI on :5173</span>
+node index.js serve -p 8080  <span class="c"># custom port, no auto-open</span></pre>
+      </div>
 
-<h3>2. CLI with a YAML config</h3>
-<p>Repeatable, scriptable. Output paths are printed one per line to stdout, so you can <code>grep</code> or pipe.</p>
-<pre><code>node index.js capture config.yaml
-node index.js capture config.yaml --smoke</code></pre>
+      <h3>2. CLI with a YAML config</h3>
+      <p>Repeatable, scriptable. Output paths are printed one per line to stdout, so you can <code>grep</code> or pipe.</p>
+      <div class="cmd">
+        <div class="cmd-head"><span>Terminal</span><button class="copy" type="button"><svg class="i idle"><use href="#i-copy"/></svg><svg class="i done"><use href="#i-check"/></svg><span class="lbl">Copy</span></button></div>
+<pre>node index.js capture config.yaml
+node index.js capture config.yaml --smoke</pre>
+      </div>
+    </section>
 
-<h2>Minimal config</h2>
-<pre><code>name: my-site
+    <section id="config">
+      <h2>Minimal config</h2>
+      <div class="cmd">
+        <div class="cmd-head"><span>config.yaml</span><button class="copy" type="button"><svg class="i idle"><use href="#i-copy"/></svg><svg class="i done"><use href="#i-check"/></svg><span class="lbl">Copy</span></button></div>
+<pre>name: my-site
 baseUrl: https://example.framer.website
 output: ./screenshots/{date}/{viewport}/{page}.png
 deviceScaleFactor: 2
@@ -205,39 +292,81 @@ page:
   path: /
   name: home
 prepare:
-  animations: true     <span style="opacity:.55"># framer-friendly</span>
-  scrollPrime: true    <span style="opacity:.55"># load lazy content</span>
+  animations: true  <span class="c"># framer-friendly</span>
+  scrollPrime: true  <span class="c"># load lazy content</span>
   extraDelay: 500
   hide:
     - 'nav.sticky'
-    - '#consent-banner'</code></pre>
-<p>Template placeholders: <code>{date}</code>, <code>{viewport}</code>, <code>{page}</code>, <code>{time}</code>.</p>
+    - '#consent-banner'</pre>
+      </div>
+      <p>Template placeholders: <code>{date}</code>, <code>{viewport}</code>, <code>{page}</code>, <code>{time}</code>.</p>
+    </section>
 
-<h2>Multi-viewport</h2>
-<p>Use plural <code>viewports:</code> — each <code>name</code> must be unique so <code>{viewport}</code> can&rsquo;t collide:</p>
-<pre><code>viewports:
+    <section id="multi">
+      <h2>Multi-viewport</h2>
+      <p>Use plural <code>viewports:</code> — each <code>name</code> must be unique so <code>{viewport}</code> can&rsquo;t collide:</p>
+      <div class="cmd">
+        <div class="cmd-head"><span>config.yaml</span><button class="copy" type="button"><svg class="i idle"><use href="#i-copy"/></svg><svg class="i done"><use href="#i-check"/></svg><span class="lbl">Copy</span></button></div>
+<pre>viewports:
   - { name: desktop, width: 1440, height: 900 }
-  - { name: mobile,  width: 375,  height: 667 }</code></pre>
-<p><code>viewport:</code> (singular) and <code>viewports:</code> (plural) are mutually exclusive.</p>
+  - { name: mobile,  width: 375,  height: 667 }</pre>
+      </div>
+      <p><code>viewport:</code> (singular) and <code>viewports:</code> (plural) are mutually exclusive.</p>
+    </section>
 
-<h2>Try it now</h2>
-<pre><code>node index.js capture samples/deltaventure.yaml
-<span style="opacity:.55"># → ./screenshots/&lt;today&gt;/desktop/home.png  (~12 MB retina)</span></code></pre>
-<p>Other fixtures in <code>samples/</code>: <code>sample.yaml</code> (annotated), <code>smoke.yaml</code>, <code>smoke-multi.yaml</code>. The smoke fixtures pair with <code>node samples/serve-smoke.js &amp;</code>.</p>
+    <section id="try">
+      <h2>Try it now</h2>
+      <div class="cmd">
+        <div class="cmd-head"><span>Terminal</span><button class="copy" type="button"><svg class="i idle"><use href="#i-copy"/></svg><svg class="i done"><use href="#i-check"/></svg><span class="lbl">Copy</span></button></div>
+<pre>node index.js capture samples/deltaventure.yaml
+<span class="c"># → ./screenshots/&lt;today&gt;/desktop/home.png  (~12 MB retina)</span></pre>
+      </div>
+      <p>Other fixtures in <code>samples/</code>: <code>sample.yaml</code> (annotated), <code>smoke.yaml</code>, <code>smoke-multi.yaml</code>. The smoke fixtures pair with <code>node samples/serve-smoke.js &amp;</code>.</p>
+    </section>
 
-<h2>Errors you might hit</h2>
-<ul>
-  <li><code>baseUrl must use http or https</code> — strip <code>javascript:</code>/<code>file:</code>/<code>data:</code> schemes.</li>
-  <li><code>page.path must start with /</code> — write <code>/</code>, not <code>home</code>.</li>
-  <li><code>viewports: duplicate name '&lt;x&gt;'</code> — viewport names must be unique.</li>
-  <li>Selector warnings are non-fatal — the run continues.</li>
-</ul>
+    <section id="errors">
+      <h2>Errors you might hit</h2>
+      <ul class="errs">
+        <li><svg class="i"><use href="#i-alert"/></svg><span><code>baseUrl must use http or https</code> — strip <code>javascript:</code>/<code>file:</code>/<code>data:</code> schemes.</span></li>
+        <li><svg class="i"><use href="#i-alert"/></svg><span><code>page.path must start with /</code> — write <code>/</code>, not <code>home</code>.</span></li>
+        <li><svg class="i"><use href="#i-alert"/></svg><span><code>viewports: duplicate name '&lt;x&gt;'</code> — viewport names must be unique.</span></li>
+        <li><svg class="i"><use href="#i-info"/></svg><span>Selector warnings are non-fatal — the run continues.</span></li>
+      </ul>
+    </section>
 
-<footer>
-  <span>framershot · local-only by design</span>
-  <span><a href="https://github.com/granqvistsanna-web/frameshot">source</a> · <a href="https://github.com/granqvistsanna-web/frameshot/issues">issues</a></span>
-</footer>
+    <footer>
+      <span class="by">frameshotter · local-only by design</span>
+      <a href="https://github.com/granqvistsanna-web/frameshot"><svg class="i"><use href="#i-github"/></svg>source</a>
+      <a href="https://github.com/granqvistsanna-web/frameshot/issues"><svg class="i"><use href="#i-msg"/></svg>issues</a>
+    </footer>
+  </div>
+</main>
 
-</div>
+<script>
+  (function () {
+    var root = document.documentElement;
+
+    // theme
+    document.querySelector(".theme").addEventListener("click", function () {
+      root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+      try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
+    });
+
+    // copy: the panel's commands, without the grey comments
+    document.querySelectorAll(".copy").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var pre = b.closest(".cmd").querySelector("pre").cloneNode(true);
+        pre.querySelectorAll(".c").forEach(function (c) { c.remove(); });
+        var text = pre.textContent.split("\n").map(function (l) { return l.replace(/\s+$/, ""); }).filter(Boolean).join("\n");
+        navigator.clipboard.writeText(text).then(function () {
+          b.dataset.done = ""; b.querySelector(".lbl").textContent = "Copied";
+          clearTimeout(b.t);
+          b.t = setTimeout(function () { delete b.dataset.done; b.querySelector(".lbl").textContent = "Copy"; }, 1500);
+        }, function () {});
+      });
+    });
+  })();
+</script>
+
 </body>
 </html>
