@@ -181,6 +181,11 @@
     h1 { font-size: 34px; }
     .note { padding: 16px 18px; }
   }
+  @media (max-width: 480px) {
+    /* the Toolbox mascot already leads the bar, so the camera tile goes */
+    .lead { gap: var(--s-3); }
+    .mark i { display: none; }
+  }
   @media (pointer: coarse) {
     .tool { width: var(--h-touch); height: var(--h-touch); }
     .btn, .btn.sm, .copy { height: var(--h-touch); }
