@@ -353,10 +353,17 @@ prepare:
   (function () {
     var root = document.documentElement;
 
-    // theme
-    document.querySelector(".theme").addEventListener("click", function () {
-      root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
-      try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
+    // theme: Pumice's theme switch, the new theme opens as a circle from the toggle (tokens.css draws it)
+    var tb = document.querySelector(".theme");
+    tb.addEventListener("click", function () {
+      var next = root.dataset.theme === "dark" ? "light" : "dark";
+      try { localStorage.setItem("theme", next); } catch (e) {}
+      var flip = function () { root.dataset.theme = next; };
+      if (!document.startViewTransition) return flip();
+      var r = tb.getBoundingClientRect();
+      root.style.setProperty("--vt-x", r.left + r.width / 2 + "px");
+      root.style.setProperty("--vt-y", r.top + r.height / 2 + "px");
+      document.startViewTransition(flip);
     });
 
     // copy: the panel's commands, without the grey comments
