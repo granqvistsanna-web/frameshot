@@ -40,10 +40,11 @@
 
   .wrap {
     margin: 0 auto;
-    padding-left: max(16px, env(safe-area-inset-left, 0px));
-    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
   }
-  .col { margin: 0 auto; }
+  /* the bar runs full width; the docs read in one --w-read column */
+  .col { margin: 0 auto; max-width: var(--w-read); }
 
   /* ---- Bar ---- */
   .bar {
@@ -51,7 +52,7 @@
     background: var(--frost);
     -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px);
   }
-  .bar .wrap { height: 64px; display: flex; align-items: center; gap: var(--s-6); }
+  .bar .wrap { height: var(--h-topbar); display: flex; align-items: center; gap: var(--s-6); }
   .lead { display: flex; align-items: center; gap: var(--s-8); min-width: 0; margin-right: auto; }
   .mark { display: inline-flex; align-items: center; gap: var(--s-4); color: var(--ink); font-weight: 500; font-size: 15px; text-decoration: none; flex: none; }
   .mark i { width: 26px; height: 26px; border-radius: 9px; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; }
